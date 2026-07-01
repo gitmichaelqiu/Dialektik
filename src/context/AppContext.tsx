@@ -34,6 +34,9 @@ interface AppContextType {
   }) => Promise<void>;
   activeMatchName: string;
   activeOpponent: string;
+  pairingRequest: { peerId: string } | null;
+  approvePairingRequest: (peerId: string) => void;
+  declinePairingRequest: () => void;
   hostSession: (code: string, matchName: string, opponent: string) => Promise<void>;
   joinSession: (code: string) => Promise<void>;
   startSession: (code: string, host: boolean) => Promise<void>;
@@ -57,6 +60,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Active debate session details
   const [activeMatchName, setActiveMatchName] = useState("");
   const [activeOpponent, setActiveOpponent] = useState("");
+  const [pairingRequest, setPairingRequest] = useState<{ peerId: string } | null>(null);
 
   // Config states
   const [githubToken, setGithubToken] = useState("");
@@ -104,6 +108,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     meshManager.onConnectionOpen(() => {
       setIsPeerConnected(meshManager.connections.size > 0 || meshManager.isHost);
       setPeersList([...meshManager.peersList]);
+
+      // Client automatically broadcasts a pairing-request to Host
+      if (!meshManager.isHost) {
+        meshManager.broadcast({
+          type: "pairing-request",
+          version: meshManager.appVersion,
+          senderId: meshManager.peerId
+        });
+      }
     });
 
     meshManager.onConnectionClose(() => {
@@ -120,6 +133,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (details) {
         setActiveMatchName(details.matchName);
         setActiveOpponent(details.opponent);
+      }
+    });
+
+    // WebRTC connection listeners for auto key-pairing sync
+    meshManager.onMessage((senderId, msg) => {
+      if (msg.type === "pairing-request") {
+        if (meshManager.isHost) {
+          setPairingRequest({ peerId: senderId });
+        }
+      } else if (msg.type === "vault-sync") {
+        if (!meshManager.isHost && msg.payload) {
+          const { githubToken: tok, githubOwner: own, githubRepo: rep, passphrase: pass } = msg.payload;
+          
+          initializeCrypto(pass).then((success) => {
+            if (success) {
+              saveSettings({
+                githubToken: tok,
+                githubOwner: own,
+                githubRepo: rep
+              }).then(() => {
+                alert("Vault sync successful! Local database is now securely linked with Host.");
+              });
+            }
+          });
+        }
       }
     });
   }, []);
@@ -225,6 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPeersList([]);
     setActiveMatchName("");
     setActiveOpponent("");
+    setPairingRequest(null);
     meshManager.matchDetails = null;
   };
 
@@ -237,6 +276,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const joinSession = async (code: string) => {
     await startSession(code, false);
+  };
+
+  const approvePairingRequest = (peerId: string) => {
+    meshManager.sendToPeer(peerId, {
+      type: "vault-sync",
+      version: meshManager.appVersion,
+      senderId: meshManager.peerId,
+      payload: {
+        githubToken,
+        githubOwner,
+        githubRepo,
+        passphrase
+      }
+    });
+    setPairingRequest(null);
+  };
+
+  const declinePairingRequest = () => {
+    setPairingRequest(null);
   };
 
   /**
@@ -275,6 +333,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         aiModel,
         activeMatchName,
         activeOpponent,
+        pairingRequest,
+        approvePairingRequest,
+        declinePairingRequest,
         hostSession,
         joinSession,
         mesh: meshManager,

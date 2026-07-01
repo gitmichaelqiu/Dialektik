@@ -22,7 +22,10 @@ function AppContent() {
     setActivePage, 
     isPeerConnected, 
     isGitConnected, 
-    roomCode 
+    roomCode,
+    pairingRequest,
+    approvePairingRequest,
+    declinePairingRequest
   } = useApp();
 
   return (
@@ -166,6 +169,36 @@ function AppContent() {
           {activePage === "settings" && <Settings />}
         </div>
       </main>
+
+      {/* P2P Vault Key Approval Modal */}
+      {pairingRequest && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 text-center">
+            <CloudLightning className="mx-auto text-indigo-400 animate-bounce" size={32} />
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-white">Partner Vault Sync Request</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                A debate partner (Peer: <span className="font-mono text-indigo-300 font-bold">{pairingRequest.peerId.substring(0, 10)}...</span>) is connecting. 
+                Allow them to securely synchronize your private case encryption vault and GitHub keys over WebRTC?
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => approvePairingRequest(pairingRequest.peerId)}
+                className="flex-grow bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-lg transition-colors"
+              >
+                Approve & Share Keys
+              </button>
+              <button
+                onClick={declinePairingRequest}
+                className="flex-grow bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2.5 rounded-lg transition-colors border border-slate-700"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

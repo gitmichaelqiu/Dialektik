@@ -5,7 +5,7 @@ export const APP_VERSION = "0.1.0";
 const ROOM_PREFIX = "dialektik-room-";
 
 export interface PeerMessage {
-  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject";
+  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync";
   version?: string;
   senderId: string;
   payload?: any;
@@ -255,6 +255,16 @@ export class PeerMeshManager {
       if (conn.open) {
         conn.send(msg);
       }
+    }
+  }
+
+  /**
+   * Send a packet to a specific peer in the mesh.
+   */
+  public sendToPeer(peerId: string, msg: PeerMessage) {
+    const conn = this.connections.get(peerId);
+    if (conn && conn.open) {
+      conn.send(msg);
     }
   }
 
