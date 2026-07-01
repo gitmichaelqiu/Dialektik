@@ -195,56 +195,115 @@ export const Documents: React.FC = () => {
     }
   };
 
+// React component to render Markdown blocks (headings, lists, quotes, inline bold/italics/code)
+interface MarkdownRendererProps {
+  content: string;
+  cards: EvidenceCard[];
+}
+
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards }) => {
+  const parts = content.split(/(\[\[card-[a-f0-9]{16}\]\])/g);
+
+  const renderInlineStyle = (text: string) => {
+    let escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
+    escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
+    escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
+    escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-900 px-1 py-0.5 rounded font-mono text-indigo-300 text-[10px]'>$1</code>");
+
+    return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
+  };
+
+  return (
+    <div className="prose prose-invert max-w-none text-slate-350 text-xs leading-relaxed font-sans p-6 bg-slate-950/40 rounded-xl min-h-[400px] border border-slate-800 space-y-4">
+      {parts.map((part, index) => {
+        const match = part.match(/\[\[(card-[a-f0-9]{16})\]\]/);
+        if (match) {
+          const cid = match[1];
+          const referencedCard = cards.find(c => c.id === cid);
+
+          if (referencedCard) {
+            return (
+              <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
+                <span className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded cursor-help font-semibold text-[10px] transition-colors hover:bg-emerald-600/20">
+                  Cite: {referencedCard.title}
+                </span>
+                {/* Reference Popover */}
+                <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-slate-950 border border-slate-800 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <strong className="text-white font-bold">{referencedCard.title}</strong>
+                    <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
+                      <ShieldCheck size={11} /> HASH OK
+                    </span>
+                  </div>
+                  <p className="text-slate-400 italic line-clamp-3">"{referencedCard.text}"</p>
+                  <div className="flex items-center justify-between pt-1 text-[9px] text-slate-500">
+                    <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
+                    {referencedCard.sourceUrl && (
+                      <span className="flex items-center gap-0.5 text-indigo-400">
+                        Link <ExternalLink size={8} />
+                      </span>
+                    )}
+                  </div>
+                </span>
+              </span>
+            );
+          } else {
+            return (
+              <span key={index} className="bg-rose-600/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle select-none">
+                Missing Card: {cid}
+              </span>
+            );
+          }
+        }
+
+        const lines = part.split("\n");
+        return (
+          <div key={index} className="inline space-y-2">
+            {lines.map((line, lineIdx) => {
+              if (line.startsWith("### ")) {
+                return <h3 key={lineIdx} className="text-xs font-bold text-slate-100 mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
+              }
+              if (line.startsWith("## ")) {
+                return <h2 key={lineIdx} className="text-sm font-bold text-white mt-5 mb-2 border-b border-slate-850 pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
+              }
+              if (line.startsWith("# ")) {
+                return <h1 key={lineIdx} className="text-base font-extrabold text-white mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
+              }
+              if (line.startsWith("- ") || line.startsWith("* ")) {
+                return (
+                  <ul key={lineIdx} className="list-disc list-inside pl-4 text-slate-350 my-1 block">
+                    <li>{renderInlineStyle(line.substring(2))}</li>
+                  </ul>
+                );
+              }
+              if (line.startsWith("> ")) {
+                return (
+                  <blockquote key={lineIdx} className="border-l-2 border-slate-700 pl-4 italic text-slate-400 my-2 block">
+                    {renderInlineStyle(line.substring(2))}
+                  </blockquote>
+                );
+              }
+              if (!line.trim()) {
+                return <div key={lineIdx} className="h-2 block" />;
+              }
+              return <span key={lineIdx} className="block my-1">{renderInlineStyle(line)}</span>;
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
   // Helper to parse content and render card link overlays in evidence check mode
   const renderCheckMode = () => {
-    // Regex looking for [[card-id]]
-    const parts = editorContent.split(/(\[\[card-[a-f0-9]{16}\]\])/g);
-    return (
-      <div className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans p-4 bg-slate-950/40 rounded-lg min-h-[400px] border border-slate-800">
-        {parts.map((part, index) => {
-          const match = part.match(/\[\[(card-[a-f0-9]{16})\]\]/);
-          if (match) {
-            const cid = match[1];
-            const referencedCard = cards.find(c => c.id === cid);
-
-            if (referencedCard) {
-              return (
-                <span key={index} className="inline-block group relative">
-                  <span className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded cursor-help font-semibold text-xs transition-colors hover:bg-emerald-600/20">
-                    Cite: {referencedCard.title}
-                  </span>
-                  {/* Reference Popover */}
-                  <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-slate-950 border border-slate-800 p-4 rounded-xl shadow-2xl text-xs space-y-2 pointer-events-none">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                      <strong className="text-white font-bold">{referencedCard.title}</strong>
-                      <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold tracking-wider">
-                        <ShieldCheck size={12} /> HASH OK
-                      </span>
-                    </div>
-                    <p className="text-slate-400 italic line-clamp-3">"{referencedCard.text}"</p>
-                    <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500">
-                      <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
-                      {referencedCard.sourceUrl && (
-                        <span className="flex items-center gap-0.5 text-indigo-400">
-                          Link <ExternalLink size={8} />
-                        </span>
-                      )}
-                    </div>
-                  </span>
-                </span>
-              );
-            } else {
-              return (
-                <span key={index} className="bg-rose-600/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-mono text-xs">
-                  Missing Card: {cid}
-                </span>
-              );
-            }
-          }
-          return part;
-        })}
-      </div>
-    );
+    return <MarkdownRenderer content={editorContent} cards={cards} />;
   };
 
   return (
