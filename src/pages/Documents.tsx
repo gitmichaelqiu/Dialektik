@@ -25,7 +25,7 @@ async function computeSHA256(text: string): Promise<string> {
 }
 
 export const Documents: React.FC = () => {
-  const { isPeerConnected, mesh } = useApp();
+  const { isPeerConnected, mesh, isKeyDerived } = useApp();
 
   const [docs, setDocs] = useState<DebateDocument[]>([]);
   const [cards, setCards] = useState<EvidenceCard[]>([]);
@@ -498,6 +498,17 @@ export const Documents: React.FC = () => {
               ))}
             </div>
           ))}
+        </div>
+
+        {/* Vault status block at bottom left of document tab */}
+        <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mt-auto space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
+            <ShieldCheck size={13} className={isKeyDerived ? "text-emerald-600" : "text-rose-500"} />
+            <span>Case Encryption Vault</span>
+          </div>
+          <p className="text-[9px] text-slate-500 leading-relaxed">
+            {isKeyDerived ? "Decryption key derived. Private cases are secure." : "Vault is locked. Configure settings to unlock."}
+          </p>
         </div>
       </aside>
 

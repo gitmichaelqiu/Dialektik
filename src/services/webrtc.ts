@@ -218,6 +218,11 @@ export class PeerMeshManager {
       for (const cb of this.onConnectionOpenCallbacks) {
         cb(msg.senderId, conn);
       }
+
+      // Forward handshake to general message callbacks so components register links
+      for (const cb of this.onMessageCallbacks) {
+        cb(msg.senderId, msg);
+      }
     } else if (msg.type === "version-reject") {
       console.error("Connection rejected due to version mismatch");
       conn.close();

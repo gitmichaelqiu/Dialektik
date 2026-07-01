@@ -17,7 +17,8 @@ import {
   UserX,
   FileText,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from "lucide-react";
 
 export const InRound: React.FC = () => {
@@ -101,7 +102,15 @@ export const InRound: React.FC = () => {
       roomCode: code,
       status: "lobby",
       handout: { title: "", problem: "", details: "" },
-      debaters: [],
+      debaters: [
+        {
+          id: mesh.peerId,
+          name: userName,
+          status: "approved",
+          team: "affirmative",
+          position: 1
+        }
+      ],
       speakerNotes: {},
       speechDuration: 240,
       prepDuration: 180
@@ -535,7 +544,27 @@ export const InRound: React.FC = () => {
         </div>
       )}
 
-      {isRoundStarted && session ? (
+      {isRoundStarted && !session ? (
+        /* ------------------ CONNECTING LOADER SCREEN ------------------ */
+        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center bg-white border border-slate-300 rounded-xl shadow-xs">
+          <div className="flex flex-col items-center justify-center space-y-5 max-w-sm">
+            <RefreshCw size={36} className="text-[#2f5d62] animate-spin" />
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-slate-800">Connecting to Room Lobby...</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Establishing secure WebRTC peer channel and awaiting Host approval request decision...
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExitSession}
+              className="command danger-command inline-danger text-xs px-4 py-2 mt-2"
+            >
+              Cancel Connection
+            </button>
+          </div>
+        </div>
+      ) : isRoundStarted && session ? (
         /* ------------------ ACTIVE LIVE DEBATE ROUND SECTION ------------------ */
         <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
           
