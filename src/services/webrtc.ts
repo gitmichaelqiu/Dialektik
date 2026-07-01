@@ -26,7 +26,7 @@ export class PeerMeshManager {
   public isHost: boolean = false;
   public peersList: string[] = []; // list of all peer IDs in the mesh
   public appVersion: string = APP_VERSION;
-  public matchDetails: { matchName: string; opponent: string; side: string } | null = null;
+  public matchDetails: { matchName: string; opponent: string } | null = null;
 
   private onConnectionOpenCallbacks: ConnectionCallback[] = [];
   private onConnectionCloseCallbacks: ((peerId: string) => void)[] = [];

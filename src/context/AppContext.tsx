@@ -34,9 +34,7 @@ interface AppContextType {
   }) => Promise<void>;
   activeMatchName: string;
   activeOpponent: string;
-  activeSide: "affirmative" | "negative";
-  setActiveSide: (side: "affirmative" | "negative") => void;
-  hostSession: (code: string, matchName: string, opponent: string, side: "affirmative" | "negative") => Promise<void>;
+  hostSession: (code: string, matchName: string, opponent: string) => Promise<void>;
   joinSession: (code: string) => Promise<void>;
   startSession: (code: string, host: boolean) => Promise<void>;
   endSession: () => void;
@@ -59,7 +57,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Active debate session details
   const [activeMatchName, setActiveMatchName] = useState("");
   const [activeOpponent, setActiveOpponent] = useState("");
-  const [activeSide, setActiveSide] = useState<"affirmative" | "negative">("affirmative");
 
   // Config states
   const [githubToken, setGithubToken] = useState("");
@@ -123,7 +120,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (details) {
         setActiveMatchName(details.matchName);
         setActiveOpponent(details.opponent);
-        setActiveSide(details.side);
       }
     });
   }, []);
@@ -229,15 +225,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPeersList([]);
     setActiveMatchName("");
     setActiveOpponent("");
-    setActiveSide("affirmative");
     meshManager.matchDetails = null;
   };
 
-  const hostSession = async (code: string, matchName: string, opponent: string, side: "affirmative" | "negative") => {
+  const hostSession = async (code: string, matchName: string, opponent: string) => {
     setActiveMatchName(matchName);
     setActiveOpponent(opponent);
-    setActiveSide(side);
-    meshManager.matchDetails = { matchName, opponent, side };
+    meshManager.matchDetails = { matchName, opponent };
     await startSession(code, true);
   };
 
@@ -281,8 +275,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         aiModel,
         activeMatchName,
         activeOpponent,
-        activeSide,
-        setActiveSide,
         hostSession,
         joinSession,
         mesh: meshManager,

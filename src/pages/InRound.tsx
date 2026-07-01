@@ -40,7 +40,6 @@ export const InRound: React.FC = () => {
     aiModel,
     activeMatchName,
     activeOpponent,
-    activeSide,
     roomCode,
     endSession
   } = useApp();
@@ -50,6 +49,7 @@ export const InRound: React.FC = () => {
   // Local state
   const [showWizard, setShowWizard] = useState(false);
   const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
+  const [mySide, setMySide] = useState<"affirmative" | "negative">("affirmative");
 
   // Flows state
   const [flows, setFlows] = useState<Record<string, { notes: string; draftStatus: "draft" | "accepted" }>>({});
@@ -268,7 +268,7 @@ export const InRound: React.FC = () => {
       id: `record-${Math.random().toString(36).substring(2, 11)}`,
       matchName: activeMatchName,
       speechOrder: PF_SPEECHES.map((s) => s.id),
-      sides: activeSide,
+      sides: mySide,
       opponentName: activeOpponent || "Unknown Opponent",
       winLoss: result,
       flows: Object.entries(flows).map(([speechId, data]) => ({
@@ -301,13 +301,21 @@ export const InRound: React.FC = () => {
         <>
           {/* 1. Header Configurations & Timers Panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 bg-slate-950 p-4 border border-slate-800 rounded-xl">
-            {/* Active Round Info */}
             <div className="flex flex-col justify-between h-full space-y-2">
               <div>
                 <h4 className="text-sm font-bold text-white truncate">{activeMatchName}</h4>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  Vs. {activeOpponent || "Unknown Opponent"} | Side: <span className="text-indigo-400 font-bold capitalize">{activeSide}</span>
-                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Vs. {activeOpponent || "Unknown Opponent"}
+                  </span>
+                  <span className="text-slate-600">|</span>
+                  <button 
+                    onClick={() => setMySide(prev => prev === "affirmative" ? "negative" : "affirmative")}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold capitalize bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded transition-all"
+                  >
+                    My Side: {mySide === "affirmative" ? "Aff (Pro)" : "Neg (Con)"}
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button

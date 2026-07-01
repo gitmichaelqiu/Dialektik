@@ -19,7 +19,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
   // Host inputs
   const [matchName, setMatchName] = useState("");
   const [opponent, setOpponent] = useState("");
-  const [side, setSide] = useState<"affirmative" | "negative">("affirmative");
+
 
   // Client inputs
   const [code, setCode] = useState("");
@@ -58,7 +58,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
     setGeneratedCode(randomCode);
     
     try {
-      await hostSession(randomCode, matchName, opponent, side);
+      await hostSession(randomCode, matchName, opponent);
       setStep(3);
     } catch (err) {
       console.error(err);
@@ -182,33 +182,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-400 font-medium">Select Debate Side</label>
-                <div className="bg-slate-950 p-1 rounded-lg border border-slate-850 flex">
-                  <button
-                    type="button"
-                    onClick={() => setSide("affirmative")}
-                    className={`flex-1 py-2 rounded-md text-xs font-bold transition-all ${
-                      side === "affirmative" 
-                        ? "bg-indigo-600 text-white shadow" 
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    Affirmative (Pro)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSide("negative")}
-                    className={`flex-1 py-2 rounded-md text-xs font-bold transition-all ${
-                      side === "negative" 
-                        ? "bg-indigo-600 text-white shadow" 
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    Negative (Con)
-                  </button>
-                </div>
-              </div>
+
 
               <button
                 type="submit"
