@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useApp } from "../context/AppContext";
 import { db, type PracticeSession } from "../services/db";
+import { AIService } from "../services/ai";
 import { Bot, User, Play, MessageSquare, Award, RefreshCw, Send, ArrowRight } from "lucide-react";
 
 export const Practice: React.FC = () => {
+  const { aiApiKey, aiEndpoint, aiModel } = useApp();
   const [topic, setTopic] = useState("");
   const [side, setSide] = useState<"affirmative" | "negative">("affirmative");
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -70,46 +73,79 @@ export const Practice: React.FC = () => {
     setUserInput("");
     setIsLoading(true);
 
-    // Simulated AI response for sparring UI.
-    // In Phase 7 we will integrate the actual OpenAI API.
-    setTimeout(async () => {
+    try {
+      let aiResponseText = "";
+      let scorecardEval = activeSession.scorecard;
+
+      if (aiApiKey) {
+        const ai = new AIService({
+          apiKey: aiApiKey,
+          endpoint: aiEndpoint,
+          model: aiModel
+        });
+
+        // 1. Get AI response for sparring
+        aiResponseText = await ai.sparringPartner(
+          activeSession.topic,
+          activeSession.side,
+          updatedMsgs
+        );
+
+        // 2. Perform speech evaluation to get updated scorecard
+        const combinedMsgs = [...updatedMsgs, { role: "ai", text: aiResponseText, timestamp: Date.now() }];
+        try {
+          scorecardEval = await ai.evaluateSpeech(
+            activeSession.topic,
+            activeSession.side,
+            combinedMsgs
+          );
+        } catch (evalErr) {
+          console.warn("Failed to generate real AI scorecard, retaining previous or fallback", evalErr);
+        }
+      } else {
+        // Fallback simulated response
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        aiResponseText = `Thank you for your constructive speech. On the point regarding ${topic.substring(0, 15)}..., you suggest a positive outcome, but you fail to account for structural roadblocks. Specifically, how do you mitigate the risk of high implementation friction? Overlooking this renders the solvency argument moot. Your turn for rebuttal!`;
+        if (updatedMsgs.filter(m => m.role === "user").length >= 1) {
+          scorecardEval = {
+            score: 82,
+            strengths: [
+              "Clear articulation of topic contention",
+              "Effective referencing of structural factors"
+            ],
+            weaknesses: [
+              "Lacks specific empirical evidence on trade offset",
+              "Minor structural padding in intro"
+            ],
+            suggestions: [
+              "Integrate a concrete card citation regarding implementation offset",
+              "Reduce intro length to preserve time for contentions"
+            ]
+          };
+        }
+      }
+
       const aiMsg = {
         role: "ai" as const,
-        text: `Thank you for your constructive speech. On the point regarding ${topic.substring(0, 15)}..., you suggest a positive outcome, but you fail to account for structural roadblocks. Specifically, how do you mitigate the risk of high implementation friction? Overlooking this renders the solvency argument moot. Your turn for rebuttal!`,
+        text: aiResponseText,
         timestamp: Date.now()
       };
 
       const finalMsgs = [...updatedMsgs, aiMsg];
       setMessages(finalMsgs);
 
-      // Auto generate simulated scorecard evaluation on 2nd speech exchange
-      let scorecard = activeSession.scorecard;
-      if (finalMsgs.filter(m => m.role === "user").length >= 1) {
-        scorecard = {
-          score: 82,
-          strengths: [
-            "Clear articulation of topic contention",
-            "Effective referencing of structural factors"
-          ],
-          weaknesses: [
-            "Lacks specific empirical evidence on trade offset",
-            "Minor structural padding in intro"
-          ],
-          suggestions: [
-            "Integrate a concrete card citation regarding implementation offset",
-            "Reduce intro length to preserve time for contentions"
-          ]
-        };
-      }
-
       await db.practice_sessions.update(activeSession.id, {
         transcripts: finalMsgs,
-        scorecard
+        scorecard: scorecardEval
       });
 
-      setActiveSession(prev => prev ? { ...prev, transcripts: finalMsgs, scorecard } : null);
+      setActiveSession(prev => prev ? { ...prev, transcripts: finalMsgs, scorecard: scorecardEval } : null);
+    } catch (err: any) {
+      console.error("Sparring request failed:", err);
+      alert(`Sparring request failed: ${err.message}`);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (

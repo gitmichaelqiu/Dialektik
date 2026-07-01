@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { db, type TournamentRecord } from "../services/db";
 import { DebateTimer } from "../services/timers";
+import { AIService } from "../services/ai";
 import { 
   Play, 
   Pause, 
@@ -26,7 +27,7 @@ const PF_SPEECHES = [
 ];
 
 export const InRound: React.FC = () => {
-  const { isPeerConnected, mesh } = useApp();
+  const { isPeerConnected, mesh, aiApiKey, aiEndpoint, aiModel } = useApp();
 
 
   // Match configurations
@@ -185,16 +186,43 @@ export const InRound: React.FC = () => {
     }));
   };
 
-  // AI Outlining Auto-Fill Simulation (Draft mode)
-  const triggerAIOutlining = () => {
-    // Summarizes cases to construct flow notes
-    setFlows((prev) => ({
-      ...prev,
-      "1AC": {
-        notes: "**[AI DRAFT OUTLINE]**\n- **Contention 1: Economic Recovery**\n  - Trade tariffs trigger global supply chain blocks.\n  - Cites: Smith 2024 (Economy)\n- **Contention 2: Carbon Neutrality**\n  - Green subsidies trigger clean innovation shift.",
-        draftStatus: "draft"
+  // AI Outlining Auto-Fill
+  const triggerAIOutlining = async () => {
+    try {
+      const cases = await db.documents.where("type").equals("case").toArray();
+      if (cases.length === 0) {
+        alert("No case documents found. Please draft a constructive case in the Shared Documents tab first!");
+        return;
       }
-    }));
+
+      // Sort to get the latest modified case
+      cases.sort((a, b) => b.lastModified - a.lastModified);
+      const latestCase = cases[0];
+
+      let notesText = "";
+      if (aiApiKey) {
+        const ai = new AIService({
+          apiKey: aiApiKey,
+          endpoint: aiEndpoint,
+          model: aiModel
+        });
+        notesText = await ai.autoFillFlowTable(latestCase.content);
+      } else {
+        // Mock fallback if API Key is not set
+        notesText = `**[AI DRAFT OUTLINE - MOCK FALLBACK]**\n- **Case Outline for: ${latestCase.name}**\n- **Contention 1: Economic Recovery**\n  - Trade tariffs trigger global supply chain blocks.\n  - Cites: Smith 2024 (Economy)\n- **Contention 2: Carbon Neutrality**\n  - Green subsidies trigger clean innovation shift.`;
+      }
+
+      setFlows((prev) => ({
+        ...prev,
+        [activeSpeech]: {
+          notes: notesText,
+          draftStatus: "draft"
+        }
+      }));
+    } catch (err: any) {
+      console.error("AI Outlining failed:", err);
+      alert(`AI Outlining failed: ${err.message}`);
+    }
   };
 
   const acceptAIDraft = (speechId: string) => {
