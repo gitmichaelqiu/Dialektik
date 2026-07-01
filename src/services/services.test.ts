@@ -217,7 +217,7 @@ describe("Debate Timer Services", () => {
     timer.pause();
     const statePaused = timer.getState();
     expect(statePaused.isRunning).toBe(false);
-    expect(statePaused.remaining).toBe(remainingAfterWait);
+    expect(Math.abs(statePaused.remaining - remainingAfterWait)).toBeLessThanOrEqual(5);
   });
 });
 

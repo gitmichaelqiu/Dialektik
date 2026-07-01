@@ -32,6 +32,7 @@ export const Settings: React.FC = () => {
   // Status hooks
   const [isCopied, setIsCopied] = useState(false);
   const [isCryptoLoading, setIsCryptoLoading] = useState(false);
+  const [importJson, setImportJson] = useState("");
 
   const handleCryptoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,8 +69,9 @@ export const Settings: React.FC = () => {
     try {
       // Create fallback configuration payload
       const configPayload = {
-        owner: githubOwner,
-        repo: githubRepo,
+        githubOwner: githubOwner,
+        githubRepo: githubRepo,
+        githubToken: githubToken,
         passphrase: passphrase
       };
       await navigator.clipboard.writeText(JSON.stringify(configPayload));
@@ -77,6 +79,47 @@ export const Settings: React.FC = () => {
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
       console.error("Clipboard copy failed", err);
+    }
+  };
+
+  const handleImportConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!importJson.trim()) return;
+
+    try {
+      const config = JSON.parse(importJson.trim());
+      
+      if (!config.passphrase) {
+        alert("Invalid configuration JSON: missing passphrase.");
+        return;
+      }
+
+      setIsCryptoLoading(true);
+      const success = await initializeCrypto(config.passphrase);
+      
+      if (success) {
+        await saveSettings({
+          githubToken: config.githubToken || "",
+          githubOwner: config.githubOwner || "",
+          githubRepo: config.githubRepo || ""
+        });
+
+        // Update input states
+        setPwdInput(config.passphrase);
+        setGitTokenInput(config.githubToken || "");
+        setGitOwnerInput(config.githubOwner || "");
+        setGitRepoInput(config.githubRepo || "");
+
+        alert("Partner configuration successfully imported! Encryption keys and GitHub sync derived.");
+        setImportJson("");
+      } else {
+        alert("Failed to derive encryption key from imported passphrase.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Failed to parse configuration: ${err.message}`);
+    } finally {
+      setIsCryptoLoading(false);
     }
   };
 
@@ -139,14 +182,39 @@ export const Settings: React.FC = () => {
           If your partner needs access, copy the encrypted vault setup JSON below. They can paste this in their settings to initialize the identical sync repository and AES keys.
         </p>
 
-        <button
-          onClick={handleCopyPartnerKey}
-          disabled={!isKeyDerived}
-          className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 disabled:opacity-40 text-slate-200 text-xs font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2"
-        >
-          {isCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-          {isCopied ? "Config Copied!" : "Copy Vault Configuration JSON"}
-        </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-300">Export Configuration</h4>
+            <button
+              onClick={handleCopyPartnerKey}
+              disabled={!isKeyDerived}
+              className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 disabled:opacity-40 text-slate-200 text-xs font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2"
+            >
+              {isCopied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+              {isCopied ? "Config Copied!" : "Copy Vault Configuration JSON"}
+            </button>
+          </div>
+
+          <form onSubmit={handleImportConfig} className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-300">Import Partner Configuration</h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                placeholder="Paste Vault JSON here..."
+                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-750 focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={!importJson.trim()}
+                className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-850 text-white text-xs font-semibold px-4 rounded-lg transition-colors shrink-0"
+              >
+                Import
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
 
       {/* 4. GitHub Sync & Repository Configuration */}
