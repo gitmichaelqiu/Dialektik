@@ -467,7 +467,7 @@ h2 {
 .documents-layout,
 .ai-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
   gap: 16px;
   min-height: calc(100vh - 48px);
 }
@@ -538,7 +538,7 @@ h2 {
 
 .editor-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 112px 112px repeat(3, 38px) 116px auto;
+  grid-template-columns: minmax(180px, 1fr) 112px 112px 38px 116px;
   padding: 14px 16px 0;
   color: #51605c;
   font-weight: 700;
@@ -577,6 +577,52 @@ h2 {
   margin-bottom: 12px;
 }
 
+.wiki-link-menu {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 20;
+  display: grid;
+  width: min(320px, calc(100% - 36px));
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #a8b8b1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(19, 30, 29, 0.16);
+}
+
+.wiki-link-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #20302e;
+  font-size: 0.76rem;
+  text-align: left;
+}
+
+.wiki-link-menu button:hover {
+  background: #e1e9e0;
+}
+
+.wiki-link-menu span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-link-empty {
+  padding: 8px;
+  color: #61706b;
+  font-size: 0.76rem;
+}
+
 .list-line::before {
   content: "- ";
 }
@@ -607,6 +653,39 @@ h2 {
   border-top: 1px solid #ccd3ca;
   color: #51605c;
   font-size: 0.82rem;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(24, 32, 32, 0.35);
+}
+
+.confirm-dialog {
+  width: min(360px, 100%);
+  padding: 18px;
+  border: 1px solid #ccd3ca;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(19, 30, 29, 0.22);
+}
+
+.confirm-dialog p {
+  margin-top: 8px;
+  color: #51605c;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
 }
 
 .conversation {

@@ -51,6 +51,8 @@ export const InRound: React.FC = () => {
   // Handshake approval list (for Host to approve/reject clients)
   const [pendingRequests, setPendingRequests] = useState<Debater[]>([]);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+  const [pendingWinner, setPendingWinner] = useState<"affirmative" | "negative" | null>(null);
 
   // Timers state
   const [timerRemaining, setTimerRemaining] = useState(240000);
@@ -73,16 +75,22 @@ export const InRound: React.FC = () => {
   const [localActiveSpeakerId, setLocalActiveSpeakerId] = useState<string | null>(null);
   const [showPositionsOnly, setShowPositionsOnly] = useState(false);
 
-  // Helper to broadcast session-state, stripping handouts in lobby phase
+  const sanitizeSessionForBroadcast = (state: SessionState): SessionState => ({
+    ...state,
+    speakerNotes: {}
+  });
+
+  // Helper to broadcast session-state, stripping private notes and lobby handouts
   const broadcastSessionState = (state: SessionState) => {
+    const broadcastState = sanitizeSessionForBroadcast(state);
     if (state.status === "lobby") {
       const strippedState: SessionState = {
-        ...state,
+        ...broadcastState,
         handout: { title: "", problem: "", details: "" }
       };
       mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: strippedState });
     } else {
-      mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: state });
+      mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: broadcastState });
     }
   };
 
@@ -178,12 +186,12 @@ export const InRound: React.FC = () => {
 
     debateTimerRef.current.onEnd(() => {
       setIsTimerRunning(false);
-      alert("Speech time expired!");
+      triggerToast("Speech time expired.");
     });
 
     prepTimerRef.current.onEnd(() => {
       setIsPrepRunning(false);
-      alert("Prep time expired!");
+      triggerToast("Prep time expired.");
     });
 
     // Restore timer remaining and running states on tab mount
@@ -227,7 +235,10 @@ export const InRound: React.FC = () => {
         // Client receives synced session state
         if (!isHost) {
           const syncedSession: SessionState = msg.payload;
-          setSession(syncedSession);
+          setSession(prev => ({
+            ...syncedSession,
+            speakerNotes: prev?.speakerNotes || {}
+          }));
 
           // Update durations if changed
           if (debateTimerRef.current && syncedSession.speechDuration !== debateTimerRef.current.getState().duration / 1000) {
@@ -466,13 +477,11 @@ export const InRound: React.FC = () => {
       }
     };
     setSession(nextSession);
-    // Broadcast edits to partner
-    broadcastSessionState(nextSession);
   };
 
   // AI Outlining fill notes
   const handleAIOutlineFill = async () => {
-    if (!session || !session.currentSpeakerId) return;
+    if (!session || !activeSpeakerId) return;
     try {
       const allDocs = await db.documents.toArray();
       const cases = allDocs.filter(d => (d.partnerAccess || "private") === "private");
@@ -503,9 +512,14 @@ export const InRound: React.FC = () => {
   };
 
   // Host ends round, saves logs
-  const handleEndRound = async (winner: "affirmative" | "negative") => {
+  const requestEndRound = (winner: "affirmative" | "negative") => {
+    setPendingWinner(winner);
+  };
+
+  const confirmEndRound = async () => {
+    const winner = pendingWinner;
     if (!session) return;
-    if (!window.confirm(`Are you sure you want to end this debate round and record ${winner.toUpperCase()} as winner?`)) return;
+    if (!winner) return;
 
     // Archive session logs into Dexie history store
     const roundRecord: TournamentRecord = {
@@ -532,17 +546,21 @@ export const InRound: React.FC = () => {
     broadcastSessionState(nextSession);
 
     triggerToast("Session saved! Redirecting to history...");
+    setPendingWinner(null);
     endSession();
     setActivePage("history");
   };
 
   // Exit lobby
   const handleExitSession = () => {
-    if (window.confirm("Exit this round and disconnect from room?")) {
-      endSession();
-      setSession(null);
-      triggerToast("Exited session.");
-    }
+    setExitConfirmOpen(true);
+  };
+
+  const confirmExitSession = () => {
+    endSession();
+    setSession(null);
+    setExitConfirmOpen(false);
+    triggerToast("Exited session.");
   };
 
   // Format countdowns
@@ -565,6 +583,40 @@ export const InRound: React.FC = () => {
       {toastNotification && (
         <div className="toast" role="status">
           {toastNotification}
+        </div>
+      )}
+
+      {exitConfirmOpen && (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="exit-session-title">
+          <div className="confirm-dialog">
+            <h2 id="exit-session-title">Exit Session?</h2>
+            <p>Disconnect from the current room and return to the start screen.</p>
+            <div className="confirm-actions">
+              <button type="button" className="command" onClick={() => setExitConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="command danger-command inline-danger" onClick={confirmExitSession}>
+                Exit Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingWinner && (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="end-round-title">
+          <div className="confirm-dialog">
+            <h2 id="end-round-title">End Debate?</h2>
+            <p>Record {pendingWinner.toUpperCase()} as the winner and save this round to history.</p>
+            <div className="confirm-actions">
+              <button type="button" className="command" onClick={() => setPendingWinner(null)}>
+                Cancel
+              </button>
+              <button type="button" className="command primary" onClick={confirmEndRound}>
+                Save Round
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -617,7 +669,7 @@ export const InRound: React.FC = () => {
               {isHost && session.status === "active" && (
                 <div className="flex gap-2">
                   <select 
-                    onChange={(e) => handleEndRound(e.target.value as any)} 
+                    onChange={(e) => requestEndRound(e.target.value as any)} 
                     defaultValue=""
                     className="bg-white text-xs border border-slate-300 rounded-lg px-2"
                   >
@@ -970,9 +1022,9 @@ export const InRound: React.FC = () => {
                   <textarea
                     value={currentSpeakerNotes}
                     onChange={(e) => handleUpdateSpeakerNote(e.target.value)}
-                    disabled={!session.currentSpeakerId}
+                    disabled={!activeSpeakerId}
                     placeholder={
-                      session.currentSpeakerId 
+                      activeSpeakerId 
                         ? `Type markdown notes for ${currentSpeaker?.name}...` 
                         : "Select an active speaker to log speech notes..."
                     }

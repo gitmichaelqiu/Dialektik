@@ -199,7 +199,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else if (msg.type === "session-state") {
         if (!meshManager.isHost && msg.payload) {
-          setSession(msg.payload);
+          setSession(prev => ({
+            ...msg.payload,
+            speakerNotes: prev?.speakerNotes || {}
+          }));
         }
       }
     });

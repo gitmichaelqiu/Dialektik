@@ -40,6 +40,13 @@ export const Documents: React.FC = () => {
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [editorMode, setEditorMode] = useState<"edit" | "read">("edit");
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const [linkMenu, setLinkMenu] = useState<{ visible: boolean; query: string; start: number; end: number }>({
+    visible: false,
+    query: "",
+    start: 0,
+    end: 0
+  });
 
   // Evidence card form
   const [cardTitle, setCardTitle] = useState("");
@@ -59,7 +66,14 @@ export const Documents: React.FC = () => {
   async function loadDocs() {
     const allDocs = await db.documents.toArray();
     setDocs(allDocs);
-    if (allDocs.length > 0 && !selectedDoc) {
+    if (selectedDoc) {
+      const refreshed = allDocs.find(doc => doc.id === selectedDoc.id);
+      if (refreshed) {
+        setSelectedDoc(refreshed);
+        setEditorName(refreshed.name);
+        setEditorContent(refreshed.content);
+      }
+    } else if (allDocs.length > 0) {
       handleSelectDoc(allDocs[0]);
     }
     syncSharedDocs();
@@ -187,8 +201,7 @@ export const Documents: React.FC = () => {
     setEditorContent(doc.content);
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
+  const persistEditorContent = (val: string) => {
     setEditorContent(val);
 
     if (ydocRef.current) {
@@ -197,7 +210,7 @@ export const Documents: React.FC = () => {
       ydocRef.current.transact(() => {
         ytext.delete(0, ytext.length);
         ytext.insert(0, val);
-      }, this);
+      }, "local-editor");
       isSyncingRef.current = false;
     }
 
@@ -206,11 +219,70 @@ export const Documents: React.FC = () => {
         content: val,
         lastModified: Date.now() 
       });
+      setSelectedDoc({ ...selectedDoc, content: val, lastModified: Date.now() });
+      setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? { ...doc, content: val, lastModified: Date.now() } : doc));
     }
+  };
+
+  const getWikiTrigger = (value: string, caret: number) => {
+    const beforeCaret = value.slice(0, caret);
+    const start = beforeCaret.lastIndexOf("[[");
+    if (start === -1) return null;
+    const closeBeforeCaret = beforeCaret.lastIndexOf("]]");
+    if (closeBeforeCaret > start) return null;
+    const end = value.slice(caret, caret + 2) === "]]" ? caret + 2 : caret;
+    const query = value.slice(start + 2, caret);
+    if (query.includes("\n")) return null;
+    return { start, end, query };
+  };
+
+  const updateLinkMenu = (value: string, caret: number) => {
+    const trigger = getWikiTrigger(value, caret);
+    if (!trigger) {
+      setLinkMenu(menu => ({ ...menu, visible: false }));
+      return;
+    }
+    setLinkMenu({ visible: true, query: trigger.query, start: trigger.start, end: trigger.end });
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    let val = e.target.value;
+    let caret = e.target.selectionStart;
+    const justTypedWikiOpen = val.slice(caret - 2, caret) === "[[" && editorContent.slice(caret - 2, caret) !== "[[";
+
+    if (justTypedWikiOpen) {
+      val = `${val.slice(0, caret)}]]${val.slice(caret)}`;
+      requestAnimationFrame(() => editorRef.current?.setSelectionRange(caret, caret));
+    }
+
+    persistEditorContent(val);
+    updateLinkMenu(val, caret);
+  };
+
+  const handleEditorSelect = () => {
+    const textarea = editorRef.current;
+    if (!textarea) return;
+    updateLinkMenu(textarea.value, textarea.selectionStart);
+  };
+
+  const insertWikiLink = (doc: DebateDocument) => {
+    const title = doc.name.replace(/\.md$/i, "");
+    const mention = `[[${doc.partnerAccess || "private"}/${title}]]`;
+    const nextContent = `${editorContent.slice(0, linkMenu.start)}${mention}${editorContent.slice(linkMenu.end)}`;
+    const nextCaret = linkMenu.start + mention.length;
+    persistEditorContent(nextContent);
+    setLinkMenu(menu => ({ ...menu, visible: false }));
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(nextCaret, nextCaret);
+    });
   };
 
   const handleTitleBlur = () => {
     if (!selectedDoc || !editorName.trim()) return;
+    const nextDoc = { ...selectedDoc, name: editorName };
+    setSelectedDoc(nextDoc);
+    setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     db.documents.update(selectedDoc.id, { name: editorName });
     loadDocs();
   };
@@ -243,6 +315,9 @@ export const Documents: React.FC = () => {
   // Move document
   const handleMoveDoc = async (folder: "private" | "team" | "public") => {
     if (!selectedDoc) return;
+    const nextDoc = { ...selectedDoc, partnerAccess: folder, lastModified: Date.now() };
+    setSelectedDoc(nextDoc);
+    setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     await db.documents.update(selectedDoc.id, { partnerAccess: folder });
     await loadDocs();
     triggerToast(`Moved document to ${folder} folder.`);
@@ -251,6 +326,9 @@ export const Documents: React.FC = () => {
   // Toggle mode
   const handleToggleDocMode = async (mode: "read" | "write") => {
     if (!selectedDoc) return;
+    const nextDoc = { ...selectedDoc, encryptedHash: mode, lastModified: Date.now() };
+    setSelectedDoc(nextDoc);
+    setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     await db.documents.update(selectedDoc.id, { encryptedHash: mode });
     await loadDocs();
     triggerToast(`Sharing mode updated to: ${mode === "write" ? "shared writable" : "shared read-only"}.`);
@@ -282,15 +360,6 @@ export const Documents: React.FC = () => {
       setSelectedDoc(null);
       await loadDocs();
     }
-  };
-
-  // Mark as evidence
-  const handleToggleEvidence = async () => {
-    if (!selectedDoc) return;
-    const nextStatus = selectedDoc.type === "case" ? "block" : "case"; // toggle type to mark as evidence
-    await db.documents.update(selectedDoc.id, { type: nextStatus });
-    await loadDocs();
-    triggerToast(nextStatus === "block" ? "Marked as evidence." : "Removed from evidence.");
   };
 
   const handleAddCard = async (e: React.FormEvent) => {
@@ -360,7 +429,7 @@ export const Documents: React.FC = () => {
     };
 
     return (
-      <div className="prose max-w-none text-slate-800 text-xs leading-relaxed font-sans p-6 bg-white rounded-xl min-h-[400px] border border-slate-300 space-y-4 shadow-2xs">
+      <div className="prose max-w-none text-slate-800 text-xs leading-relaxed font-sans min-h-[400px] space-y-4">
         {parts.map((part, index) => {
           const match = part.match(/\[\[([^\]]+)\]\]/);
           if (match) {
@@ -547,7 +616,7 @@ export const Documents: React.FC = () => {
                   className={`file-item ${selectedDoc?.id === doc.id ? "selected" : ""}`}
                 >
                   <FileText size={15} className="text-[#2f5d62]" />
-                  <span>{doc.name}</span>
+                  <span>{doc.name.replace(/\.md$/i, "")}</span>
                   <button 
                     type="button"
                     onClick={(e) => {
@@ -612,29 +681,11 @@ export const Documents: React.FC = () => {
 
               <button 
                 type="button" 
-                onClick={handleToggleEvidence}
-                title={selectedDoc.type === "block" ? "Remove from evidence" : "Mark as evidence"}
-                className={`icon-button ${selectedDoc.type === "block" ? "success" : ""}`}
-              >
-                <ShieldCheck size={16} />
-              </button>
-
-              <button 
-                type="button" 
                 onClick={handleDuplicateDoc}
                 title="Duplicate file"
                 className="icon-button"
               >
                 <Copy size={16} />
-              </button>
-
-              <button 
-                type="button" 
-                onClick={() => handleDeleteDoc(selectedDoc.id)}
-                title="Delete file"
-                className="icon-button danger"
-              >
-                <Trash2 size={16} />
               </button>
 
               <div className="segmented document-mode ml-auto">
@@ -656,16 +707,46 @@ export const Documents: React.FC = () => {
             </div>
 
             {/* Editing Box */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 relative">
               {editorMode === "edit" ? (
-                <textarea
-                  value={editorContent}
-                  onChange={handleContentChange}
-                  placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
-                  className="w-full h-full min-h-[400px] p-6 focus:outline-none resize-none font-mono text-xs leading-relaxed"
-                />
+                <>
+                  <textarea
+                    ref={editorRef}
+                    value={editorContent}
+                    onChange={handleContentChange}
+                    onSelect={handleEditorSelect}
+                    onKeyUp={handleEditorSelect}
+                    onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
+                    placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
+                    className="w-full h-full min-h-[400px] p-6 focus:outline-none resize-none font-mono text-xs leading-relaxed"
+                  />
+                  {linkMenu.visible && (
+                    <div className="wiki-link-menu">
+                      {docs
+                        .filter(doc => {
+                          const label = `${doc.partnerAccess || "private"}/${doc.name.replace(/\.md$/i, "")}`.toLowerCase();
+                          return label.includes(linkMenu.query.toLowerCase());
+                        })
+                        .slice(0, 8)
+                        .map(doc => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              insertWikiLink(doc);
+                            }}
+                          >
+                            <FileText size={13} />
+                            <span>{doc.partnerAccess || "private"}/{doc.name.replace(/\.md$/i, "")}</span>
+                          </button>
+                        ))}
+                      {docs.length === 0 && <span className="wiki-link-empty">No files available</span>}
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="h-full overflow-y-auto p-4 bg-slate-50">
+                <div className="h-full overflow-y-auto p-6">
                   <MarkdownRenderer 
                     content={editorContent} 
                     cards={cards} 
