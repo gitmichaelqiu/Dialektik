@@ -5,14 +5,15 @@ import { PeerJSYjsProvider } from "../services/yjs-provider";
 import * as Y from "yjs";
 import { 
   FileText, 
-  Layers, 
   Plus, 
   Trash2, 
   ShieldCheck, 
   Edit3, 
-  ExternalLink,
   Globe,
-  Database
+  Database,
+  Copy,
+  FolderOpen,
+  Eye
 } from "lucide-react";
 
 async function computeSHA256(text: string): Promise<string> {
@@ -30,22 +31,26 @@ export const Documents: React.FC = () => {
   const [cards, setCards] = useState<EvidenceCard[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<DebateDocument | null>(null);
 
+  // Directory layout
+  const [newDocTitle, setNewDocTitle] = useState("");
+  const [newDocFolder, setNewDocFolder] = useState<"private" | "team" | "public">("private");
+  const [newDocMode, setNewDocMode] = useState<"read" | "write">("write");
+
   // Editor states
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
-  const [editorMode, setEditorMode] = useState<"edit" | "check">("edit");
+  const [editorMode, setEditorMode] = useState<"edit" | "read">("edit");
 
-  // New card inputs
+  // Evidence card form
   const [cardTitle, setCardTitle] = useState("");
   const [cardSource, setCardSource] = useState("");
   const [cardText, setCardText] = useState("");
 
-  // Yjs provider references
+  // Yjs Provider references
   const ydocRef = useRef<Y.Doc | null>(null);
   const yproviderRef = useRef<PeerJSYjsProvider | null>(null);
   const isSyncingRef = useRef<boolean>(false);
 
-  // Load documents and cards from IndexedDB on mount
   useEffect(() => {
     loadDocs();
     loadCards();
@@ -68,7 +73,7 @@ export const Documents: React.FC = () => {
   useEffect(() => {
     if (!selectedDoc) return;
 
-    // 1. Clean up old provider
+    // Clean up old provider
     if (yproviderRef.current) {
       yproviderRef.current.destroy();
       yproviderRef.current = null;
@@ -78,7 +83,7 @@ export const Documents: React.FC = () => {
       ydocRef.current = null;
     }
 
-    // 2. Initialize new Yjs shared doc
+    // Initialize new Yjs shared doc
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
 
@@ -90,7 +95,6 @@ export const Documents: React.FC = () => {
     const handleYjsUpdate = () => {
       if (isSyncingRef.current) return;
       setEditorContent(ytext.toString());
-      // Save local draft to DB
       db.documents.update(selectedDoc.id, { 
         content: ytext.toString(),
         lastModified: Date.now()
@@ -98,8 +102,12 @@ export const Documents: React.FC = () => {
     };
     ytext.observe(handleYjsUpdate);
 
-    // 3. Connect to WebRTC P2P Mesh
-    if (isPeerConnected) {
+    // Connect to WebRTC P2P Mesh for shared files
+    // If it's a team or public folder and writable, sync changes
+    const docFolder = selectedDoc.partnerAccess || "private";
+    const isSharedWritable = docFolder !== "private" && (selectedDoc.encryptedHash !== "read"); // we use encryptedHash as mode string to bypass index limitation
+    
+    if (isPeerConnected && isSharedWritable) {
       const provider = new PeerJSYjsProvider(ydoc, mesh);
       yproviderRef.current = provider;
     }
@@ -144,25 +152,82 @@ export const Documents: React.FC = () => {
     loadDocs();
   };
 
-  const handleCreateDoc = async (type: "case" | "block") => {
+  // Create document in selected folder
+  const handleCreateDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDocTitle.trim()) return;
+
+    // Filter invalid title characters
+    const cleanTitle = newDocTitle.trim().replace(/[\[\]#?/\\]/g, "");
+    const filename = cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`;
+
     const newDoc: DebateDocument = {
       id: `doc-${Math.random().toString(36).substring(2, 11)}`,
-      name: `Untitled ${type === "case" ? "Case" : "Block"}`,
-      type,
-      content: `# New ${type === "case" ? "Case" : "Block"}\n\nType markdown contents here...`,
-      lastModified: Date.now()
+      name: filename,
+      type: "case",
+      content: `# ${cleanTitle}\n\nType markdown content here...`,
+      lastModified: Date.now(),
+      partnerAccess: newDocFolder, // store folder scope in partnerAccess
+      encryptedHash: newDocMode // store sharing mode in encryptedHash
     };
+
     await db.documents.put(newDoc);
+    setNewDocTitle("");
     await loadDocs();
     handleSelectDoc(newDoc);
   };
 
+  // Move document
+  const handleMoveDoc = async (folder: "private" | "team" | "public") => {
+    if (!selectedDoc) return;
+    await db.documents.update(selectedDoc.id, { partnerAccess: folder });
+    await loadDocs();
+    triggerToast(`Moved document to ${folder} folder.`);
+  };
+
+  // Toggle mode
+  const handleToggleDocMode = async (mode: "read" | "write") => {
+    if (!selectedDoc) return;
+    await db.documents.update(selectedDoc.id, { encryptedHash: mode });
+    await loadDocs();
+    triggerToast(`Sharing mode updated to: ${mode === "write" ? "shared writable" : "shared read-only"}.`);
+  };
+
+  // Duplicate document
+  const handleDuplicateDoc = async () => {
+    if (!selectedDoc) return;
+    const nameWithoutExt = selectedDoc.name.replace(".md", "");
+    const newDoc: DebateDocument = {
+      id: `doc-${Math.random().toString(36).substring(2, 11)}`,
+      name: `${nameWithoutExt}_copy.md`,
+      type: selectedDoc.type,
+      content: selectedDoc.content,
+      lastModified: Date.now(),
+      partnerAccess: selectedDoc.partnerAccess || "private",
+      encryptedHash: selectedDoc.encryptedHash || "write"
+    };
+    await db.documents.put(newDoc);
+    await loadDocs();
+    handleSelectDoc(newDoc);
+    triggerToast("Document duplicated.");
+  };
+
+  // Delete document
   const handleDeleteDoc = async (id: string) => {
     if (confirm("Are you sure you want to delete this document?")) {
       await db.documents.delete(id);
       setSelectedDoc(null);
       await loadDocs();
     }
+  };
+
+  // Mark as evidence
+  const handleToggleEvidence = async () => {
+    if (!selectedDoc) return;
+    const nextStatus = selectedDoc.type === "case" ? "block" : "case"; // toggle type to mark as evidence
+    await db.documents.update(selectedDoc.id, { type: nextStatus });
+    await loadDocs();
+    triggerToast(nextStatus === "block" ? "Marked as evidence." : "Removed from evidence.");
   };
 
   const handleAddCard = async (e: React.FormEvent) => {
@@ -186,6 +251,7 @@ export const Documents: React.FC = () => {
     setCardSource("");
     setCardText("");
     loadCards();
+    triggerToast("Evidence card added.");
   };
 
   const handleDeleteCard = async (id: string) => {
@@ -195,283 +261,403 @@ export const Documents: React.FC = () => {
     }
   };
 
-// React component to render Markdown blocks (headings, lists, quotes, inline bold/italics/code)
-interface MarkdownRendererProps {
-  content: string;
-  cards: EvidenceCard[];
-}
-
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards }) => {
-  const parts = content.split(/(\[\[card-[a-f0-9]{16}\]\])/g);
-
-  const renderInlineStyle = (text: string) => {
-    let escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-    escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
-    escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
-    escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
-    escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-900 px-1 py-0.5 rounded font-mono text-indigo-300 text-[10px]'>$1</code>");
-
-    return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
+  const triggerToast = (msg: string) => {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
   };
 
-  return (
-    <div className="prose prose-invert max-w-none text-slate-350 text-xs leading-relaxed font-sans p-6 bg-slate-950/40 rounded-xl min-h-[400px] border border-slate-800 space-y-4">
-      {parts.map((part, index) => {
-        const match = part.match(/\[\[(card-[a-f0-9]{16})\]\]/);
-        if (match) {
-          const cid = match[1];
-          const referencedCard = cards.find(c => c.id === cid);
+  // Markdown rendering engine for wiki links and card embeds
+  interface MarkdownRendererProps {
+    content: string;
+    cards: EvidenceCard[];
+    docs: DebateDocument[];
+    onNavigateDoc: (doc: DebateDocument) => void;
+  }
 
-          if (referencedCard) {
-            return (
-              <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
-                <span className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded cursor-help font-semibold text-[10px] transition-colors hover:bg-emerald-600/20">
-                  Cite: {referencedCard.title}
-                </span>
-                {/* Reference Popover */}
-                <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-slate-950 border border-slate-800 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <strong className="text-white font-bold">{referencedCard.title}</strong>
-                    <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold tracking-wider">
-                      <ShieldCheck size={11} /> HASH OK
+  const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards, docs, onNavigateDoc }) => {
+    // Regex matches [[folder/title]] or [[card-xxx]]
+    const parts = content.split(/(\[\[[^\]]+\]\])/g);
+
+    const renderInlineStyle = (text: string) => {
+      let escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
+      escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
+      escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
+      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-100 px-1 py-0.5 rounded font-mono text-indigo-700 text-[10px]'>$1</code>");
+
+      return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
+    };
+
+    return (
+      <div className="prose max-w-none text-slate-800 text-xs leading-relaxed font-sans p-6 bg-white rounded-xl min-h-[400px] border border-slate-300 space-y-4 shadow-2xs">
+        {parts.map((part, index) => {
+          const match = part.match(/\[\[([^\]]+)\]\]/);
+          if (match) {
+            const rawCitation = match[1].trim();
+
+            // 1. Check if card citation
+            if (rawCitation.startsWith("card-")) {
+              const referencedCard = cards.find(c => c.id === rawCitation);
+              if (referencedCard) {
+                return (
+                  <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
+                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5 rounded cursor-help font-semibold text-[10px] hover:bg-emerald-100">
+                      Cite: {referencedCard.title}
                     </span>
-                  </div>
-                  <p className="text-slate-400 italic line-clamp-3">"{referencedCard.text}"</p>
-                  <div className="flex items-center justify-between pt-1 text-[9px] text-slate-500">
-                    <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
-                    {referencedCard.sourceUrl && (
-                      <span className="flex items-center gap-0.5 text-indigo-400">
-                        Link <ExternalLink size={8} />
-                      </span>
-                    )}
-                  </div>
-                </span>
-              </span>
-            );
-          } else {
+                    {/* Hover Card preview popover */}
+                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-white border border-slate-350 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-slate-700">
+                      <div className="flex items-center justify-between border-b pb-1.5">
+                        <strong className="text-slate-900 font-bold">{referencedCard.title}</strong>
+                        <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
+                          <ShieldCheck size={11} /> VERIFIED
+                        </span>
+                      </div>
+                      <p className="text-slate-600 italic line-clamp-3">"{referencedCard.text}"</p>
+                      <div className="flex items-center justify-between pt-1 text-[9px] text-slate-400">
+                        <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
+                        {referencedCard.sourceUrl && (
+                          <span className="flex items-center gap-0.5 text-indigo-600">Link</span>
+                        )}
+                      </div>
+                    </span>
+                  </span>
+                );
+              }
+            }
+
+            // 2. Check if wiki link [[folder/title]]
+            const pathParts = rawCitation.split("/");
+            if (pathParts.length === 2) {
+              const folder = pathParts[0];
+              const title = pathParts[1];
+              const targetDoc = docs.find(d => (d.partnerAccess || "private") === folder && d.name.replace(".md", "") === title);
+
+              if (targetDoc) {
+                return (
+                  <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
+                    <button
+                      type="button"
+                      onClick={() => onNavigateDoc(targetDoc)}
+                      className="bg-indigo-50 text-indigo-700 border border-indigo-300 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-indigo-100"
+                    >
+                      {title}
+                    </button>
+                    {/* Hover Wiki preview popover */}
+                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-white border border-slate-350 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-slate-700">
+                      <div className="flex items-center justify-between border-b pb-1.5">
+                        <strong className="text-slate-900 font-bold">{targetDoc.name}</strong>
+                        <span className="text-[9px] uppercase font-bold text-slate-400">{targetDoc.partnerAccess || "private"}</span>
+                      </div>
+                      <p className="text-slate-600 line-clamp-4 leading-relaxed font-mono text-[9px]">
+                        {targetDoc.content.substring(0, 240)}...
+                      </p>
+                    </span>
+                  </span>
+                );
+              }
+            }
+
+            // Fallback for missing link
             return (
-              <span key={index} className="bg-rose-600/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle select-none">
-                Missing Card: {cid}
+              <span key={index} className="bg-rose-50 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle">
+                Missing Link: {rawCitation}
               </span>
             );
           }
-        }
 
-        const lines = part.split("\n");
-        return (
-          <div key={index} className="inline space-y-2">
-            {lines.map((line, lineIdx) => {
-              if (line.startsWith("### ")) {
-                return <h3 key={lineIdx} className="text-xs font-bold text-slate-100 mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
-              }
-              if (line.startsWith("## ")) {
-                return <h2 key={lineIdx} className="text-sm font-bold text-white mt-5 mb-2 border-b border-slate-850 pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
-              }
-              if (line.startsWith("# ")) {
-                return <h1 key={lineIdx} className="text-base font-extrabold text-white mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
-              }
-              if (line.startsWith("- ") || line.startsWith("* ")) {
-                return (
-                  <ul key={lineIdx} className="list-disc list-inside pl-4 text-slate-350 my-1 block">
-                    <li>{renderInlineStyle(line.substring(2))}</li>
-                  </ul>
-                );
-              }
-              if (line.startsWith("> ")) {
-                return (
-                  <blockquote key={lineIdx} className="border-l-2 border-slate-700 pl-4 italic text-slate-400 my-2 block">
-                    {renderInlineStyle(line.substring(2))}
-                  </blockquote>
-                );
-              }
-              if (!line.trim()) {
-                return <div key={lineIdx} className="h-2 block" />;
-              }
-              return <span key={lineIdx} className="block my-1">{renderInlineStyle(line)}</span>;
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-  // Helper to parse content and render card link overlays in evidence check mode
-  const renderCheckMode = () => {
-    return <MarkdownRenderer content={editorContent} cards={cards} />;
+          const lines = part.split("\n");
+          return (
+            <div key={index} className="inline space-y-2">
+              {lines.map((line, lineIdx) => {
+                if (line.startsWith("### ")) {
+                  return <h3 key={lineIdx} className="text-xs font-bold text-slate-800 mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
+                }
+                if (line.startsWith("## ")) {
+                  return <h2 key={lineIdx} className="text-sm font-bold text-slate-900 mt-5 mb-2 border-b pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
+                }
+                if (line.startsWith("# ")) {
+                  return <h1 key={lineIdx} className="text-base font-extrabold text-slate-900 mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
+                }
+                if (line.startsWith("- ") || line.startsWith("* ")) {
+                  return (
+                    <ul key={lineIdx} className="list-disc list-inside pl-4 text-slate-600 my-1 block">
+                      <li>{renderInlineStyle(line.substring(2))}</li>
+                    </ul>
+                  );
+                }
+                if (line.startsWith("> ")) {
+                  return (
+                    <blockquote key={lineIdx} className="border-l-2 border-slate-400 pl-4 italic text-slate-500 my-2 block">
+                      {renderInlineStyle(line.substring(2))}
+                    </blockquote>
+                  );
+                }
+                if (!line.trim()) {
+                  return <div key={lineIdx} className="h-2 block" />;
+                }
+                return <span key={lineIdx} className="block my-1">{renderInlineStyle(line)}</span>;
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
-  return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6 overflow-hidden">
-      {/* 1. Left Sidebar - Documents List */}
-      <aside className="w-64 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Documents</h3>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => handleCreateDoc("case")}
-              title="New Case File"
-              className="p-1 rounded bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 transition-colors"
-            >
-              <FileText size={14} />
-            </button>
-            <button
-              onClick={() => handleCreateDoc("block")}
-              title="New Block File"
-              className="p-1 rounded bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 transition-colors"
-            >
-              <Layers size={14} />
-            </button>
-          </div>
-        </div>
+  // Group docs by folder
+  const groupedDocs = docs.reduce<{ private: DebateDocument[]; team: DebateDocument[]; public: DebateDocument[] }>(
+    (acc, doc) => {
+      const folder = doc.partnerAccess || "private";
+      if (folder === "private") acc.private.push(doc);
+      else if (folder === "team") acc.team.push(doc);
+      else if (folder === "public") acc.public.push(doc);
+      return acc;
+    },
+    { private: [], team: [], public: [] }
+  );
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {docs.map((doc) => (
-            <div
-              key={doc.id}
-              onClick={() => handleSelectDoc(doc)}
-              className={`group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-all ${
-                selectedDoc?.id === doc.id
-                  ? "bg-indigo-600/15 text-indigo-400 border border-indigo-500/20"
-                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-              }`}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                {doc.type === "case" ? <FileText size={15} /> : <Layers size={15} />}
-                <span className="truncate text-xs font-medium">{doc.name}</span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteDoc(doc.id);
-                }}
-                className="opacity-0 group-hover:opacity-100 hover:text-rose-400 p-0.5 transition-opacity"
+  return (
+    <section className="documents-layout">
+      {/* 1. Left Sidebar directory list */}
+      <aside className="file-rail flex flex-col justify-between overflow-y-auto">
+        <div className="space-y-4">
+          <div className="panel-header compact border-b pb-2">
+            <h2>Shared Folders</h2>
+            <FolderOpen size={17} />
+          </div>
+
+          {/* New Document form */}
+          <form onSubmit={handleCreateDoc} className="space-y-2 border-b pb-3">
+            <input 
+              value={newDocTitle} 
+              onChange={(e) => setNewDocTitle(e.target.value)} 
+              placeholder="New document title..."
+              required
+              className="text-xs py-1.5"
+            />
+            <div className="split-controls">
+              <select 
+                value={newDocFolder} 
+                onChange={(e) => setNewDocFolder(e.target.value as any)}
+                className="text-xs"
               >
-                <Trash2 size={13} />
-              </button>
+                <option value="private">private</option>
+                <option value="team">team</option>
+                <option value="public">public</option>
+              </select>
+              <select 
+                value={newDocMode} 
+                onChange={(e) => setNewDocMode(e.target.value as any)}
+                disabled={newDocFolder === "private"}
+                className="text-xs"
+              >
+                <option value="write">shared writable</option>
+                <option value="read">shared read-only</option>
+              </select>
+            </div>
+            <button type="submit" className="command primary w-full text-xs py-1 flex items-center justify-center gap-1">
+              <Plus size={13} /> Create File
+            </button>
+          </form>
+
+          {/* Directory Folder Tree list */}
+          {(["private", "team", "public"] as const).map(folder => (
+            <div key={folder} className="folder-group">
+              <span>{folder}</span>
+              {groupedDocs[folder].length === 0 && (
+                <div className="text-[10px] text-slate-400 italic px-2">Empty</div>
+              )}
+              {groupedDocs[folder].map(doc => (
+                <button
+                  type="button"
+                  key={doc.id}
+                  onClick={() => handleSelectDoc(doc)}
+                  className={`file-item ${selectedDoc?.id === doc.id ? "selected" : ""}`}
+                >
+                  <FileText size={15} className="text-indigo-600" />
+                  <span>{doc.name}</span>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDoc(doc.id);
+                    }}
+                    className="hover:text-rose-600 p-0.5 opacity-60 hover:opacity-100"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </button>
+              ))}
             </div>
           ))}
         </div>
       </aside>
 
-      {/* 2. Middle Section - Text Editor / Check View */}
-      <section className="flex-1 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+      {/* 2. Middle Editor Section */}
+      <section className="editor-pane">
         {selectedDoc ? (
           <>
-            {/* Header Control Bar */}
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-              <input
-                type="text"
-                value={editorName}
+            {/* Tool bar controls */}
+            <div className="editor-toolbar border-b pb-2 gap-3 items-center">
+              <input 
+                value={editorName} 
                 onChange={(e) => setEditorName(e.target.value)}
                 onBlur={handleTitleBlur}
-                className="bg-transparent text-sm font-bold text-white focus:outline-none border-b border-transparent focus:border-slate-700 min-w-0 flex-1 mr-4"
+                className="font-bold border-b border-transparent focus:border-slate-300"
+                placeholder="Rename file..."
               />
-              <div className="flex items-center gap-3">
-                {/* Real-time sync indicator */}
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-bold bg-slate-900 border border-slate-800 px-2 py-1 rounded-md">
-                  {isPeerConnected ? (
-                    <>
-                      <Globe size={11} className="text-emerald-400 animate-pulse" />
-                      P2P Live
-                    </>
-                  ) : (
-                    <>
-                      <Database size={11} className="text-indigo-400" />
-                      Local DB
-                    </>
-                  )}
-                </div>
+              
+              <select
+                value={selectedDoc.partnerAccess || "private"}
+                onChange={(e) => handleMoveDoc(e.target.value as any)}
+                className="text-xs"
+              >
+                <option value="private">private</option>
+                <option value="team">team</option>
+                <option value="public">public</option>
+              </select>
 
-                {/* Edit Mode Toggle */}
-                <div className="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex">
-                  <button
-                    onClick={() => setEditorMode("edit")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                      editorMode === "edit"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    <Edit3 size={13} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setEditorMode("check")}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                      editorMode === "check"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    <ShieldCheck size={13} />
-                    Check Mode
-                  </button>
-                </div>
+              <select
+                value={selectedDoc.encryptedHash || "write"}
+                disabled={(selectedDoc.partnerAccess || "private") === "private"}
+                onChange={(e) => handleToggleDocMode(e.target.value as any)}
+                className="text-xs"
+              >
+                <option value="write">shared writable</option>
+                <option value="read">shared read-only</option>
+              </select>
+
+              <button 
+                type="button" 
+                onClick={handleToggleEvidence}
+                title={selectedDoc.type === "block" ? "Remove from evidence" : "Mark as evidence"}
+                className={`icon-button ${selectedDoc.type === "block" ? "success" : ""}`}
+              >
+                <ShieldCheck size={16} />
+              </button>
+
+              <button 
+                type="button" 
+                onClick={handleDuplicateDoc}
+                title="Duplicate file"
+                className="icon-button"
+              >
+                <Copy size={16} />
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => handleDeleteDoc(selectedDoc.id)}
+                title="Delete file"
+                className="icon-button danger"
+              >
+                <Trash2 size={16} />
+              </button>
+
+              <div className="segmented document-mode ml-auto">
+                <button 
+                  type="button" 
+                  className={editorMode === "edit" ? "selected" : ""} 
+                  onClick={() => setEditorMode("edit")}
+                >
+                  <Edit3 size={12} className="inline mr-1" /> Edit
+                </button>
+                <button 
+                  type="button" 
+                  className={editorMode === "read" ? "selected" : ""} 
+                  onClick={() => setEditorMode("read")}
+                >
+                  <Eye size={12} className="inline mr-1" /> Read
+                </button>
               </div>
             </div>
 
-            {/* Editor Area */}
-            <div className="flex-1 p-6 overflow-y-auto">
+            {/* Editing Box */}
+            <div className="flex-1 min-h-0">
               {editorMode === "edit" ? (
                 <textarea
                   value={editorContent}
                   onChange={handleContentChange}
-                  placeholder="Draft your cases and blocks using Markdown. Use card citations like [[card-sha256-id]] to bind evidence."
-                  className="w-full h-full min-h-[400px] bg-transparent border-0 resize-none text-slate-200 font-mono text-sm leading-relaxed focus:outline-none focus:ring-0 placeholder-slate-700"
+                  placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
+                  className="w-full h-full min-h-[400px] p-6 focus:outline-none resize-none font-mono text-xs leading-relaxed"
                 />
               ) : (
-                renderCheckMode()
+                <div className="h-full overflow-y-auto p-4 bg-slate-50">
+                  <MarkdownRenderer 
+                    content={editorContent} 
+                    cards={cards} 
+                    docs={docs} 
+                    onNavigateDoc={handleSelectDoc}
+                  />
+                </div>
               )}
+            </div>
+
+            {/* Bottom Citation stats bar */}
+            <div className="citation-bar text-[10px] text-slate-500 bg-slate-100 flex justify-between px-4 py-2 border-t">
+              <span>Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}</span>
+              <span className="flex items-center gap-1">
+                {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
+                  <>
+                    <Globe size={11} className="text-emerald-500" /> WebRTC live-sync active
+                  </>
+                ) : (
+                  <>
+                    <Database size={11} className="text-slate-400" /> Saved locally
+                  </>
+                )}
+              </span>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
-            Select or create a document to begin.
+          <div className="empty-editor text-slate-400 text-xs">
+            <FileText size={32} />
+            <h1>No document selected</h1>
+            <p>Create a file or select from the shared folders rail to begin.</p>
           </div>
         )}
       </section>
 
-      {/* 3. Right Sidebar - Evidence Library */}
-      <aside className="w-80 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-800">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cut New Evidence</h3>
+      {/* 3. Right Sidebar Evidence Library */}
+      <aside className="w-80 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cut Evidence Card</h3>
         </div>
 
         {/* Card Form */}
-        <form onSubmit={handleAddCard} className="p-4 border-b border-slate-800 space-y-3 bg-slate-950/40">
+        <form onSubmit={handleAddCard} className="p-4 border-b border-slate-200 space-y-3 bg-slate-50/50">
           <input
             type="text"
             required
             value={cardTitle}
             onChange={(e) => setCardTitle(e.target.value)}
-            placeholder="Tag / Citation (e.g. Smith 2024)"
-            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            placeholder="Citation (e.g. Smith 2024)"
+            className="w-full text-xs"
           />
           <input
             type="url"
             value={cardSource}
             onChange={(e) => setCardSource(e.target.value)}
             placeholder="Source URL (Optional)"
-            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+            className="w-full text-xs"
           />
           <textarea
             required
             rows={3}
             value={cardText}
             onChange={(e) => setCardText(e.target.value)}
-            placeholder="Plaintext evidence block body..."
-            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
+            placeholder="Evidence body text..."
+            className="w-full text-xs resize-none"
           />
-          <button
-            type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1"
-          >
+          <button type="submit" className="command primary w-full text-xs py-1.5 flex items-center justify-center gap-1">
             <Plus size={12} /> Add to Library
           </button>
         </form>
@@ -480,22 +666,21 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards }) =
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Evidence Cards</h4>
           {cards.map((card) => (
-            <div key={card.id} className="bg-slate-900/50 border border-slate-800/80 p-3 rounded-lg space-y-2 relative group/card">
+            <div key={card.id} className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-2 relative group/card">
               <div className="flex items-center justify-between">
-                <strong className="text-xs text-slate-200">{card.title}</strong>
+                <strong className="text-xs text-slate-800">{card.title}</strong>
                 <button
                   onClick={() => handleDeleteCard(card.id)}
-                  className="opacity-0 group-hover/card:opacity-100 text-slate-500 hover:text-rose-400 p-0.5 transition-opacity"
+                  className="opacity-0 group-hover/card:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity"
                 >
                   <Trash2 size={12} />
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 line-clamp-2">"{card.text}"</p>
-              
-              <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 font-mono">
-                <span>Copy ID: <span className="text-indigo-400 font-bold select-all">[[{card.id}]]</span></span>
+              <p className="text-[10px] text-slate-500 line-clamp-2">"{card.text}"</p>
+              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 font-mono">
+                <span>ID: <span className="text-indigo-600 font-bold select-all">[[{card.id}]]</span></span>
                 {card.sourceUrl && (
-                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-400">
+                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">
                     Source
                   </a>
                 )}
@@ -504,7 +689,8 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards }) =
           ))}
         </div>
       </aside>
-    </div>
+    </section>
   );
 };
+
 export default Documents;

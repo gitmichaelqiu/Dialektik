@@ -19,12 +19,14 @@ interface AppContextType {
   aiApiKey: string;
   aiEndpoint: string;
   aiModel: string;
+  userName: string;
   mesh: PeerMeshManager;
   githubService: GitHubSyncService | null;
   activePage: string;
   setActivePage: (page: any) => void;
   initializeCrypto: (passphrase: string) => Promise<boolean>;
   saveSettings: (settings: {
+    userName?: string;
     githubToken?: string;
     githubOwner?: string;
     githubRepo?: string;
@@ -71,6 +73,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiEndpoint, setAiEndpoint] = useState("https://api.openai.com/v1");
   const [aiModel, setAiModel] = useState("gpt-4o");
+  const [userName, setUserName] = useState("");
 
   const [githubService, setGithubService] = useState<GitHubSyncService | null>(null);
 
@@ -91,6 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (item.key === "github_repo") setGithubRepo(item.value);
         if (item.key === "ai_endpoint") setAiEndpoint(item.value);
         if (item.key === "ai_model") setAiModel(item.value);
+        if (item.key === "user_name") setUserName(item.value);
       }
 
       // If passphrase salt is missing, generate one
@@ -201,6 +205,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * Save configuration settings securely
    */
   const saveSettings = async (settings: {
+    userName?: string;
     githubToken?: string;
     githubOwner?: string;
     githubRepo?: string;
@@ -208,6 +213,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     aiEndpoint?: string;
     aiModel?: string;
   }) => {
+    if (settings.userName !== undefined) {
+      await db.settings.put({ key: "user_name", value: settings.userName });
+      setUserName(settings.userName);
+    }
     if (settings.githubToken !== undefined) {
       await KeyManager.set("github_token", settings.githubToken);
       setGithubToken(settings.githubToken);
@@ -331,6 +340,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         aiApiKey,
         aiEndpoint,
         aiModel,
+        userName,
         activeMatchName,
         activeOpponent,
         pairingRequest,

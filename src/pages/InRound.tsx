@@ -3,97 +3,175 @@ import { useApp } from "../context/AppContext";
 import { db, type TournamentRecord } from "../services/db";
 import { DebateTimer } from "../services/timers";
 import { AIService } from "../services/ai";
-import { SessionWizard } from "../components/SessionWizard";
 import { 
   Play, 
   Pause, 
   RotateCcw, 
-  Plus, 
-  ShieldAlert, 
-  Check, 
   Clock, 
   Award,
   Calendar,
   Users,
   Trophy,
-  History
+  History,
+  UserCheck,
+  UserX,
+  FileText,
+  Sparkles,
+  ArrowRight
 } from "lucide-react";
 
-// Standard Public Forum Debate speech template
-const PF_SPEECHES = [
-  { id: "1AC", name: "1st Aff Constructive", duration: 240 },
-  { id: "1NC", name: "1st Neg Constructive", duration: 240 },
-  { id: "2AC", name: "2nd Aff Rebuttal", duration: 240 },
-  { id: "2NC", name: "2nd Neg Rebuttal", duration: 240 },
-  { id: "1AR", name: "1st Aff Summary", duration: 180 },
-  { id: "1NR", name: "1st Neg Summary", duration: 180 },
-  { id: "2AR", name: "2nd Aff Final Focus", duration: 180 },
-  { id: "2NR", name: "2nd Neg Final Focus", duration: 180 }
-];
+export interface Debater {
+  id: string;
+  name: string;
+  status: "pending" | "approved" | "rejected";
+  team?: "affirmative" | "negative";
+  position?: number;
+}
+
+export interface Handout {
+  title: string;
+  problem: string;
+  details?: string;
+}
+
+export interface SessionState {
+  matchName: string;
+  groupName: string;
+  teamSize: number;
+  roomCode: string;
+  status: "lobby" | "active" | "ended";
+  handout: Handout;
+  debaters: Debater[];
+  currentSpeakerId?: string;
+  speakerNotes: Record<string, string>; // debaterId -> markdown notes
+  speechDuration: number; // seconds
+  prepDuration: number; // seconds
+}
 
 export const InRound: React.FC = () => {
   const { 
-    isPeerConnected, 
     mesh, 
     aiApiKey, 
     aiEndpoint, 
     aiModel,
-    activeMatchName,
-    activeOpponent,
     roomCode,
+    isHost,
+    userName,
+    setActivePage,
+    startSession,
     endSession
   } = useApp();
 
   const isRoundStarted = !!roomCode;
 
   // Local state
-  const [showWizard, setShowWizard] = useState(false);
-  const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
-  const [mySide, setMySide] = useState<"affirmative" | "negative">("affirmative");
-
-  // Flows state
-  const [flows, setFlows] = useState<Record<string, { notes: string; draftStatus: "draft" | "accepted" }>>({});
+  const [startMode, setStartMode] = useState<"host" | "join" | null>(null);
+  const [matchName, setMatchName] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [teamSize, setTeamSize] = useState(1);
+  const [joinRoomCode, setJoinRoomCode] = useState("");
   
-  // Timer state
-  const [activeSpeech, setActiveSpeech] = useState("1AC");
-  const [timerRemaining, setTimerRemaining] = useState(240000); // 4 minutes in ms
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  // Handshake approval list (for Host to approve/reject clients)
+  const [pendingRequests, setPendingRequests] = useState<Debater[]>([]);
+  const [toastNotification, setToastNotification] = useState<string | null>(null);
 
-  const [prepRemaining, setPrepRemaining] = useState(180000); // 3 minutes prep in ms
+  // Main round session state (synchronized over WebRTC)
+  const [session, setSession] = useState<SessionState | null>(null);
+
+  // Timers state
+  const [timerRemaining, setTimerRemaining] = useState(240000);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [prepRemaining, setPrepRemaining] = useState(180000);
   const [isPrepRunning, setIsPrepRunning] = useState(false);
+  const [speechInput, setSpeechInput] = useState("04:00");
+  const [prepInput, setPrepInput] = useState("03:00");
 
   const debateTimerRef = useRef<DebateTimer | null>(null);
   const prepTimerRef = useRef<DebateTimer | null>(null);
 
-  // Load history list on startup or when round closes
+  // History state for welcome page
+  const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
+
+  // Trigger brief top-right notification alert
+  const triggerToast = (msg: string) => {
+    setToastNotification(msg);
+    setTimeout(() => setToastNotification(null), 3000);
+  };
+
+  // Load history list
   useEffect(() => {
     async function loadHistory() {
       const records = await db.history.toArray();
       records.sort((a, b) => b.timestamp - a.timestamp);
-      setHistoryList(records.slice(0, 5)); // show latest 5 rounds
+      setHistoryList(records.slice(0, 5));
     }
     if (!isRoundStarted) {
       loadHistory();
     }
   }, [isRoundStarted]);
 
-  // Reactive flows mapping when session joins
-  useEffect(() => {
-    if (isRoundStarted && Object.keys(flows).length === 0) {
-      const initialFlows: Record<string, { notes: string; draftStatus: "draft" | "accepted" }> = {};
-      PF_SPEECHES.forEach((s) => {
-        initialFlows[s.id] = { notes: "", draftStatus: "accepted" };
-      });
-      setFlows(initialFlows);
-    } else if (!isRoundStarted) {
-      setFlows({});
+  // Host creates a session room
+  const handleHostCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName) {
+      alert("Please set your UserName in Settings first!");
+      setActivePage("settings");
+      return;
     }
-  }, [isRoundStarted]);
+    if (!matchName || !groupName) return;
 
-  // Initialize timer instances
+    // Generate room code (4-digits/letters)
+    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    // Initialize state
+    const initialSession: SessionState = {
+      matchName,
+      groupName,
+      teamSize,
+      roomCode: code,
+      status: "lobby",
+      handout: { title: "", problem: "", details: "" },
+      debaters: [],
+      speakerNotes: {},
+      speechDuration: 240,
+      prepDuration: 180
+    };
+
+    setSession(initialSession);
+    await startSession(code, true);
+
+    // Auto copy room code to clipboard
+    try {
+      await navigator.clipboard.writeText(code);
+      triggerToast(`Room Code ${code} copied to clipboard!`);
+    } catch {
+      triggerToast(`Room ${code} created successfully!`);
+    }
+
+    setStartMode(null);
+  };
+
+  // Client requests to join session
+  const handleClientJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName) {
+      alert("Please set your UserName in Settings first!");
+      setActivePage("settings");
+      return;
+    }
+    if (!joinRoomCode) return;
+    const cleanCode = joinRoomCode.trim().toUpperCase();
+
+    // Start PeerJS connection as Client
+    await startSession(cleanCode, false);
+    setStartMode(null);
+    triggerToast("Connecting to Host room...");
+  };
+
+  // Synchronize timer clock ticks
   useEffect(() => {
-    debateTimerRef.current = new DebateTimer(240); // 4 min
-    prepTimerRef.current = new DebateTimer(180); // 3 min
+    debateTimerRef.current = new DebateTimer(240);
+    prepTimerRef.current = new DebateTimer(180);
 
     debateTimerRef.current.onTick((rem) => setTimerRemaining(rem));
     prepTimerRef.current.onTick((rem) => setPrepRemaining(rem));
@@ -108,20 +186,70 @@ export const InRound: React.FC = () => {
       alert("Prep time expired!");
     });
 
-    // WebRTC room timer sync listeners
-    mesh.onMessage((_senderId, msg) => {
-      if (msg.type === "timer-action") {
+    return () => {
+      if (debateTimerRef.current) debateTimerRef.current.reset();
+      if (prepTimerRef.current) prepTimerRef.current.reset();
+    };
+  }, []);
+
+  // WebRTC message listeners
+  useEffect(() => {
+    if (!isRoundStarted) return;
+
+    mesh.onMessage((senderId, msg) => {
+      if (msg.type === "join-request") {
+        // Host receives join request
+        if (isHost) {
+          const newDebater: Debater = {
+            id: senderId,
+            name: msg.payload?.name || "Unknown Debater",
+            status: "pending"
+          };
+          setPendingRequests(prev => {
+            if (prev.some(d => d.id === senderId)) return prev;
+            return [...prev, newDebater];
+          });
+          triggerToast(`Join request from ${newDebater.name}`);
+        }
+      } else if (msg.type === "session-state") {
+        // Client receives synced session state
+        if (!isHost) {
+          const syncedSession: SessionState = msg.payload;
+          setSession(syncedSession);
+
+          // Update durations if changed
+          if (debateTimerRef.current && syncedSession.speechDuration !== debateTimerRef.current.getState().duration / 1000) {
+            debateTimerRef.current.reset(syncedSession.speechDuration);
+            setTimerRemaining(syncedSession.speechDuration * 1000);
+            const m = Math.floor(syncedSession.speechDuration / 60);
+            const s = syncedSession.speechDuration % 60;
+            setSpeechInput(`${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+          }
+          if (prepTimerRef.current && syncedSession.prepDuration !== prepTimerRef.current.getState().duration / 1000) {
+            prepTimerRef.current.reset(syncedSession.prepDuration);
+            setPrepRemaining(syncedSession.prepDuration * 1000);
+            const m = Math.floor(syncedSession.prepDuration / 60);
+            const s = syncedSession.prepDuration % 60;
+            setPrepInput(`${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+          }
+        }
+      } else if (msg.type === "timer-action") {
+        // Client receives timer controls
         const { timerType, action, durationSeconds, targetTime } = msg.payload;
         const targetTimer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
         const setterRunning = timerType === "speech" ? setIsTimerRunning : setIsPrepRunning;
 
         if (targetTimer) {
           if (action === "start") {
-            // Recalculate remaining based on absolute remote targetTime to prevent sync lag
             const rem = Math.max(0, targetTime - Date.now());
             targetTimer.reset(rem / 1000);
             targetTimer.start();
             setterRunning(true);
+
+            // Alert target speaker client
+            if (timerType === "speech" && session?.currentSpeakerId === mesh.peerId) {
+              triggerToast("📢 Your speech timer has started!");
+            }
           } else if (action === "pause") {
             targetTimer.pause();
             setterRunning(false);
@@ -130,97 +258,210 @@ export const InRound: React.FC = () => {
             setterRunning(false);
           }
         }
+      } else if (msg.type === "version-reject" || msg.type === "handshake") {
+        // Standard WebRTC link handshakes
+        if (!isHost) {
+          // Client sends join request immediately after WebRTC handshake
+          mesh.sendToPeer(senderId, {
+            type: "join-request",
+            senderId: mesh.peerId,
+            payload: { name: userName }
+          });
+        }
       }
     });
+  }, [isRoundStarted, isHost, mesh, userName, session?.speechDuration, session?.prepDuration, session?.currentSpeakerId]);
 
-    return () => {
-      if (debateTimerRef.current) debateTimerRef.current.reset();
-      if (prepTimerRef.current) prepTimerRef.current.reset();
+  // Host Action: Approve connecting debater
+  const handleApproveDebater = (request: Debater) => {
+    if (!session) return;
+    const updatedDebaters = [...session.debaters, { ...request, status: "approved" as const }];
+    const nextSession = {
+      ...session,
+      debaters: updatedDebaters
     };
-  }, [mesh]);
+    setSession(nextSession);
+    setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    triggerToast(`${request.name} approved.`);
+  };
 
-  // Timer controls with P2P sync broadcast
-  const handleTimerAction = (timerType: "speech" | "prep", action: "start" | "pause" | "reset") => {
+  // Host Action: Reject connecting debater
+  const handleRejectDebater = (request: Debater) => {
+    setPendingRequests(prev => prev.filter(r => r.id !== request.id));
+    mesh.sendToPeer(request.id, {
+      type: "timer-action", // reuse command to exit client
+      senderId: mesh.peerId,
+      payload: { action: "reset", timerType: "speech", durationSeconds: 0 } // dummy to terminate
+    });
+    triggerToast(`${request.name} rejected.`);
+  };
+
+  // Host updates debater side/position
+  const updateDebaterConfig = (debaterId: string, side: "affirmative" | "negative", position: number) => {
+    if (!session) return;
+    const updated = session.debaters.map(d => {
+      if (d.id === debaterId) {
+        return { ...d, team: side, position };
+      }
+      return d;
+    });
+    const nextSession = { ...session, debaters: updated };
+    setSession(nextSession);
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+  };
+
+  // Host updates handout fields
+  const handleUpdateHandout = (fields: Partial<Handout>) => {
+    if (!session) return;
+    const nextSession = {
+      ...session,
+      handout: { ...session.handout, ...fields }
+    };
+    setSession(nextSession);
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+  };
+
+  // Host marks current speaker
+  const handleSelectSpeaker = (debaterId: string) => {
+    if (!session) return;
+    const nextSession = { ...session, currentSpeakerId: debaterId };
+    setSession(nextSession);
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+  };
+
+  // Host starts the active debate round
+  const handleStartDebate = () => {
+    if (!session) return;
+    
+    // Check constraints
+    if (!session.handout.title.trim() || !session.handout.problem.trim()) {
+      alert("Please complete the Handout Title and Problem description before starting!");
+      return;
+    }
+    if (session.debaters.length === 0) {
+      alert("Wait for debaters to join the room first!");
+      return;
+    }
+    const unassigned = session.debaters.some(d => !d.team || !d.position);
+    if (unassigned) {
+      alert("Assign teams (Aff/Neg) and speaking positions for all approved debaters before starting!");
+      return;
+    }
+
+    const nextSession = { ...session, status: "active" as const };
+    setSession(nextSession);
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    triggerToast("Debate Round Started! Handouts distributed.");
+  };
+
+  // Parse custom MM:SS duration
+  const parseMMSS = (val: string): number => {
+    const parts = val.split(":");
+    if (parts.length === 2) {
+      const m = parseInt(parts[0], 10);
+      const s = parseInt(parts[1], 10);
+      if (!isNaN(m) && !isNaN(s)) {
+        return m * 60 + s;
+      }
+    }
+    return 240;
+  };
+
+  // Host updates duration settings
+  const handleTimerDurationChange = (timerType: "speech" | "prep", val: string) => {
+    if (!session) return;
+    const seconds = parseMMSS(val);
+    const nextSession = {
+      ...session,
+      [timerType === "speech" ? "speechDuration" : "prepDuration"]: seconds
+    };
+    setSession(nextSession);
+
+    // Reset local timer instance
+    const timer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
+    if (timer) {
+      timer.reset(seconds);
+      if (timerType === "speech") {
+        setTimerRemaining(seconds * 1000);
+      } else {
+        setPrepRemaining(seconds * 1000);
+      }
+    }
+
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+  };
+
+  // Sync timers trigger actions
+  const handleTimerClick = (timerType: "speech" | "prep", action: "start" | "pause" | "reset") => {
     const targetTimer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
     const setterRunning = timerType === "speech" ? setIsTimerRunning : setIsPrepRunning;
-    const duration = timerType === "speech" 
-      ? PF_SPEECHES.find(s => s.id === activeSpeech)?.duration || 240
-      : 180;
+    const duration = timerType === "speech" ? session?.speechDuration || 240 : session?.prepDuration || 180;
 
     if (!targetTimer) return;
 
     if (action === "start") {
       targetTimer.start();
       setterRunning(true);
-
-      // Broadcast start with targetTime
       const state = targetTimer.getState();
-      if (isPeerConnected) {
-        mesh.broadcast({
-          type: "timer-action",
-          senderId: mesh.peerId,
-          payload: {
-            timerType,
-            action: "start",
-            targetTime: state.targetTime
-          }
-        });
+      mesh.broadcast({
+        type: "timer-action",
+        senderId: mesh.peerId,
+        payload: {
+          timerType,
+          action: "start",
+          targetTime: state.targetTime
+        }
+      });
+
+      // Alert speaker client
+      if (timerType === "speech" && session?.currentSpeakerId === mesh.peerId) {
+        triggerToast("📢 Your speech timer has started!");
       }
     } else if (action === "pause") {
       targetTimer.pause();
       setterRunning(false);
-
-      if (isPeerConnected) {
-        mesh.broadcast({
-          type: "timer-action",
-          senderId: mesh.peerId,
-          payload: { timerType, action: "pause" }
-        });
-      }
+      mesh.broadcast({
+        type: "timer-action",
+        senderId: mesh.peerId,
+        payload: { timerType, action: "pause" }
+      });
     } else if (action === "reset") {
       targetTimer.reset(duration);
       setterRunning(false);
-
-      if (isPeerConnected) {
-        mesh.broadcast({
-          type: "timer-action",
-          senderId: mesh.peerId,
-          payload: { timerType, action: "reset", durationSeconds: duration }
-        });
-      }
+      mesh.broadcast({
+        type: "timer-action",
+        senderId: mesh.peerId,
+        payload: { timerType, action: "reset", durationSeconds: duration }
+      });
     }
   };
 
-  const handleSpeechChange = (speechId: string) => {
-    setActiveSpeech(speechId);
-    const speech = PF_SPEECHES.find((s) => s.id === speechId);
-    if (speech && debateTimerRef.current) {
-      debateTimerRef.current.reset(speech.duration);
-      setTimerRemaining(speech.duration * 1000);
-      setIsTimerRunning(false);
-    }
-  };
-
-  const updateFlowNote = (speechId: string, text: string) => {
-    setFlows((prev) => ({
-      ...prev,
-      [speechId]: {
-        ...prev[speechId],
-        notes: text
+  // Both: Log speaker notes
+  const handleUpdateSpeakerNote = (text: string) => {
+    if (!session || !session.currentSpeakerId) return;
+    const nextSession = {
+      ...session,
+      speakerNotes: {
+        ...session.speakerNotes,
+        [session.currentSpeakerId]: text
       }
-    }));
+    };
+    setSession(nextSession);
+    // Broadcast edits to partner
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
   };
 
-  // AI Outlining Auto-Fill
-  const triggerAIOutlining = async () => {
+  // AI Outlining fill notes
+  const handleAIOutlineFill = async () => {
+    if (!session || !session.currentSpeakerId) return;
     try {
-      const cases = await db.documents.where("type").equals("case").toArray();
+      const allDocs = await db.documents.toArray();
+      const cases = allDocs.filter(d => (d.partnerAccess || "private") === "private");
       if (cases.length === 0) {
-        alert("No case documents found. Please draft a constructive case in the Shared Documents tab first!");
+        alert("Please draft a private Case document first under the Documents tab!");
         return;
       }
-
-      // Sort to get the latest modified case
       cases.sort((a, b) => b.lastModified - a.lastModified);
       const latestCase = cases[0];
 
@@ -233,318 +474,579 @@ export const InRound: React.FC = () => {
         });
         notesText = await ai.autoFillFlowTable(latestCase.content);
       } else {
-        // Mock fallback if API Key is not set
-        notesText = `**[AI DRAFT OUTLINE - MOCK FALLBACK]**\n- **Case Outline for: ${latestCase.name}**\n- **Contention 1: Economic Recovery**\n  - Trade tariffs trigger global supply chain blocks.\n  - Cites: Smith 2024 (Economy)\n- **Contention 2: Carbon Neutrality**\n  - Green subsidies trigger clean innovation shift.`;
+        notesText = `**[AI OUTLINE - MOCK FALLBACK]**\n\n- **Case: ${latestCase.name.replace(".md", "")}**\n- **Contention 1: Global Stability**\n  - Subsidies secure carbon transitions.\n- **Contention 2: Technological Lead**\n  - Green grids trigger localized grid expansions.`;
       }
 
-      setFlows((prev) => ({
-        ...prev,
-        [activeSpeech]: {
-          notes: notesText,
-          draftStatus: "draft"
-        }
-      }));
+      handleUpdateSpeakerNote(notesText);
+      triggerToast("AI Outline loaded into speaker notes.");
     } catch (err: any) {
-      console.error("AI Outlining failed:", err);
-      alert(`AI Outlining failed: ${err.message}`);
+      alert(`AI Outline failed: ${err.message}`);
     }
   };
 
-  const acceptAIDraft = (speechId: string) => {
-    setFlows((prev) => ({
-      ...prev,
-      [speechId]: {
-        ...prev[speechId],
-        draftStatus: "accepted"
-      }
-    }));
-  };
+  // Host ends round, saves logs
+  const handleEndRound = async (winner: "affirmative" | "negative") => {
+    if (!session) return;
+    if (!window.confirm(`Are you sure you want to end this debate round and record ${winner.toUpperCase()} as winner?`)) return;
 
-  // Save round history to DB
-  const saveRound = async (result: "win" | "loss" | "pending") => {
-    if (!isRoundStarted) return;
-
+    // Archive session logs into Dexie history store
     const roundRecord: TournamentRecord = {
-      id: `record-${Math.random().toString(36).substring(2, 11)}`,
-      matchName: activeMatchName,
-      speechOrder: PF_SPEECHES.map((s) => s.id),
-      sides: mySide,
-      opponentName: activeOpponent || "Unknown Opponent",
-      winLoss: result,
-      flows: Object.entries(flows).map(([speechId, data]) => ({
-        speechId,
-        notes: data.notes,
-        draftStatus: data.draftStatus
+      id: `history-${Math.random().toString(36).substring(2, 11)}`,
+      matchName: session.matchName,
+      opponentName: session.groupName,
+      sides: session.debaters.find(d => d.id === mesh.peerId)?.team || "affirmative",
+      winLoss: winner === (session.debaters.find(d => d.id === mesh.peerId)?.team || "affirmative") ? "win" : "loss",
+      speechOrder: ["1AC", "1NC"],
+      flows: session.debaters.map(d => ({
+        speechId: d.name,
+        notes: session.speakerNotes[d.id] || "",
+        draftStatus: "accepted" as const
       })),
-      tag: "Round Archivist",
+      tag: session.groupName,
       timestamp: Date.now()
     };
 
     await db.history.put(roundRecord);
-    alert(`Debate round archived successfully as: ${result.toUpperCase()}!`);
+    
+    // Broadcast end session status to clients
+    const nextSession = { ...session, status: "ended" as const, winner };
+    setSession(nextSession);
+    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+
+    triggerToast("Session saved! Redirecting to history...");
     endSession();
+    setActivePage("history");
   };
 
-  // Helper to format ms into m:ss
-  const formatTime = (ms: number): string => {
+  // Exit lobby
+  const handleExitSession = () => {
+    if (window.confirm("Exit this round and disconnect from room?")) {
+      endSession();
+      setSession(null);
+      triggerToast("Exited session.");
+    }
+  };
+
+  // Format countdowns
+  const formatCountdown = (ms: number): string => {
     const totalSeconds = Math.ceil(ms / 1000);
     const m = Math.floor(totalSeconds / 60);
     const s = totalSeconds % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // Find current speaker debater
+  const currentSpeaker = session?.debaters.find(d => d.id === session.currentSpeakerId);
+  const currentSpeakerNotes = session?.currentSpeakerId ? session.speakerNotes[session.currentSpeakerId] || "" : "";
+  const myDebaterInfo = session?.debaters.find(d => d.id === mesh.peerId);
+
   return (
-    <div className="space-y-6 h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
-      
-      {/* Active Debate Session View */}
-      {isRoundStarted ? (
-        <>
-          {/* 1. Header Configurations & Timers Panel */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 bg-slate-950 p-4 border border-slate-800 rounded-xl">
-            <div className="flex flex-col justify-between h-full space-y-2">
-              <div>
-                <h4 className="text-sm font-bold text-white truncate">{activeMatchName}</h4>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    Vs. {activeOpponent || "Unknown Opponent"}
+    <div className="space-y-6 h-full flex flex-col overflow-hidden">
+      {/* Toast Alert */}
+      {toastNotification && (
+        <div className="toast" role="status">
+          {toastNotification}
+        </div>
+      )}
+
+      {isRoundStarted && session ? (
+        /* ------------------ ACTIVE LIVE DEBATE ROUND SECTION ------------------ */
+        <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
+          
+          {/* Header Controls Banner */}
+          <div className="bg-white border border-slate-300 rounded-lg p-5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-xs">
+            <div>
+              <span className="eyebrow">Room Code: {session.roomCode}</span>
+              <h1 className="text-xl font-bold tracking-tight text-slate-800">{session.matchName}</h1>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Group: {session.groupName} | Debaters: {session.debaters.length}
+                {myDebaterInfo?.team && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                    My Side: {myDebaterInfo.team.toUpperCase()} (Pos: {myDebaterInfo.position})
                   </span>
-                  <span className="text-slate-600">|</span>
-                  <button 
-                    onClick={() => setMySide(prev => prev === "affirmative" ? "negative" : "affirmative")}
-                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold capitalize bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded transition-all"
+                )}
+              </div>
+            </div>
+
+            {/* Session Action Commands */}
+            <div className="session-actions">
+              {isHost && session.status === "lobby" && (
+                <button type="button" className="command primary" onClick={handleStartDebate}>
+                  <Play size={16} /> Start Debate
+                </button>
+              )}
+              {isHost && session.status === "active" && (
+                <div className="flex gap-2">
+                  <select 
+                    onChange={(e) => handleEndRound(e.target.value as any)} 
+                    defaultValue=""
+                    className="bg-white text-xs border border-slate-300 rounded-lg px-2"
                   >
-                    My Side: {mySide === "affirmative" ? "Aff (Pro)" : "Neg (Con)"}
-                  </button>
+                    <option value="" disabled>End debate (Select Winner)</option>
+                    <option value="affirmative">Affirmative Wins</option>
+                    <option value="negative">Negative Wins</option>
+                  </select>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveRound("win")}
-                  className="flex-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
-                >
-                  <Check size={12} /> Win
-                </button>
-                <button
-                  onClick={() => saveRound("loss")}
-                  className="flex-1 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
-                >
-                  <ShieldAlert size={12} /> Loss
-                </button>
-                <button
-                  onClick={endSession}
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-
-            {/* Shared Speech Timer */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                  <Clock size={11} /> Speech Timer ({activeSpeech})
-                </span>
-                <div className="font-mono text-3xl font-bold text-white tracking-widest">
-                  {formatTime(timerRemaining)}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleTimerAction("speech", isTimerRunning ? "pause" : "start")}
-                  className={`p-2.5 rounded-lg text-white transition-colors ${
-                    isTimerRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
-                  }`}
-                >
-                  {isTimerRunning ? <Pause size={16} /> : <Play size={16} />}
-                </button>
-                <button
-                  onClick={() => handleTimerAction("speech", "reset")}
-                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-                >
-                  <RotateCcw size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* Shared Prep Timer */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                  <Clock size={11} /> Prep Timer
-                </span>
-                <div className="font-mono text-3xl font-bold text-white tracking-widest">
-                  {formatTime(prepRemaining)}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleTimerAction("prep", isPrepRunning ? "pause" : "start")}
-                  className={`p-2.5 rounded-lg text-white transition-colors ${
-                    isPrepRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
-                  }`}
-                >
-                  {isPrepRunning ? <Pause size={16} /> : <Play size={16} />}
-                </button>
-                <button
-                  onClick={() => handleTimerAction("prep", "reset")}
-                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-                >
-                  <RotateCcw size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Flowing Table note-taking grid */}
-          <div className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
-            {/* Speeches Selector Bar */}
-            <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 overflow-x-auto gap-2">
-              <div className="flex gap-2">
-                {PF_SPEECHES.map((speech) => (
-                  <button
-                    key={speech.id}
-                    onClick={() => handleSpeechChange(speech.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                      activeSpeech === speech.id
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800"
-                    }`}
-                  >
-                    {speech.id}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={triggerAIOutlining}
-                className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Plus size={10} /> AI Outlining Auto-Fill
+              )}
+              <button type="button" className="command danger-command inline-danger" onClick={handleExitSession}>
+                Exit Session
               </button>
             </div>
-
-            {/* Note-taking Grid columns */}
-            <div className="flex-1 overflow-x-auto p-4 flex gap-4 min-w-0 bg-slate-950/40">
-              {PF_SPEECHES.map((s) => {
-                const isActive = activeSpeech === s.id;
-                const flow = flows[s.id];
-
-                return (
-                  <div
-                    key={s.id}
-                    className={`w-80 flex-shrink-0 flex flex-col border rounded-xl overflow-hidden bg-slate-900/40 transition-all ${
-                      isActive ? "border-indigo-500 bg-indigo-500/5" : "border-slate-850"
-                    }`}
-                  >
-                    {/* Header */}
-                    <div className="p-3 border-b border-slate-850 bg-slate-950/40 flex items-center justify-between">
-                      <div className="min-w-0">
-                        <strong className="text-xs text-white block">{s.id}</strong>
-                        <span className="text-[10px] text-slate-500 truncate block">{s.name}</span>
-                      </div>
-                      {flow?.draftStatus === "draft" && (
-                        <button
-                          onClick={() => acceptAIDraft(s.id)}
-                          title="Accept AI Draft"
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white p-1 rounded transition-colors"
-                        >
-                          <Check size={10} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Flow body text area */}
-                    <div className="flex-1 relative flex flex-col p-3">
-                      {flow?.draftStatus === "draft" && (
-                        <div className="absolute top-2 right-2 bg-amber-600/25 border border-amber-500/35 text-[9px] font-bold text-amber-400 px-2 py-0.5 rounded flex items-center gap-1 z-10">
-                          <ShieldAlert size={10} /> Review AI Draft
-                        </div>
-                      )}
-                      <textarea
-                        value={flow?.notes || ""}
-                        onChange={(e) => updateFlowNote(s.id, e.target.value)}
-                        placeholder={`Log arguments and notes for ${s.id}...`}
-                        className={`w-full h-full bg-transparent border-0 resize-none text-xs leading-relaxed focus:outline-none focus:ring-0 ${
-                          flow?.draftStatus === "draft" ? "text-amber-300 font-mono" : "text-slate-350"
-                        }`}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-        </>
+
+          {/* Pending handshake requests alerts (Host-only overlay) */}
+          {isHost && pendingRequests.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-lg flex items-center justify-between gap-4 animate-pulse shrink-0">
+              <div className="flex items-center gap-2 text-amber-800 text-sm font-semibold">
+                <Users size={16} />
+                <span>Pending link request from: {pendingRequests[0].name}</span>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleApproveDebater(pendingRequests[0])}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
+                >
+                  <UserCheck size={14} /> Approve
+                </button>
+                <button 
+                  onClick={() => handleRejectDebater(pendingRequests[0])}
+                  className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
+                >
+                  <UserX size={14} /> Reject
+                </button>
+              </div>
+            </div>
+          )}
+
+          {session.status === "lobby" ? (
+            /* ------------------ LOBBY PREP SCREEN ------------------ */
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 overflow-y-auto">
+              
+              {/* Handouts panel */}
+              <div className="panel flex flex-col justify-between">
+                <div>
+                  <div className="panel-header compact">
+                    <h2>Debate Handouts</h2>
+                    <FileText size={18} />
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">Draft the match problem. Handouts distribute immediately when the host starts the debate.</p>
+                  
+                  <div className="space-y-4">
+                    <label className="field compact-field">
+                      <span>Problem Topic Title</span>
+                      <input 
+                        value={session.handout.title} 
+                        onChange={(e) => handleUpdateHandout({ title: e.target.value })}
+                        placeholder="e.g. Subsidy tariffs on green technology..."
+                        disabled={!isHost}
+                      />
+                    </label>
+                    <label className="field compact-field">
+                      <span>Problem Resolution Definition</span>
+                      <textarea 
+                        value={session.handout.problem} 
+                        onChange={(e) => handleUpdateHandout({ problem: e.target.value })}
+                        placeholder="Define the primary focus problem..."
+                        disabled={!isHost}
+                      />
+                    </label>
+                    <label className="field compact-field">
+                      <span>Problem details (optional)</span>
+                      <textarea 
+                        value={session.handout.details || ""} 
+                        onChange={(e) => handleUpdateHandout({ details: e.target.value })}
+                        placeholder="Context or documentation..."
+                        disabled={!isHost}
+                        className="min-h-[80px]"
+                      />
+                    </label>
+                  </div>
+                </div>
+                
+                {!isHost && (
+                  <div className="inline-note bg-slate-100 p-3 rounded-lg border text-xs mt-4">
+                    🔒 Handouts and details will be shared when the Host starts the debate.
+                  </div>
+                )}
+              </div>
+
+              {/* Teams & Positions assignments */}
+              <div className="panel">
+                <div className="panel-header compact">
+                  <h2>Debaters Teams assignment</h2>
+                  <Users size={18} />
+                </div>
+                <p className="text-xs text-slate-500 mb-4">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</p>
+                
+                <div className="team-list">
+                  {session.debaters.length === 0 ? (
+                    <div className="text-center py-10 text-xs text-slate-400">
+                      Waiting for debaters to join the room using code <strong>{session.roomCode}</strong>...
+                    </div>
+                  ) : (
+                    session.debaters.map(d => (
+                      <article key={d.id} className="team-row gap-3">
+                        <div className="min-w-0">
+                          <strong className="text-xs text-slate-700 truncate block">{d.name}</strong>
+                          <span className="text-[10px] text-slate-400 font-mono">{d.id.substring(0, 8)}</span>
+                        </div>
+                        {isHost ? (
+                          <>
+                            <div className="segmented">
+                              <button 
+                                type="button" 
+                                className={d.team === "affirmative" ? "selected" : ""} 
+                                onClick={() => updateDebaterConfig(d.id, "affirmative", d.position || 1)}
+                              >
+                                Aff
+                              </button>
+                              <button 
+                                type="button" 
+                                className={d.team === "negative" ? "selected" : ""} 
+                                onClick={() => updateDebaterConfig(d.id, "negative", d.position || 1)}
+                              >
+                                Neg
+                              </button>
+                            </div>
+                            <input 
+                              type="number"
+                              min={1}
+                              max={4}
+                              value={d.position || 1}
+                              onChange={(e) => updateDebaterConfig(d.id, d.team || "affirmative", parseInt(e.target.value, 10))}
+                              className="position-input w-16"
+                              placeholder="Pos"
+                            />
+                          </>
+                        ) : (
+                          <div className="text-xs font-semibold text-indigo-600">
+                            {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
+                          </div>
+                        )}
+                      </article>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            /* ------------------ ACTIVE DEBATE SCREEN ------------------ */
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0 overflow-y-auto">
+              
+              {/* Handout & Info */}
+              <div className="panel flex flex-col justify-between overflow-y-auto h-full">
+                <div className="space-y-4">
+                  <div className="panel-header compact border-b pb-2">
+                    <h2>Match Handout</h2>
+                    <Award size={18} className="text-indigo-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">{session.handout.title}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="eyebrow">Debate Resolution</span>
+                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        {session.handout.problem}
+                      </p>
+                    </div>
+                    {session.handout.details && (
+                      <div>
+                        <span className="eyebrow">Problem context</span>
+                        <p className="text-[11px] text-slate-500 whitespace-pre-line leading-relaxed">
+                          {session.handout.details}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t space-y-2">
+                  <span className="eyebrow">Debater Positions</span>
+                  <div className="space-y-1.5">
+                    {session.debaters.map(d => (
+                      <div key={d.id} className="flex justify-between items-center text-xs bg-slate-100 p-2 rounded border">
+                        <span className="font-semibold text-slate-700">{d.name}</span>
+                        <span className="text-[10px] uppercase font-bold text-indigo-600">
+                          {d.team} (Pos {d.position})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Speech & Prep count down timers */}
+              <div className="panel flex flex-col h-full overflow-y-auto">
+                <div className="panel-header compact border-b pb-2">
+                  <h2>Round Timers</h2>
+                  <Clock size={18} className="text-indigo-600" />
+                </div>
+
+                <div className="space-y-6 py-4 flex-1">
+                  {/* Speech timer card */}
+                  <div className="timer-row">
+                    <div>
+                      <strong>Speech countdown ({session.currentSpeakerId ? currentSpeaker?.name : "None"})</strong>
+                      {isHost ? (
+                        <input 
+                          value={speechInput} 
+                          onChange={(e) => setSpeechInput(e.target.value)} 
+                          onBlur={(e) => handleTimerDurationChange("speech", e.target.value)} 
+                          className="timer-input"
+                        />
+                      ) : (
+                        <span>{formatCountdown(timerRemaining)}</span>
+                      )}
+                    </div>
+                    
+                    <div className="font-mono text-xl font-bold text-slate-800">
+                      {formatCountdown(timerRemaining)}
+                    </div>
+                    
+                    {isHost && (
+                      <div className="row-actions">
+                        <button 
+                          onClick={() => handleTimerClick("speech", isTimerRunning ? "pause" : "start")}
+                          className="icon-button"
+                        >
+                          {isTimerRunning ? <Pause size={15} /> : <Play size={15} />}
+                        </button>
+                        <button 
+                          onClick={() => handleTimerClick("speech", "reset")}
+                          className="icon-button"
+                        >
+                          <RotateCcw size={15} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prep timer card */}
+                  <div className="timer-row">
+                    <div>
+                      <strong>Partners Prep Timer</strong>
+                      {isHost ? (
+                        <input 
+                          value={prepInput} 
+                          onChange={(e) => setPrepInput(e.target.value)} 
+                          onBlur={(e) => handleTimerDurationChange("prep", e.target.value)} 
+                          className="timer-input"
+                        />
+                      ) : (
+                        <span>{formatCountdown(prepRemaining)}</span>
+                      )}
+                    </div>
+
+                    <div className="font-mono text-xl font-bold text-slate-800">
+                      {formatCountdown(prepRemaining)}
+                    </div>
+
+                    {isHost && (
+                      <div className="row-actions">
+                        <button 
+                          onClick={() => handleTimerClick("prep", isPrepRunning ? "pause" : "start")}
+                          className="icon-button"
+                        >
+                          {isPrepRunning ? <Pause size={15} /> : <Play size={15} />}
+                        </button>
+                        <button 
+                          onClick={() => handleTimerClick("prep", "reset")}
+                          className="icon-button"
+                        >
+                          <RotateCcw size={15} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Speakers listing to mark current */}
+                <div className="pt-4 border-t space-y-2">
+                  <span className="eyebrow">Select Active Speaker</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {session.debaters.map(d => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => isHost && handleSelectSpeaker(d.id)}
+                        disabled={!isHost}
+                        className={`text-xs p-2 rounded-lg border font-semibold truncate ${
+                          session.currentSpeakerId === d.id
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
+                        }`}
+                      >
+                        {d.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Speaker Notes */}
+              <div className="panel flex flex-col h-full overflow-y-auto">
+                <div className="panel-header compact border-b pb-2">
+                  <h2>In-Round Notes</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAIOutlineFill}
+                      title="AI outline topic"
+                      className="text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1.5"
+                    >
+                      <Sparkles size={11} /> AI Outline
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col py-3">
+                  <span className="eyebrow block mb-2">
+                    Active Speaker Notes: {currentSpeaker ? currentSpeaker.name : "None selected"}
+                  </span>
+                  <textarea
+                    value={currentSpeakerNotes}
+                    onChange={(e) => handleUpdateSpeakerNote(e.target.value)}
+                    disabled={!session.currentSpeakerId}
+                    placeholder={
+                      session.currentSpeakerId 
+                        ? `Type markdown notes for ${currentSpeaker?.name}...` 
+                        : "Select an active speaker to log speech notes..."
+                    }
+                    className="w-full h-full bg-slate-50 border rounded-lg p-3 resize-none text-xs leading-relaxed focus:outline-none"
+                  />
+                </div>
+              </div>
+
+            </div>
+          )}
+
+        </div>
       ) : (
-        /* Welcome / Start Session Pipeline Layout */
-        <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden min-h-0">
-          
+        /* ------------------ STARTING DEBATE PIPELINE SELECTION ------------------ */
+        <div className="flex-grow flex flex-col lg:flex-row gap-6 min-h-0 overflow-y-auto">
           {/* Main Welcome Hero */}
-          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6">
-            <Award size={48} className="text-indigo-500 animate-pulse" />
+          <div className="flex-1 bg-white border border-slate-300 rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6 shadow-xs">
+            <Award size={48} className="text-indigo-600" />
             <div className="max-w-md space-y-2">
-              <h2 className="text-xl font-bold tracking-tight text-white">In-Round Flow Sheets & timers</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <h2 className="text-xl font-bold tracking-tight text-slate-800">Start Debate Session</h2>
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Connect and sync debate sheets in real-time with your partner, manage speech countdowns, and run human-in-the-loop AI outline assistants.
               </p>
             </div>
             
-            <button
-              onClick={() => setShowWizard(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95 duration-100 flex items-center gap-2"
-            >
-              <Plus size={16} /> Start New Debate Session
-            </button>
-          </div>
-
-          {/* Side: Session History List */}
-          <div className="w-full lg:w-96 bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 mb-4">
-              <History size={16} className="text-indigo-400" />
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Sessions</h3>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setStartMode("host")}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
+              >
+                Host Match Session
+              </button>
+              <button
+                onClick={() => setStartMode("join")}
+                className="command text-xs font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+              >
+                Join Match Session
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+            {/* Host inputs details */}
+            {startMode === "host" && (
+              <form onSubmit={handleHostCreate} className="w-full max-w-sm border-t pt-6 space-y-4 text-left">
+                <label className="field compact-field">
+                  <span>Debate Match Name</span>
+                  <input 
+                    value={matchName} 
+                    onChange={(e) => setMatchName(e.target.value)} 
+                    placeholder="e.g. State Debate Finals Round 1..."
+                    required 
+                  />
+                </label>
+                <label className="field compact-field">
+                  <span>Debaters School / Group Name</span>
+                  <input 
+                    value={groupName} 
+                    onChange={(e) => setGroupName(e.target.value)} 
+                    placeholder="e.g. Lincoln High School debate club..."
+                    required 
+                  />
+                </label>
+                <label className="field compact-field">
+                  <span>Position Team Size</span>
+                  <input 
+                    type="number"
+                    min={1}
+                    max={4}
+                    value={teamSize} 
+                    onChange={(e) => setTeamSize(parseInt(e.target.value, 10))} 
+                    required 
+                  />
+                </label>
+                <button type="submit" className="command primary w-full flex items-center justify-center gap-2">
+                  Launch Room Lobby <ArrowRight size={14} />
+                </button>
+              </form>
+            )}
+
+            {/* Join inputs details */}
+            {startMode === "join" && (
+              <form onSubmit={handleClientJoin} className="w-full max-w-sm border-t pt-6 space-y-4 text-left">
+                <label className="field compact-field">
+                  <span>Host Room Code</span>
+                  <input 
+                    value={joinRoomCode} 
+                    onChange={(e) => setJoinRoomCode(e.target.value)} 
+                    placeholder="Enter 4-digit code..."
+                    required 
+                  />
+                </label>
+                <button type="submit" className="command primary w-full flex items-center justify-center gap-2">
+                  Submit Join Request <ArrowRight size={14} />
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Right side: Session History lists */}
+          <div className="w-full lg:w-80 bg-white border border-slate-300 rounded-xl p-6 flex flex-col overflow-hidden shadow-xs">
+            <div className="flex items-center gap-2 mb-4 border-b pb-2">
+              <History size={16} className="text-indigo-600" />
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest">Recent Sessions</h3>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3">
               {historyList.map((rec) => (
-                <div key={rec.id} className="bg-slate-900 border border-slate-850 p-3.5 rounded-lg space-y-2 relative">
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                <div key={rec.id} className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg space-y-1.5 text-left">
+                  <div className="flex items-center justify-between text-[9px] text-slate-400">
                     <span className="flex items-center gap-1 font-medium">
                       <Calendar size={10} /> {new Date(rec.timestamp).toLocaleDateString()}
                     </span>
-                    <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[8px] ${
-                      rec.winLoss === "win" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                    <span className={`px-1 rounded font-bold uppercase text-[8px] ${
+                      rec.winLoss === "win" ? "bg-emerald-100 text-emerald-700 border" : "bg-rose-100 text-rose-700 border"
                     }`}>
                       {rec.winLoss}
                     </span>
                   </div>
 
                   <div>
-                    <h4 className="text-xs font-bold text-slate-200 truncate">{rec.matchName}</h4>
-                    <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5 capitalize">
-                      <Users size={10} className="text-indigo-400" /> vs. {rec.opponentName} | {rec.sides}
+                    <h4 className="text-xs font-bold text-slate-800 truncate">{rec.matchName}</h4>
+                    <span className="text-[10px] text-slate-500 font-medium truncate block">
+                      vs. {rec.opponentName} | Side: {rec.sides}
                     </span>
                   </div>
                 </div>
               ))}
 
               {historyList.length === 0 && (
-                <div className="text-center py-10 text-slate-600 text-xs flex flex-col justify-center items-center gap-2 h-full">
-                  <Trophy size={20} className="text-slate-800" />
-                  <span>No debate rounds archived yet.</span>
+                <div className="text-center py-10 text-slate-400 text-xs flex flex-col justify-center items-center gap-2 h-full">
+                  <Trophy size={20} className="text-slate-200" />
+                  <span>No debate sessions archived.</span>
                 </div>
               )}
             </div>
           </div>
-
         </div>
       )}
-
-      {/* Guided Session Wizard Modal */}
-      {showWizard && (
-        <SessionWizard onClose={() => setShowWizard(false)} />
-      )}
-
     </div>
   );
 };
+
 export default InRound;
