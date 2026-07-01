@@ -26,12 +26,14 @@ export class PeerMeshManager {
   public isHost: boolean = false;
   public peersList: string[] = []; // list of all peer IDs in the mesh
   public appVersion: string = APP_VERSION;
+  public matchDetails: { matchName: string; opponent: string; side: string } | null = null;
 
   private onConnectionOpenCallbacks: ConnectionCallback[] = [];
   private onConnectionCloseCallbacks: ((peerId: string) => void)[] = [];
   private onMessageCallbacks: MessageCallback[] = [];
   private onVersionMismatchCallback: (() => void) | null = null;
   private onHostMigrationCallback: ((newHostId: string) => void) | null = null;
+  private onMatchDetailsCallback: ((details: any) => void) | null = null;
 
   constructor() {
     // Generate a unique client peer ID
@@ -46,6 +48,7 @@ export class PeerMeshManager {
   public onMessage(cb: MessageCallback) { this.onMessageCallbacks.push(cb); }
   public onVersionMismatch(cb: () => void) { this.onVersionMismatchCallback = cb; }
   public onHostMigration(cb: (newHostId: string) => void) { this.onHostMigrationCallback = cb; }
+  public onMatchDetails(cb: (details: any) => void) { this.onMatchDetailsCallback = cb; }
 
   /**
    * Initializes a PeerJS instance connected to the signaling server.
@@ -141,7 +144,8 @@ export class PeerMeshManager {
         senderId: this.peerId,
         payload: {
           isHost: this.isHost,
-          peersList: this.peersList
+          peersList: this.peersList,
+          matchDetails: this.matchDetails
         }
       };
       conn.send(msg);
@@ -198,6 +202,14 @@ export class PeerMeshManager {
             if (pid !== this.peerId && !this.connections.has(pid)) {
               this.connectToPeer(pid);
             }
+          }
+        }
+        
+        // Sync match details on client
+        if (msg.payload && msg.payload.matchDetails) {
+          this.matchDetails = msg.payload.matchDetails;
+          if (this.onMatchDetailsCallback) {
+            this.onMatchDetailsCallback(msg.payload.matchDetails);
           }
         }
       }

@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { db, type TournamentRecord } from "../services/db";
 import { DebateTimer } from "../services/timers";
 import { AIService } from "../services/ai";
+import { SessionWizard } from "../components/SessionWizard";
 import { 
   Play, 
   Pause, 
@@ -11,7 +12,11 @@ import {
   ShieldAlert, 
   Check, 
   Clock, 
-  Award
+  Award,
+  Calendar,
+  Users,
+  Trophy,
+  History
 } from "lucide-react";
 
 // Standard Public Forum Debate speech template
@@ -27,14 +32,24 @@ const PF_SPEECHES = [
 ];
 
 export const InRound: React.FC = () => {
-  const { isPeerConnected, mesh, aiApiKey, aiEndpoint, aiModel } = useApp();
+  const { 
+    isPeerConnected, 
+    mesh, 
+    aiApiKey, 
+    aiEndpoint, 
+    aiModel,
+    activeMatchName,
+    activeOpponent,
+    activeSide,
+    roomCode,
+    endSession
+  } = useApp();
 
+  const isRoundStarted = !!roomCode;
 
-  // Match configurations
-  const [matchName, setMatchName] = useState("");
-  const [opponent, setOpponent] = useState("");
-  const [mySide, setMySide] = useState<"affirmative" | "negative">("affirmative");
-  const [isRoundStarted, setIsRoundStarted] = useState(false);
+  // Local state
+  const [showWizard, setShowWizard] = useState(false);
+  const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
 
   // Flows state
   const [flows, setFlows] = useState<Record<string, { notes: string; draftStatus: "draft" | "accepted" }>>({});
@@ -49,6 +64,31 @@ export const InRound: React.FC = () => {
 
   const debateTimerRef = useRef<DebateTimer | null>(null);
   const prepTimerRef = useRef<DebateTimer | null>(null);
+
+  // Load history list on startup or when round closes
+  useEffect(() => {
+    async function loadHistory() {
+      const records = await db.history.toArray();
+      records.sort((a, b) => b.timestamp - a.timestamp);
+      setHistoryList(records.slice(0, 5)); // show latest 5 rounds
+    }
+    if (!isRoundStarted) {
+      loadHistory();
+    }
+  }, [isRoundStarted]);
+
+  // Reactive flows mapping when session joins
+  useEffect(() => {
+    if (isRoundStarted && Object.keys(flows).length === 0) {
+      const initialFlows: Record<string, { notes: string; draftStatus: "draft" | "accepted" }> = {};
+      PF_SPEECHES.forEach((s) => {
+        initialFlows[s.id] = { notes: "", draftStatus: "accepted" };
+      });
+      setFlows(initialFlows);
+    } else if (!isRoundStarted) {
+      setFlows({});
+    }
+  }, [isRoundStarted]);
 
   // Initialize timer instances
   useEffect(() => {
@@ -98,21 +138,6 @@ export const InRound: React.FC = () => {
       if (prepTimerRef.current) prepTimerRef.current.reset();
     };
   }, [mesh]);
-
-  // Handle room connections starting a round
-  const handleStartRound = () => {
-    if (!matchName.trim()) {
-      alert("Please enter a Match/Tournament Name to begin.");
-      return;
-    }
-    // Initialize empty flows for all speeches
-    const initialFlows: typeof flows = {};
-    PF_SPEECHES.forEach((s) => {
-      initialFlows[s.id] = { notes: "", draftStatus: "accepted" };
-    });
-    setFlows(initialFlows);
-    setIsRoundStarted(true);
-  };
 
   // Timer controls with P2P sync broadcast
   const handleTimerAction = (timerType: "speech" | "prep", action: "start" | "pause" | "reset") => {
@@ -241,10 +266,10 @@ export const InRound: React.FC = () => {
 
     const roundRecord: TournamentRecord = {
       id: `record-${Math.random().toString(36).substring(2, 11)}`,
-      matchName,
+      matchName: activeMatchName,
       speechOrder: PF_SPEECHES.map((s) => s.id),
-      sides: mySide,
-      opponentName: opponent || "Unknown Opponent",
+      sides: activeSide,
+      opponentName: activeOpponent || "Unknown Opponent",
       winLoss: result,
       flows: Object.entries(flows).map(([speechId, data]) => ({
         speechId,
@@ -257,10 +282,7 @@ export const InRound: React.FC = () => {
 
     await db.history.put(roundRecord);
     alert(`Debate round archived successfully as: ${result.toUpperCase()}!`);
-    // reset round
-    setIsRoundStarted(false);
-    setMatchName("");
-    setOpponent("");
+    endSession();
   };
 
   // Helper to format ms into m:ss
@@ -273,139 +295,101 @@ export const InRound: React.FC = () => {
 
   return (
     <div className="space-y-6 h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
-      {/* 1. Header Configurations & Timers Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 bg-slate-950 p-4 border border-slate-800 rounded-xl">
-        {/* Config info */}
-        {!isRoundStarted ? (
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">New Round Configs</h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={matchName}
-                onChange={(e) => setMatchName(e.target.value)}
-                placeholder="Match/Tournament Name"
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-              />
-              <input
-                type="text"
-                value={opponent}
-                onChange={(e) => setOpponent(e.target.value)}
-                placeholder="Opponent Code/Name"
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex">
+      
+      {/* Active Debate Session View */}
+      {isRoundStarted ? (
+        <>
+          {/* 1. Header Configurations & Timers Panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 bg-slate-950 p-4 border border-slate-800 rounded-xl">
+            {/* Active Round Info */}
+            <div className="flex flex-col justify-between h-full space-y-2">
+              <div>
+                <h4 className="text-sm font-bold text-white truncate">{activeMatchName}</h4>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Vs. {activeOpponent || "Unknown Opponent"} | Side: <span className="text-indigo-400 font-bold capitalize">{activeSide}</span>
+                </span>
+              </div>
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setMySide("affirmative")}
-                  className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                    mySide === "affirmative" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  onClick={() => saveRound("win")}
+                  className="flex-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
                 >
-                  Affirmative
+                  <Check size={12} /> Win
                 </button>
                 <button
-                  onClick={() => setMySide("negative")}
-                  className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                    mySide === "negative" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  onClick={() => saveRound("loss")}
+                  className="flex-1 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
                 >
-                  Negative
+                  <ShieldAlert size={12} /> Loss
+                </button>
+                <button
+                  onClick={endSession}
+                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-350 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all"
+                >
+                  Cancel
                 </button>
               </div>
-              <button
-                onClick={handleStartRound}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                <Play size={12} /> Start Round
-              </button>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col justify-between h-full space-y-2">
-            <div>
-              <h4 className="text-sm font-bold text-white truncate">{matchName}</h4>
-              <span className="text-[10px] text-slate-400 font-mono">Vs. {opponent || "Unknown"} | Side: <span className="text-indigo-400 font-bold capitalize">{mySide}</span></span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => saveRound("win")}
-                className="flex-1 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
-              >
-                <Check size={12} /> Archive Win
-              </button>
-              <button
-                onClick={() => saveRound("loss")}
-                className="flex-1 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 text-[10px] font-bold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1"
-              >
-                <ShieldAlert size={12} /> Archive Loss
-              </button>
-            </div>
-          </div>
-        )}
 
-        {/* Shared Speech Timer */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-              <Clock size={11} /> Speech Timer ({activeSpeech})
-            </span>
-            <div className="font-mono text-3xl font-bold text-white tracking-widest">
-              {formatTime(timerRemaining)}
+            {/* Shared Speech Timer */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                  <Clock size={11} /> Speech Timer ({activeSpeech})
+                </span>
+                <div className="font-mono text-3xl font-bold text-white tracking-widest">
+                  {formatTime(timerRemaining)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleTimerAction("speech", isTimerRunning ? "pause" : "start")}
+                  className={`p-2.5 rounded-lg text-white transition-colors ${
+                    isTimerRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
+                  }`}
+                >
+                  {isTimerRunning ? <Pause size={16} /> : <Play size={16} />}
+                </button>
+                <button
+                  onClick={() => handleTimerAction("speech", "reset")}
+                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Shared Prep Timer */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                  <Clock size={11} /> Prep Timer
+                </span>
+                <div className="font-mono text-3xl font-bold text-white tracking-widest">
+                  {formatTime(prepRemaining)}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleTimerAction("prep", isPrepRunning ? "pause" : "start")}
+                  className={`p-2.5 rounded-lg text-white transition-colors ${
+                    isPrepRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
+                  }`}
+                >
+                  {isPrepRunning ? <Pause size={16} /> : <Play size={16} />}
+                </button>
+                <button
+                  onClick={() => handleTimerAction("prep", "reset")}
+                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleTimerAction("speech", isTimerRunning ? "pause" : "start")}
-              className={`p-2.5 rounded-lg text-white transition-colors ${
-                isTimerRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
-              }`}
-            >
-              {isTimerRunning ? <Pause size={16} /> : <Play size={16} />}
-            </button>
-            <button
-              onClick={() => handleTimerAction("speech", "reset")}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-            >
-              <RotateCcw size={16} />
-            </button>
-          </div>
-        </div>
 
-        {/* Shared Prep Timer */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-              <Clock size={11} /> Prep Timer
-            </span>
-            <div className="font-mono text-3xl font-bold text-white tracking-widest">
-              {formatTime(prepRemaining)}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleTimerAction("prep", isPrepRunning ? "pause" : "start")}
-              className={`p-2.5 rounded-lg text-white transition-colors ${
-                isPrepRunning ? "bg-amber-600 hover:bg-amber-500" : "bg-indigo-600 hover:bg-indigo-500"
-              }`}
-            >
-              {isPrepRunning ? <Pause size={16} /> : <Play size={16} />}
-            </button>
-            <button
-              onClick={() => handleTimerAction("prep", "reset")}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-            >
-              <RotateCcw size={16} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Flowing Table note-taking grid */}
-      <div className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
-        {isRoundStarted ? (
-          <>
+          {/* 2. Flowing Table note-taking grid */}
+          <div className="flex-1 min-h-0 bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
             {/* Speeches Selector Bar */}
             <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 overflow-x-auto gap-2">
               <div className="flex gap-2">
@@ -432,7 +416,7 @@ export const InRound: React.FC = () => {
             </div>
 
             {/* Note-taking Grid columns */}
-            <div className="flex-1 overflow-x-auto p-4 flex gap-4 min-w-0">
+            <div className="flex-1 overflow-x-auto p-4 flex gap-4 min-w-0 bg-slate-950/40">
               {PF_SPEECHES.map((s) => {
                 const isActive = activeSpeech === s.id;
                 const flow = flows[s.id];
@@ -441,25 +425,23 @@ export const InRound: React.FC = () => {
                   <div
                     key={s.id}
                     className={`w-80 flex-shrink-0 flex flex-col border rounded-xl overflow-hidden bg-slate-900/40 transition-all ${
-                      isActive ? "border-indigo-500 bg-indigo-500/5" : "border-slate-800"
+                      isActive ? "border-indigo-500 bg-indigo-500/5" : "border-slate-850"
                     }`}
                   >
                     {/* Header */}
-                    <div className="p-3 border-b border-slate-800 bg-slate-950/40 flex items-center justify-between">
+                    <div className="p-3 border-b border-slate-850 bg-slate-950/40 flex items-center justify-between">
                       <div className="min-w-0">
                         <strong className="text-xs text-white block">{s.id}</strong>
                         <span className="text-[10px] text-slate-500 truncate block">{s.name}</span>
                       </div>
                       {flow?.draftStatus === "draft" && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => acceptAIDraft(s.id)}
-                            title="Accept AI Draft"
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white p-1 rounded transition-colors"
-                          >
-                            <Check size={10} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => acceptAIDraft(s.id)}
+                          title="Accept AI Draft"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white p-1 rounded transition-colors"
+                        >
+                          <Check size={10} />
+                        </button>
                       )}
                     </div>
 
@@ -475,7 +457,7 @@ export const InRound: React.FC = () => {
                         onChange={(e) => updateFlowNote(s.id, e.target.value)}
                         placeholder={`Log arguments and notes for ${s.id}...`}
                         className={`w-full h-full bg-transparent border-0 resize-none text-xs leading-relaxed focus:outline-none focus:ring-0 ${
-                          flow?.draftStatus === "draft" ? "text-amber-300 font-mono" : "text-slate-300"
+                          flow?.draftStatus === "draft" ? "text-amber-300 font-mono" : "text-slate-350"
                         }`}
                       />
                     </div>
@@ -483,17 +465,77 @@ export const InRound: React.FC = () => {
                 );
               })}
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm gap-3 p-6 text-center max-w-md mx-auto">
-            <Award size={36} className="text-indigo-400/80 animate-pulse" />
-            <h4 className="font-bold text-white">Debate Match Room Ready</h4>
-            <p className="text-xs text-slate-400">
-              Select your debate tournament settings above and click <strong>Start Round</strong> to generate the flow grid sheet, share speech countdowns, and load AI prep logs.
-            </p>
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        /* Welcome / Start Session Pipeline Layout */
+        <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden min-h-0">
+          
+          {/* Main Welcome Hero */}
+          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6">
+            <Award size={48} className="text-indigo-500 animate-pulse" />
+            <div className="max-w-md space-y-2">
+              <h2 className="text-xl font-bold tracking-tight text-white">In-Round Flow Sheets & timers</h2>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Connect and sync debate sheets in real-time with your partner, manage speech countdowns, and run human-in-the-loop AI outline assistants.
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setShowWizard(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95 duration-100 flex items-center gap-2"
+            >
+              <Plus size={16} /> Start New Debate Session
+            </button>
+          </div>
+
+          {/* Side: Session History List */}
+          <div className="w-full lg:w-96 bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 mb-4">
+              <History size={16} className="text-indigo-400" />
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Recent Sessions</h3>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {historyList.map((rec) => (
+                <div key={rec.id} className="bg-slate-900 border border-slate-850 p-3.5 rounded-lg space-y-2 relative">
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Calendar size={10} /> {new Date(rec.timestamp).toLocaleDateString()}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[8px] ${
+                      rec.winLoss === "win" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                    }`}>
+                      {rec.winLoss}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-200 truncate">{rec.matchName}</h4>
+                    <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5 capitalize">
+                      <Users size={10} className="text-indigo-400" /> vs. {rec.opponentName} | {rec.sides}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              {historyList.length === 0 && (
+                <div className="text-center py-10 text-slate-600 text-xs flex flex-col justify-center items-center gap-2 h-full">
+                  <Trophy size={20} className="text-slate-800" />
+                  <span>No debate rounds archived yet.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Guided Session Wizard Modal */}
+      {showWizard && (
+        <SessionWizard onClose={() => setShowWizard(false)} />
+      )}
+
     </div>
   );
 };

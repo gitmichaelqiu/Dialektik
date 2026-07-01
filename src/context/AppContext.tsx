@@ -32,6 +32,12 @@ interface AppContextType {
     aiEndpoint?: string;
     aiModel?: string;
   }) => Promise<void>;
+  activeMatchName: string;
+  activeOpponent: string;
+  activeSide: "affirmative" | "negative";
+  setActiveSide: (side: "affirmative" | "negative") => void;
+  hostSession: (code: string, matchName: string, opponent: string, side: "affirmative" | "negative") => Promise<void>;
+  joinSession: (code: string) => Promise<void>;
   startSession: (code: string, host: boolean) => Promise<void>;
   endSession: () => void;
   syncData: () => Promise<void>;
@@ -49,6 +55,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isPeerConnected, setIsPeerConnected] = useState(false);
   const [peersList, setPeersList] = useState<string[]>([]);
   const [activePage, setActivePage] = useState("settings"); // start on settings to configure keys
+ 
+  // Active debate session details
+  const [activeMatchName, setActiveMatchName] = useState("");
+  const [activeOpponent, setActiveOpponent] = useState("");
+  const [activeSide, setActiveSide] = useState<"affirmative" | "negative">("affirmative");
 
   // Config states
   const [githubToken, setGithubToken] = useState("");
@@ -105,6 +116,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     meshManager.onVersionMismatch(() => {
       alert("App version mismatch! Please refresh your browser or update the app.");
+    });
+
+    // Handle incoming match details from the host
+    meshManager.onMatchDetails((details) => {
+      if (details) {
+        setActiveMatchName(details.matchName);
+        setActiveOpponent(details.opponent);
+        setActiveSide(details.side);
+      }
     });
   }, []);
 
@@ -207,6 +227,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsHost(false);
     setIsPeerConnected(false);
     setPeersList([]);
+    setActiveMatchName("");
+    setActiveOpponent("");
+    setActiveSide("affirmative");
+    meshManager.matchDetails = null;
+  };
+
+  const hostSession = async (code: string, matchName: string, opponent: string, side: "affirmative" | "negative") => {
+    setActiveMatchName(matchName);
+    setActiveOpponent(opponent);
+    setActiveSide(side);
+    meshManager.matchDetails = { matchName, opponent, side };
+    await startSession(code, true);
+  };
+
+  const joinSession = async (code: string) => {
+    await startSession(code, false);
   };
 
   /**
@@ -243,6 +279,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         aiApiKey,
         aiEndpoint,
         aiModel,
+        activeMatchName,
+        activeOpponent,
+        activeSide,
+        setActiveSide,
+        hostSession,
+        joinSession,
         mesh: meshManager,
         githubService,
         activePage,
