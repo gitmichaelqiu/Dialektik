@@ -25,7 +25,7 @@ async function computeSHA256(text: string): Promise<string> {
 }
 
 export const Documents: React.FC = () => {
-  const { isPeerConnected, mesh, isKeyDerived } = useApp();
+  const { isPeerConnected, mesh, isKeyDerived, session } = useApp();
 
   const [docs, setDocs] = useState<DebateDocument[]>([]);
   const [cards, setCards] = useState<EvidenceCard[]>([]);
@@ -62,12 +62,75 @@ export const Documents: React.FC = () => {
     if (allDocs.length > 0 && !selectedDoc) {
       handleSelectDoc(allDocs[0]);
     }
+    syncSharedDocs();
   }
 
   async function loadCards() {
     const allCards = await db.cards.toArray();
     setCards(allCards);
   }
+
+  const syncSharedDocs = async () => {
+    if (!isPeerConnected) return;
+    try {
+      const allDocs = await db.documents.toArray();
+      for (const peerId of mesh.connections.keys()) {
+        const myInfo = session?.debaters.find(d => d.id === mesh.peerId);
+        const peerInfo = session?.debaters.find(d => d.id === peerId);
+        const isSameTeam = myInfo && peerInfo && myInfo.team === peerInfo.team && myInfo.team !== undefined;
+        
+        const docsToSend = allDocs.filter(doc => {
+          if (doc.partnerAccess === "public") return true;
+          if (doc.partnerAccess === "team" && isSameTeam) return true;
+          return false;
+        });
+        
+        mesh.sendToPeer(peerId, {
+          type: "shared-docs-sync",
+          senderId: mesh.peerId,
+          payload: docsToSend
+        });
+      }
+    } catch (err) {
+      console.error("Failed to sync shared docs:", err);
+    }
+  };
+
+  // WebRTC shared documents sync handler
+  useEffect(() => {
+    if (!isPeerConnected) return;
+
+    const handler = (_senderId: string, msg: any) => {
+      if (msg.type === "shared-docs-sync") {
+        const incomingDocs: DebateDocument[] = msg.payload;
+        (async () => {
+          let changed = false;
+          for (const doc of incomingDocs) {
+            const existing = await db.documents.get(doc.id);
+            if (!existing) {
+              await db.documents.put(doc);
+              changed = true;
+            } else if (doc.lastModified > existing.lastModified) {
+              await db.documents.update(doc.id, {
+                name: doc.name,
+                content: doc.content,
+                lastModified: doc.lastModified,
+                partnerAccess: doc.partnerAccess,
+                encryptedHash: doc.encryptedHash
+              });
+              changed = true;
+            }
+          }
+          if (changed) {
+            await loadDocs();
+          }
+        })();
+      }
+    };
+
+    mesh.onMessage(handler);
+    syncSharedDocs();
+  }, [isPeerConnected, session]);
 
   // Handle Yjs real-time state synchronization
   useEffect(() => {
@@ -165,7 +228,7 @@ export const Documents: React.FC = () => {
       id: `doc-${Math.random().toString(36).substring(2, 11)}`,
       name: filename,
       type: "case",
-      content: `# ${cleanTitle}\n\nType markdown content here...`,
+      content: "Type markdown content here...",
       lastModified: Date.now(),
       partnerAccess: newDocFolder, // store folder scope in partnerAccess
       encryptedHash: newDocMode // store sharing mode in encryptedHash
@@ -214,7 +277,7 @@ export const Documents: React.FC = () => {
 
   // Delete document
   const handleDeleteDoc = async (id: string) => {
-    if (confirm("Are you sure you want to delete this document?")) {
+    if (window.confirm("Are you sure you want to delete this document?")) {
       await db.documents.delete(id);
       setSelectedDoc(null);
       await loadDocs();
@@ -255,7 +318,7 @@ export const Documents: React.FC = () => {
   };
 
   const handleDeleteCard = async (id: string) => {
-    if (confirm("Delete this evidence card from library?")) {
+    if (window.confirm("Delete this evidence card from library?")) {
       await db.cards.delete(id);
       loadCards();
     }
@@ -443,7 +506,7 @@ export const Documents: React.FC = () => {
               required
               className="text-xs py-1.5"
             />
-            <div className="split-controls">
+            <div className={newDocFolder === "private" ? "mb-3" : "split-controls"}>
               <select 
                 value={newDocFolder} 
                 onChange={(e) => setNewDocFolder(e.target.value as any)}
@@ -453,15 +516,16 @@ export const Documents: React.FC = () => {
                 <option value="team">team</option>
                 <option value="public">public</option>
               </select>
-              <select 
-                value={newDocMode} 
-                onChange={(e) => setNewDocMode(e.target.value as any)}
-                disabled={newDocFolder === "private"}
-                className="text-xs"
-              >
-                <option value="write">shared writable</option>
-                <option value="read">shared read-only</option>
-              </select>
+              {newDocFolder !== "private" && (
+                <select 
+                  value={newDocMode} 
+                  onChange={(e) => setNewDocMode(e.target.value as any)}
+                  className="text-xs"
+                >
+                  <option value="write">shared writable</option>
+                  <option value="read">shared read-only</option>
+                </select>
+              )}
             </div>
             <button type="submit" className="command primary w-full text-xs py-1 flex items-center justify-center gap-1">
               <Plus size={13} /> Create File

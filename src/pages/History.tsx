@@ -27,6 +27,8 @@ export const History: React.FC = () => {
     calculateStats(allRecords);
     if (allRecords.length > 0) {
       setSelectedRecord(allRecords[0]);
+    } else {
+      setSelectedRecord(null);
     }
   }
 
@@ -61,9 +63,10 @@ export const History: React.FC = () => {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (confirm("Delete this tournament round history?")) {
+    if (window.confirm("Delete this tournament round history?")) {
       await db.history.delete(id);
-      loadRecords();
+      setSelectedRecord(null);
+      await loadRecords();
     }
   };
 

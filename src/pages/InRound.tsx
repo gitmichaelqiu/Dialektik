@@ -69,6 +69,23 @@ export const InRound: React.FC = () => {
     setTimeout(() => setToastNotification(null), 3000);
   };
 
+  // Local active speaker state (whose notes are viewed/edited locally)
+  const [localActiveSpeakerId, setLocalActiveSpeakerId] = useState<string | null>(null);
+  const [showPositionsOnly, setShowPositionsOnly] = useState(false);
+
+  // Helper to broadcast session-state, stripping handouts in lobby phase
+  const broadcastSessionState = (state: SessionState) => {
+    if (state.status === "lobby") {
+      const strippedState: SessionState = {
+        ...state,
+        handout: { title: "", problem: "", details: "" }
+      };
+      mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: strippedState });
+    } else {
+      mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: state });
+    }
+  };
+
   // Load history list
   useEffect(() => {
     async function loadHistory() {
@@ -277,7 +294,7 @@ export const InRound: React.FC = () => {
     };
     setSession(nextSession);
     setPendingRequests(prev => prev.filter(r => r.id !== request.id));
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
     triggerToast(`${request.name} approved.`);
   };
 
@@ -303,7 +320,7 @@ export const InRound: React.FC = () => {
     });
     const nextSession = { ...session, debaters: updated };
     setSession(nextSession);
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
   };
 
   // Host updates handout fields
@@ -314,15 +331,21 @@ export const InRound: React.FC = () => {
       handout: { ...session.handout, ...fields }
     };
     setSession(nextSession);
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    // ONLY broadcast handout changes if the session is already active!
+    // During lobby phase, handouts are kept local to the host until started.
+    if (session.status === "active") {
+      broadcastSessionState(nextSession);
+    }
   };
 
-  // Host marks current speaker
+  // Select speaker to view/write notes (host updates globally, client updates locally)
   const handleSelectSpeaker = (debaterId: string) => {
-    if (!session) return;
-    const nextSession = { ...session, currentSpeakerId: debaterId };
-    setSession(nextSession);
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    setLocalActiveSpeakerId(debaterId);
+    if (isHost && session) {
+      const nextSession = { ...session, currentSpeakerId: debaterId };
+      setSession(nextSession);
+      broadcastSessionState(nextSession);
+    }
   };
 
   // Host starts the active debate round
@@ -346,7 +369,7 @@ export const InRound: React.FC = () => {
 
     const nextSession = { ...session, status: "active" as const };
     setSession(nextSession);
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
     triggerToast("Debate Round Started! Handouts distributed.");
   };
 
@@ -384,7 +407,7 @@ export const InRound: React.FC = () => {
       }
     }
 
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
   };
 
   // Sync timers trigger actions
@@ -434,17 +457,17 @@ export const InRound: React.FC = () => {
 
   // Both: Log speaker notes
   const handleUpdateSpeakerNote = (text: string) => {
-    if (!session || !session.currentSpeakerId) return;
+    if (!session || !activeSpeakerId) return;
     const nextSession = {
       ...session,
       speakerNotes: {
         ...session.speakerNotes,
-        [session.currentSpeakerId]: text
+        [activeSpeakerId]: text
       }
     };
     setSession(nextSession);
     // Broadcast edits to partner
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
   };
 
   // AI Outlining fill notes
@@ -506,7 +529,7 @@ export const InRound: React.FC = () => {
     // Broadcast end session status to clients
     const nextSession = { ...session, status: "ended" as const, winner };
     setSession(nextSession);
-    mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: nextSession });
+    broadcastSessionState(nextSession);
 
     triggerToast("Session saved! Redirecting to history...");
     endSession();
@@ -530,9 +553,10 @@ export const InRound: React.FC = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Find current speaker debater
-  const currentSpeaker = session?.debaters.find(d => d.id === session.currentSpeakerId);
-  const currentSpeakerNotes = session?.currentSpeakerId ? session.speakerNotes[session.currentSpeakerId] || "" : "";
+  // Find current speaker debater (using local selected speaker, fallback to global active speaker)
+  const activeSpeakerId = localActiveSpeakerId || session?.currentSpeakerId || "";
+  const currentSpeaker = session?.debaters.find(d => d.id === activeSpeakerId);
+  const currentSpeakerNotes = activeSpeakerId ? session?.speakerNotes[activeSpeakerId] || "" : "";
   const myDebaterInfo = session?.debaters.find(d => d.id === mesh.peerId);
 
   return (
@@ -646,43 +670,46 @@ export const InRound: React.FC = () => {
                   </div>
                   <p className="text-xs text-slate-500 mb-3">Draft the match problem. Handouts distribute immediately when the host starts the debate.</p>
                   
-                  <div className="space-y-4">
-                    <label className="field compact-field">
-                      <span>Problem Topic Title</span>
-                      <input 
-                        value={session.handout.title} 
-                        onChange={(e) => handleUpdateHandout({ title: e.target.value })}
-                        placeholder="e.g. Subsidy tariffs on green technology..."
-                        disabled={!isHost}
-                      />
-                    </label>
-                    <label className="field compact-field">
-                      <span>Problem Resolution Definition</span>
-                      <textarea 
-                        value={session.handout.problem} 
-                        onChange={(e) => handleUpdateHandout({ problem: e.target.value })}
-                        placeholder="Define the primary focus problem..."
-                        disabled={!isHost}
-                      />
-                    </label>
-                    <label className="field compact-field">
-                      <span>Problem details (optional)</span>
-                      <textarea 
-                        value={session.handout.details || ""} 
-                        onChange={(e) => handleUpdateHandout({ details: e.target.value })}
-                        placeholder="Context or documentation..."
-                        disabled={!isHost}
-                        className="min-h-[80px]"
-                      />
-                    </label>
-                  </div>
+                  {isHost ? (
+                    <div className="space-y-4">
+                      <label className="field compact-field">
+                        <span>Problem Topic Title</span>
+                        <input 
+                          value={session.handout.title} 
+                          onChange={(e) => handleUpdateHandout({ title: e.target.value })}
+                          placeholder="e.g. Subsidy tariffs on green technology..."
+                        />
+                      </label>
+                      <label className="field compact-field">
+                        <span>Problem Resolution Definition</span>
+                        <textarea 
+                          value={session.handout.problem} 
+                          onChange={(e) => handleUpdateHandout({ problem: e.target.value })}
+                          placeholder="Define the primary focus problem..."
+                        />
+                      </label>
+                      <label className="field compact-field">
+                        <span>Problem details (optional)</span>
+                        <textarea 
+                          value={session.handout.details || ""} 
+                          onChange={(e) => handleUpdateHandout({ details: e.target.value })}
+                          placeholder="Context or documentation..."
+                          className="min-h-[80px]"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                      <FileText size={40} className="text-slate-350 animate-pulse" />
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-bold text-slate-700">Awaiting Handout Distribution</h3>
+                        <p className="text-[11px] text-slate-500 max-w-[240px] leading-relaxed">
+                          The host is currently drafting the debate resolution. Handouts will release instantly when the match starts.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                {!isHost && (
-                  <div className="inline-note bg-slate-100 p-3 rounded-lg border text-xs mt-4">
-                    🔒 Handouts and details will be shared when the Host starts the debate.
-                  </div>
-                )}
               </div>
 
               {/* Teams & Positions assignments */}
@@ -875,25 +902,48 @@ export const InRound: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Speakers listing to mark current */}
+                {/* Speakers listing to select / view notes */}
                 <div className="pt-4 border-t space-y-2">
-                  <span className="eyebrow">Select Active Speaker</span>
+                  <div className="flex items-center justify-between">
+                    <span className="eyebrow">Select Active Speaker</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPositionsOnly(!showPositionsOnly)}
+                      className="text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-2 py-0.5 font-bold text-[#2f5d62]"
+                    >
+                      {showPositionsOnly ? "Show Names" : "Show Positions"}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {session.debaters.map(d => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => isHost && handleSelectSpeaker(d.id)}
-                        disabled={!isHost}
-                        className={`text-xs p-2 rounded-lg border font-semibold truncate ${
-                          session.currentSpeakerId === d.id
-                            ? "bg-[#2f5d62] border-[#2f5d62] text-white"
-                            : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
-                        }`}
-                      >
-                        {d.name}
-                      </button>
-                    ))}
+                    {session.debaters.map(d => {
+                      const positionText = d.team && d.position 
+                        ? `${d.team === "affirmative" ? "AFF" : "NEG"} Pos ${d.position}`
+                        : "Unassigned";
+                      const buttonText = showPositionsOnly ? positionText : d.name;
+                      
+                      // Check if this speaker is currently globally speaking (marked by host)
+                      const isGloballySpeaking = session.currentSpeakerId === d.id;
+                      // Check if this is the locally viewed speaker for notes
+                      const isLocallySelected = activeSpeakerId === d.id;
+
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => handleSelectSpeaker(d.id)}
+                          className={`text-xs p-2 rounded-lg border font-semibold flex items-center justify-between gap-1.5 transition-colors ${
+                            isLocallySelected
+                              ? "bg-[#2f5d62] border-[#2f5d62] text-white"
+                              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                          }`}
+                        >
+                          <span className="truncate flex-1 text-left">{buttonText}</span>
+                          {isGloballySpeaking && (
+                            <span className={`h-2 w-2 rounded-full shrink-0 ${isLocallySelected ? "bg-white animate-pulse" : "bg-emerald-500 animate-pulse"}`} title="Speaking" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

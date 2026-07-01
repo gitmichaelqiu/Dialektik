@@ -27,8 +27,31 @@ export const AI: React.FC = () => {
   const { 
     aiApiKey, 
     aiEndpoint, 
-    aiModel 
+    aiModel,
+    setActivePage
   } = useApp();
+
+  if (!aiApiKey) {
+    return (
+      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-white border border-slate-300 rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
+        <Bot size={48} className="text-slate-300" />
+        <div className="space-y-2">
+          <h2 className="text-base font-bold text-slate-800">AI Debate Assistant Locked</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            AI sparring, practice resolutions, and constructive outline features require an OpenAI API Key.
+            Configure your AI Settings to activate the assistant.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActivePage("settings")}
+          className="command primary text-xs py-2 px-5 font-bold rounded-xl"
+        >
+          Open API Settings
+        </button>
+      </div>
+    );
+  }
 
   const triggerToast = (msg: string) => {
     const toast = document.createElement("div");
