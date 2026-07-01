@@ -1,11 +1,43 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { db } from "../services/db";
 import { deriveKey, KeyManager } from "../services/crypto";
 import { PeerMeshManager } from "../services/webrtc";
 import { GitHubSyncService } from "../services/github";
 
 
+export interface Debater {
+  id: string;
+  name: string;
+  status: "pending" | "approved" | "rejected";
+  team?: "affirmative" | "negative";
+  position?: number;
+}
+
+export interface Handout {
+  title: string;
+  problem: string;
+  details?: string;
+}
+
+export interface SessionState {
+  matchName: string;
+  groupName: string;
+  teamSize: number;
+  roomCode: string;
+  status: "lobby" | "active" | "ended";
+  handout: Handout;
+  debaters: Debater[];
+  currentSpeakerId?: string;
+  speakerNotes: Record<string, string>; // debaterId -> markdown notes
+  speechDuration: number; // seconds
+  prepDuration: number; // seconds
+}
+
 interface AppContextType {
+  session: SessionState | null;
+  setSession: React.Dispatch<React.SetStateAction<SessionState | null>>;
+  debateTimerRef: React.MutableRefObject<any | null>;
+  prepTimerRef: React.MutableRefObject<any | null>;
   passphrase: string;
   isKeyDerived: boolean;
   roomCode: string;
@@ -51,6 +83,9 @@ const AppContext = createContext<AppContextType | null>(null);
 const meshManager = new PeerMeshManager();
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<SessionState | null>(null);
+  const debateTimerRef = useRef<any | null>(null);
+  const prepTimerRef = useRef<any | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
   const [roomCode, setRoomCode] = useState("");
@@ -162,6 +197,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           });
         }
+      } else if (msg.type === "session-state") {
+        if (!meshManager.isHost && msg.payload) {
+          setSession(msg.payload);
+        }
       }
     });
   }, []);
@@ -266,6 +305,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const endSession = () => {
     meshManager.terminateSession();
+    setSession(null);
+    if (debateTimerRef.current) {
+      debateTimerRef.current.reset();
+      debateTimerRef.current = null;
+    }
+    if (prepTimerRef.current) {
+      prepTimerRef.current.reset();
+      prepTimerRef.current = null;
+    }
     setRoomCode("");
     setIsHost(false);
     setIsPeerConnected(false);
@@ -327,6 +375,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        session,
+        setSession,
+        debateTimerRef,
+        prepTimerRef,
         passphrase,
         isKeyDerived: cryptoKey !== null,
         roomCode,

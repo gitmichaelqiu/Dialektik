@@ -291,7 +291,7 @@ export const Documents: React.FC = () => {
       escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
       escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
       escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
-      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-100 px-1 py-0.5 rounded font-mono text-indigo-700 text-[10px]'>$1</code>");
+      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-100 px-1 py-0.5 rounded font-mono text-[#2f5d62] text-[10px]'>$1</code>");
 
       return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
     };
@@ -324,7 +324,7 @@ export const Documents: React.FC = () => {
                       <div className="flex items-center justify-between pt-1 text-[9px] text-slate-400">
                         <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
                         {referencedCard.sourceUrl && (
-                          <span className="flex items-center gap-0.5 text-indigo-600">Link</span>
+                          <span className="flex items-center gap-0.5 text-[#2f5d62]">Link</span>
                         )}
                       </div>
                     </span>
@@ -346,7 +346,7 @@ export const Documents: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => onNavigateDoc(targetDoc)}
-                      className="bg-indigo-50 text-indigo-700 border border-indigo-300 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-indigo-100"
+                      className="bg-[#2f5d62]/10 text-[#2f5d62] border border-[#2f5d62]/20 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-[#2f5d62]/20"
                     >
                       {title}
                     </button>
@@ -482,7 +482,7 @@ export const Documents: React.FC = () => {
                   onClick={() => handleSelectDoc(doc)}
                   className={`file-item ${selectedDoc?.id === doc.id ? "selected" : ""}`}
                 >
-                  <FileText size={15} className="text-indigo-600" />
+                  <FileText size={15} className="text-[#2f5d62]" />
                   <span>{doc.name}</span>
                   <button 
                     type="button"
@@ -678,9 +678,9 @@ export const Documents: React.FC = () => {
               </div>
               <p className="text-[10px] text-slate-500 line-clamp-2">"{card.text}"</p>
               <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 font-mono">
-                <span>ID: <span className="text-indigo-600 font-bold select-all">[[{card.id}]]</span></span>
+                <span>ID: <span className="text-[#2f5d62] font-bold select-all">[[{card.id}]]</span></span>
                 {card.sourceUrl && (
-                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600">
+                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#2f5d62]">
                     Source
                   </a>
                 )}

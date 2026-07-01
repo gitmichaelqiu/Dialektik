@@ -20,7 +20,6 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
   const [matchName, setMatchName] = useState("");
   const [opponent, setOpponent] = useState("");
 
-
   // Client inputs
   const [code, setCode] = useState("");
 
@@ -84,21 +83,21 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+      <div className="w-full max-w-lg bg-white border border-[#ccd3ca] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/30">
+        <div className="p-5 border-b border-[#ccd3ca] flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2">
             {step > 1 && (
               <button 
                 onClick={handleBack} 
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <ArrowLeft size={16} />
               </button>
             )}
-            <h3 className="text-sm font-bold text-white tracking-wide">
+            <h3 className="text-sm font-bold text-slate-800 tracking-wide">
               {step === 1 && "Start Debate Session"}
               {step === 2 && (role === "host" ? "Configure Match Details" : "Enter Room Code")}
               {step === 3 && (role === "host" ? "Share Room Code" : "Establishing Link")}
@@ -106,7 +105,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
           </div>
           <button 
             onClick={onClose} 
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-slate-100 transition-colors"
           >
             <X size={16} />
           </button>
@@ -121,13 +120,13 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
               {/* Option Host */}
               <button
                 onClick={() => handleSelectRole("host")}
-                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 hover:border-indigo-500 rounded-xl text-center group transition-all duration-200 space-y-4"
+                className="flex flex-col items-center justify-center p-6 bg-[#fcfdfc] border border-[#ccd3ca] hover:border-[#2f5d62] rounded-xl text-center group transition-all duration-200 space-y-4"
               >
-                <div className="p-4 rounded-full bg-indigo-600/10 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-200">
+                <div className="p-4 rounded-full bg-[#2f5d62]/10 text-[#2f5d62] group-hover:bg-[#2f5d62] group-hover:text-white transition-colors duration-200">
                   <Users size={28} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
+                  <h4 className="text-sm font-bold text-slate-800 group-hover:text-[#2f5d62] transition-colors">
                     Host a Match
                   </h4>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -139,13 +138,13 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
               {/* Option Client */}
               <button
                 onClick={() => handleSelectRole("client")}
-                className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 hover:border-indigo-500 rounded-xl text-center group transition-all duration-200 space-y-4"
+                className="flex flex-col items-center justify-center p-6 bg-[#fcfdfc] border border-[#ccd3ca] hover:border-[#2f5d62] rounded-xl text-center group transition-all duration-200 space-y-4"
               >
-                <div className="p-4 rounded-full bg-indigo-600/10 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-200">
+                <div className="p-4 rounded-full bg-[#2f5d62]/10 text-[#2f5d62] group-hover:bg-[#2f5d62] group-hover:text-white transition-colors duration-200">
                   <UserPlus size={28} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
+                  <h4 className="text-sm font-bold text-slate-800 group-hover:text-[#2f5d62] transition-colors">
                     Join a Match
                   </h4>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -160,37 +159,35 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
           {step === 2 && role === "host" && (
             <form onSubmit={handleHostSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-400 font-medium">Tournament / Match Name</label>
+                <label className="text-xs text-slate-500 font-medium">Tournament / Match Name</label>
                 <input
                   required
                   type="text"
                   value={matchName}
                   onChange={(e) => setMatchName(e.target.value)}
                   placeholder="e.g. NSDA Finals Round 3"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-xs text-slate-100 placeholder-slate-700 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-[#ccd3ca] rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62]"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-400 font-medium">Opponent Team/Debater Code</label>
+                <label className="text-xs text-slate-500 font-medium">Opponent Team/Debater Code</label>
                 <input
                   type="text"
                   value={opponent}
                   onChange={(e) => setOpponent(e.target.value)}
                   placeholder="e.g. Lincoln High School AB"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-xs text-slate-100 placeholder-slate-700 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-[#ccd3ca] rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62]"
                 />
               </div>
-
-
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-[#2f5d62] hover:bg-[#3b7379] text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-                Generate Room & Start hosting
+                Generate Room & Start Hosting
               </button>
             </form>
           )}
@@ -199,8 +196,8 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
           {step === 2 && role === "client" && (
             <form onSubmit={handleClientSubmit} className="space-y-5">
               <div className="space-y-2 text-center">
-                <label className="text-xs text-slate-400 font-medium block">Enter 4-Digit Room Code</label>
-                <p className="text-[10px] text-slate-500">Ask the host of the room for the generated pairing code.</p>
+                <label className="text-xs text-slate-500 font-medium block">Enter 4-Digit Room Code</label>
+                <p className="text-[10px] text-slate-400">Ask the host of the room for the generated pairing code.</p>
                 <input
                   required
                   maxLength={4}
@@ -208,14 +205,14 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="e.g. 1234"
-                  className="w-48 bg-slate-950 border border-slate-800 rounded-lg py-3 text-lg font-mono font-bold tracking-widest text-center text-slate-100 placeholder-slate-700 focus:outline-none focus:border-indigo-500 mx-auto"
+                  className="w-48 bg-white border border-[#ccd3ca] rounded-lg py-3 text-lg font-mono font-bold tracking-widest text-center text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62] mx-auto block"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={code.length !== 4 || isLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-850 text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-[#2f5d62] hover:bg-[#3b7379] disabled:bg-[#1c373b] text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
                 Connect to Room
@@ -227,18 +224,18 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
           {step === 3 && role === "host" && (
             <div className="flex flex-col items-center justify-center space-y-6 py-4 text-center">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Room Pairing Code</span>
-                <div className="font-mono text-5xl font-extrabold text-indigo-400 tracking-widest animate-pulse">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Room Pairing Code</span>
+                <div className="font-mono text-5xl font-extrabold text-[#2f5d62] tracking-widest animate-pulse">
                   {generatedCode}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                <Radio size={14} className="text-indigo-400 animate-ping" />
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                <Radio size={14} className="text-[#2f5d62] animate-ping" />
                 Waiting for partner to join...
               </div>
 
-              <div className="text-[10px] text-slate-500 max-w-xs leading-relaxed">
+              <div className="text-[10px] text-slate-400 max-w-xs leading-relaxed">
                 Provide this 4-digit code to your debate partner. Once they join, this screen will close and you will proceed to the debate sheet.
               </div>
             </div>
@@ -247,10 +244,10 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
           {/* STEP 3 (Client handshaking) */}
           {step === 3 && role === "client" && (
             <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
-              <RefreshCw size={36} className="text-indigo-500 animate-spin" />
+              <RefreshCw size={36} className="text-[#2f5d62] animate-spin" />
               <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-200">Connecting to Host Room...</h4>
-                <p className="text-[10px] text-slate-500">Syncing flow outlines and version handshakes.</p>
+                <h4 className="text-xs font-bold text-slate-800">Connecting to Host Room...</h4>
+                <p className="text-[10px] text-slate-400">Syncing flow outlines and version handshakes.</p>
               </div>
             </div>
           )}
@@ -260,3 +257,4 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
     </div>
   );
 };
+export default SessionWizard;

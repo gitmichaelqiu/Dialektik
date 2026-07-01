@@ -111,11 +111,11 @@ function AppContent() {
       {pairingRequest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl p-6 shadow-2xl space-y-4 text-center">
-            <CloudLightning className="mx-auto text-indigo-600" size={32} />
+            <CloudLightning className="mx-auto text-[#2f5d62]" size={32} />
             <div className="space-y-1.5">
               <h3 className="text-sm font-bold text-slate-800">Partner Vault Sync Request</h3>
               <p className="text-xs text-slate-500 leading-relaxed text-left">
-                A debate partner (Peer: <span className="font-mono text-indigo-600 font-bold">{pairingRequest.peerId.substring(0, 10)}...</span>) is connecting. 
+                A debate partner (Peer: <span className="font-mono text-[#2f5d62] font-bold">{pairingRequest.peerId.substring(0, 10)}...</span>) is connecting. 
                 Allow them to securely synchronize your private case encryption vault and GitHub keys over WebRTC?
               </p>
             </div>

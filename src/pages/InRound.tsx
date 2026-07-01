@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useApp } from "../context/AppContext";
+import React, { useState, useEffect } from "react";
+import { useApp, type Debater, type Handout, type SessionState } from "../context/AppContext";
 import { db, type TournamentRecord } from "../services/db";
 import { DebateTimer } from "../services/timers";
 import { AIService } from "../services/ai";
@@ -20,36 +20,12 @@ import {
   ArrowRight
 } from "lucide-react";
 
-export interface Debater {
-  id: string;
-  name: string;
-  status: "pending" | "approved" | "rejected";
-  team?: "affirmative" | "negative";
-  position?: number;
-}
-
-export interface Handout {
-  title: string;
-  problem: string;
-  details?: string;
-}
-
-export interface SessionState {
-  matchName: string;
-  groupName: string;
-  teamSize: number;
-  roomCode: string;
-  status: "lobby" | "active" | "ended";
-  handout: Handout;
-  debaters: Debater[];
-  currentSpeakerId?: string;
-  speakerNotes: Record<string, string>; // debaterId -> markdown notes
-  speechDuration: number; // seconds
-  prepDuration: number; // seconds
-}
-
 export const InRound: React.FC = () => {
   const { 
+    session,
+    setSession,
+    debateTimerRef,
+    prepTimerRef,
     mesh, 
     aiApiKey, 
     aiEndpoint, 
@@ -75,9 +51,6 @@ export const InRound: React.FC = () => {
   const [pendingRequests, setPendingRequests] = useState<Debater[]>([]);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
 
-  // Main round session state (synchronized over WebRTC)
-  const [session, setSession] = useState<SessionState | null>(null);
-
   // Timers state
   const [timerRemaining, setTimerRemaining] = useState(240000);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -85,9 +58,6 @@ export const InRound: React.FC = () => {
   const [isPrepRunning, setIsPrepRunning] = useState(false);
   const [speechInput, setSpeechInput] = useState("04:00");
   const [prepInput, setPrepInput] = useState("03:00");
-
-  const debateTimerRef = useRef<DebateTimer | null>(null);
-  const prepTimerRef = useRef<DebateTimer | null>(null);
 
   // History state for welcome page
   const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
@@ -170,11 +140,15 @@ export const InRound: React.FC = () => {
 
   // Synchronize timer clock ticks
   useEffect(() => {
-    debateTimerRef.current = new DebateTimer(240);
-    prepTimerRef.current = new DebateTimer(180);
+    if (!debateTimerRef.current) {
+      debateTimerRef.current = new DebateTimer(240);
+    }
+    if (!prepTimerRef.current) {
+      prepTimerRef.current = new DebateTimer(180);
+    }
 
-    debateTimerRef.current.onTick((rem) => setTimerRemaining(rem));
-    prepTimerRef.current.onTick((rem) => setPrepRemaining(rem));
+    debateTimerRef.current.onTick((rem: number) => setTimerRemaining(rem));
+    prepTimerRef.current.onTick((rem: number) => setPrepRemaining(rem));
 
     debateTimerRef.current.onEnd(() => {
       setIsTimerRunning(false);
@@ -186,9 +160,21 @@ export const InRound: React.FC = () => {
       alert("Prep time expired!");
     });
 
+    // Restore timer remaining and running states on tab mount
+    setTimerRemaining(debateTimerRef.current.getRemaining());
+    setIsTimerRunning(debateTimerRef.current.getState().isRunning);
+    setPrepRemaining(prepTimerRef.current.getRemaining());
+    setIsPrepRunning(prepTimerRef.current.getState().isRunning);
+
     return () => {
-      if (debateTimerRef.current) debateTimerRef.current.reset();
-      if (prepTimerRef.current) prepTimerRef.current.reset();
+      if (debateTimerRef.current) {
+        debateTimerRef.current.onTick(() => {});
+        debateTimerRef.current.onEnd(() => {});
+      }
+      if (prepTimerRef.current) {
+        prepTimerRef.current.onTick(() => {});
+        prepTimerRef.current.onEnd(() => {});
+      }
     };
   }, []);
 
@@ -465,17 +451,17 @@ export const InRound: React.FC = () => {
       cases.sort((a, b) => b.lastModified - a.lastModified);
       const latestCase = cases[0];
 
-      let notesText = "";
-      if (aiApiKey) {
-        const ai = new AIService({
-          apiKey: aiApiKey,
-          endpoint: aiEndpoint,
-          model: aiModel
-        });
-        notesText = await ai.autoFillFlowTable(latestCase.content);
-      } else {
-        notesText = `**[AI OUTLINE - MOCK FALLBACK]**\n\n- **Case: ${latestCase.name.replace(".md", "")}**\n- **Contention 1: Global Stability**\n  - Subsidies secure carbon transitions.\n- **Contention 2: Technological Lead**\n  - Green grids trigger localized grid expansions.`;
+      if (!aiApiKey) {
+        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        return;
       }
+
+      const ai = new AIService({
+        apiKey: aiApiKey,
+        endpoint: aiEndpoint,
+        model: aiModel
+      });
+      const notesText = await ai.autoFillFlowTable(latestCase.content);
 
       handleUpdateSpeakerNote(notesText);
       triggerToast("AI Outline loaded into speaker notes.");
@@ -719,7 +705,7 @@ export const InRound: React.FC = () => {
                             />
                           </>
                         ) : (
-                          <div className="text-xs font-semibold text-indigo-600">
+                          <div className="text-xs font-semibold text-[#2f5d62]">
                             {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
                           </div>
                         )}
@@ -739,7 +725,7 @@ export const InRound: React.FC = () => {
                 <div className="space-y-4">
                   <div className="panel-header compact border-b pb-2">
                     <h2>Match Handout</h2>
-                    <Award size={18} className="text-indigo-600" />
+                    <Award size={18} className="text-[#2f5d62]" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-800">{session.handout.title}</h3>
                   <div className="space-y-3">
@@ -766,7 +752,7 @@ export const InRound: React.FC = () => {
                     {session.debaters.map(d => (
                       <div key={d.id} className="flex justify-between items-center text-xs bg-slate-100 p-2 rounded border">
                         <span className="font-semibold text-slate-700">{d.name}</span>
-                        <span className="text-[10px] uppercase font-bold text-indigo-600">
+                        <span className="text-[10px] uppercase font-bold text-[#2f5d62]">
                           {d.team} (Pos {d.position})
                         </span>
                       </div>
@@ -779,7 +765,7 @@ export const InRound: React.FC = () => {
               <div className="panel flex flex-col h-full overflow-y-auto">
                 <div className="panel-header compact border-b pb-2">
                   <h2>Round Timers</h2>
-                  <Clock size={18} className="text-indigo-600" />
+                  <Clock size={18} className="text-[#2f5d62]" />
                 </div>
 
                 <div className="space-y-6 py-4 flex-1">
@@ -872,7 +858,7 @@ export const InRound: React.FC = () => {
                         disabled={!isHost}
                         className={`text-xs p-2 rounded-lg border font-semibold truncate ${
                           session.currentSpeakerId === d.id
-                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            ? "bg-[#2f5d62] border-[#2f5d62] text-white"
                             : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700"
                         }`}
                       >
@@ -891,7 +877,7 @@ export const InRound: React.FC = () => {
                     <button
                       onClick={handleAIOutlineFill}
                       title="AI outline topic"
-                      className="text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1.5"
+                      className="text-[10px] bg-[#dfe7e1] border border-[#c5d5c9] text-[#2c504c] px-2 py-0.5 rounded flex items-center gap-1.5"
                     >
                       <Sparkles size={11} /> AI Outline
                     </button>
@@ -925,7 +911,7 @@ export const InRound: React.FC = () => {
         <div className="flex-grow flex flex-col lg:flex-row gap-6 min-h-0 overflow-y-auto">
           {/* Main Welcome Hero */}
           <div className="flex-1 bg-white border border-slate-300 rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6 shadow-xs">
-            <Award size={48} className="text-indigo-600" />
+            <Award size={48} className="text-[#2f5d62]" />
             <div className="max-w-md space-y-2">
               <h2 className="text-xl font-bold tracking-tight text-slate-800">Start Debate Session</h2>
               <p className="text-xs text-slate-500 leading-relaxed">
@@ -936,7 +922,7 @@ export const InRound: React.FC = () => {
             <div className="flex gap-4">
               <button
                 onClick={() => setStartMode("host")}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
+                className="bg-[#2f5d62] hover:bg-[#3b7379] text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
               >
                 Host Match Session
               </button>
@@ -1008,7 +994,7 @@ export const InRound: React.FC = () => {
           {/* Right side: Session History lists */}
           <div className="w-full lg:w-80 bg-white border border-slate-300 rounded-xl p-6 flex flex-col overflow-hidden shadow-xs">
             <div className="flex items-center gap-2 mb-4 border-b pb-2">
-              <History size={16} className="text-indigo-600" />
+              <History size={16} className="text-[#2f5d62]" />
               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest">Recent Sessions</h3>
             </div>
 

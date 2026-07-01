@@ -144,14 +144,19 @@ export const AI: React.FC = () => {
 
     try {
       let aiResponseText = "";
-      if (aiApiKey) {
-        // Collect checked files contents as context
-        const contextFiles = documents.filter(d => checkedDocs[d.id]);
-        const contextPrompt = contextFiles.map(d => 
-          `File Path: [[${d.partnerAccess || "private"}/${d.name.replace(".md", "")}]]\n\`\`\`markdown\n${d.content}\n\`\`\``
-        ).join("\n\n");
+      if (!aiApiKey) {
+        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        setChatBusy(false);
+        return;
+      }
 
-        const systemPrompt = `You are a debate assistant in role: "${aiRole.toUpperCase()}". 
+      // Collect checked files contents as context
+      const contextFiles = documents.filter(d => checkedDocs[d.id]);
+      const contextPrompt = contextFiles.map(d => 
+        `File Path: [[${d.partnerAccess || "private"}/${d.name.replace(".md", "")}]]\n\`\`\`markdown\n${d.content}\n\`\`\``
+      ).join("\n\n");
+
+      const systemPrompt = `You are a debate assistant in role: "${aiRole.toUpperCase()}". 
 Review the debate case prep files and citations. Answer topics constructively.
 If you need to edit or propose updates to a file, output your edit block EXACTLY in this format:
 [FILE_EDIT:folder/filename]
@@ -159,39 +164,22 @@ Updated full contents here...
 [FILE_EDIT_END]
 Do not output placeholders. Provide complete markdown blocks inside the edit tag.`;
 
-        const ai = new AIService({
-          apiKey: aiApiKey,
-          endpoint: aiEndpoint,
-          model: aiModel
-        });
+      const ai = new AIService({
+        apiKey: aiApiKey,
+        endpoint: aiEndpoint,
+        model: aiModel
+      });
 
-        // Combine system, history, and context prompt
-        const combinedPrompt = `Debate Context Prep Files:\n${contextPrompt || "No files cited."}\n\nUser request: ${chatInput}`;
-        aiResponseText = await ai.sparringPartner(
-          "Chat Consultation",
-          "affirmative",
-          [
-            { role: "user", text: `Context:\n${combinedPrompt}\n\nSystem instructions:\n${systemPrompt}` },
-            ...nextMessages.slice(0, -1).map(m => ({ role: m.role === "user" ? "user" : "ai", text: m.content }))
-          ]
-        );
-      } else {
-        // Mock Response with file edit proposal
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        aiResponseText = `Thank you for consulting. I suggest adding a contention regarding technological lead in the case file. Here is a proposed update:
-
-[FILE_EDIT:private/AffConstructive]
-# Affirmative Constructive Case
-
-## Contention 1: Global Stability
-Green subsidies secure clean innovation.
-
-## Contention 2: Technological Lead
-Tariffs trigger domestic green grid investments and lead localized innovations. Cites: Smith 2024 (Econ).
-[FILE_EDIT_END]
-
-Would you like to accept this case file modification proposal?`;
-      }
+      // Combine system, history, and context prompt
+      const combinedPrompt = `Debate Context Prep Files:\n${contextPrompt || "No files cited."}\n\nUser request: ${chatInput}`;
+      aiResponseText = await ai.sparringPartner(
+        "Chat Consultation",
+        "affirmative",
+        [
+          { role: "user", text: `Context:\n${combinedPrompt}\n\nSystem instructions:\n${systemPrompt}` },
+          ...nextMessages.slice(0, -1).map(m => ({ role: m.role === "user" ? "user" : "ai", text: m.content }))
+        ]
+      );
 
       setChatMessages(prev => [...prev, {
         role: "assistant",
@@ -295,42 +283,35 @@ Would you like to accept this case file modification proposal?`;
     try {
       let responseText = "";
       let scorecard = activeSparSession.scorecard;
+      if (!aiApiKey) {
+        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        setSparBusy(false);
+        return;
+      }
 
-      if (aiApiKey) {
-        const ai = new AIService({
-          apiKey: aiApiKey,
-          endpoint: aiEndpoint,
-          model: aiModel
-        });
+      const ai = new AIService({
+        apiKey: aiApiKey,
+        endpoint: aiEndpoint,
+        model: aiModel
+      });
 
-        // 1. Get debate response
-        responseText = await ai.sparringPartner(
+      // 1. Get debate response
+      responseText = await ai.sparringPartner(
+        activeSparSession.topic,
+        activeSparSession.side,
+        nextMsgs
+      );
+
+      // 2. Run judge evaluation
+      const evaluationTranscripts = [...nextMsgs, { role: "ai" as const, text: responseText, timestamp: Date.now() }];
+      try {
+        scorecard = await ai.evaluateSpeech(
           activeSparSession.topic,
           activeSparSession.side,
-          nextMsgs
+          evaluationTranscripts
         );
-
-        // 2. Run judge evaluation
-        const evaluationTranscripts = [...nextMsgs, { role: "ai" as const, text: responseText, timestamp: Date.now() }];
-        try {
-          scorecard = await ai.evaluateSpeech(
-            activeSparSession.topic,
-            activeSparSession.side,
-            evaluationTranscripts
-          );
-        } catch (evalErr) {
-          console.warn(evalErr);
-        }
-      } else {
-        // Fallback Mock sparring response
-        await new Promise(r => setTimeout(r, 1200));
-        responseText = `On your point regarding ${topic.substring(0, 10)}..., tariffs will lead to high costs. Cites: Smith 2024 (Tariff Solvency). Solvency is compromised. How do you respond to the inflation metrics?`;
-        scorecard = {
-          score: 85,
-          strengths: ["Clean arguments structural outline", "Solid rebuttal transition"],
-          weaknesses: ["Lacks empirical statistics", "Friction on solvency offsets"],
-          suggestions: ["Reference a concrete card for subsidies", "Keep intro constructive speed snappy"]
-        };
+      } catch (evalErr) {
+        console.warn(evalErr);
       }
 
       const aiMsg = {
@@ -442,7 +423,7 @@ Would you like to accept this case file modification proposal?`;
                 return (
                   <div key={idx} className={`flex gap-3 max-w-2xl ${isSystem ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                     <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                      isSystem ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                      isSystem ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-[#2f5d62]/10 text-[#2f5d62] border-[#2f5d62]/20"
                     }`}>
                       {isSystem ? <Bot size={15} /> : <User size={15} />}
                     </div>
@@ -451,7 +432,7 @@ Would you like to accept this case file modification proposal?`;
                       <div className={`p-4 rounded-xl text-xs leading-relaxed ${
                         isSystem 
                           ? "bg-slate-50 border rounded-tl-none border-slate-200 text-slate-700" 
-                          : "bg-indigo-50 border rounded-tr-none border-indigo-200 text-indigo-700"
+                          : "bg-[#dfe7e1] border rounded-tr-none border-[#c5d5c9] text-[#2c504c]"
                       }`}>
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       </div>
@@ -503,7 +484,7 @@ Would you like to accept this case file modification proposal?`;
                       onClick={() => handleSelectAutocomplete(d)}
                       className="w-full text-left text-[11px] text-slate-700 hover:bg-slate-100 p-2 rounded flex items-center gap-1.5"
                     >
-                      <FileText size={11} className="text-indigo-600" />
+                      <FileText size={11} className="text-[#2f5d62]" />
                       <span>{d.partnerAccess || "private"}/{d.name.replace(".md", "")}</span>
                     </button>
                   ))}
@@ -541,7 +522,7 @@ Would you like to accept this case file modification proposal?`;
                     type="checkbox"
                     checked={checkedDocs[d.id] || false}
                     onChange={(e) => setCheckedDocs(prev => ({ ...prev, [d.id]: e.target.checked }))}
-                    className="rounded border-slate-300 text-indigo-600"
+                    className="rounded border-slate-300 text-[#2f5d62]"
                   />
                   <span className="truncate">{d.partnerAccess || "private"}/{d.name}</span>
                 </label>
@@ -561,7 +542,7 @@ Would you like to accept this case file modification proposal?`;
           <section className="bg-white border border-slate-300 rounded-xl flex flex-col min-h-0 overflow-hidden">
             {!isSparringActive ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-5">
-                <Bot size={40} className="text-indigo-600" />
+                <Bot size={40} className="text-[#2f5d62]" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Practice Debate Arena</h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -630,7 +611,7 @@ Would you like to accept this case file modification proposal?`;
                     return (
                       <div key={idx} className={`flex gap-3 max-w-xl ${isAI ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                         <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                          isAI ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                          isAI ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-[#2f5d62]/10 text-[#2f5d62] border-[#2f5d62]/20"
                         }`}>
                           {isAI ? <Bot size={15} /> : <User size={15} />}
                         </div>
@@ -638,7 +619,7 @@ Would you like to accept this case file modification proposal?`;
                         <div className={`p-4 rounded-xl text-xs leading-relaxed ${
                           isAI 
                             ? "bg-slate-50 border rounded-tl-none border-slate-200 text-slate-700" 
-                            : "bg-indigo-50 border rounded-tr-none border-indigo-200 text-indigo-700"
+                            : "bg-[#dfe7e1] border rounded-tr-none border-[#c5d5c9] text-[#2c504c]"
                         }`}>
                           <p className="whitespace-pre-wrap">{msg.text}</p>
                         </div>
@@ -677,14 +658,14 @@ Would you like to accept this case file modification proposal?`;
           <aside className="bg-white border border-slate-300 rounded-xl overflow-y-auto p-4 flex flex-col">
             <div className="panel-header compact border-b pb-2 mb-3">
               <h2>Judge Scorecard</h2>
-              <Award size={17} className="text-indigo-600" />
+              <Award size={17} className="text-[#2f5d62]" />
             </div>
 
             {activeSparSession?.scorecard ? (
               <div className="space-y-4 flex-grow overflow-y-auto">
                 <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="eyebrow block">Performance Score</span>
-                  <div className="text-3xl font-extrabold text-indigo-600">
+                  <div className="text-3xl font-extrabold text-[#2f5d62]">
                     {activeSparSession.scorecard.score}<span className="text-[11px] text-slate-400">/100</span>
                   </div>
                 </div>
@@ -708,11 +689,11 @@ Would you like to accept this case file modification proposal?`;
                 </div>
 
                 <div className="space-y-2">
-                  <span className="eyebrow block text-indigo-600 font-bold">Recommendations</span>
+                  <span className="eyebrow block text-[#2f5d62] font-bold">Recommendations</span>
                   <ul className="text-xs text-slate-600 space-y-1.5 pl-1">
                     {activeSparSession.scorecard.suggestions.map((sug, i) => (
                       <li key={i} className="flex items-start gap-1">
-                        <ArrowRight size={11} className="text-indigo-600 shrink-0 mt-0.5" />
+                        <ArrowRight size={11} className="text-[#2f5d62] shrink-0 mt-0.5" />
                         <span>{sug}</span>
                       </li>
                     ))}

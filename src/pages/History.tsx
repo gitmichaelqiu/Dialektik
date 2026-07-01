@@ -134,7 +134,7 @@ export const History: React.FC = () => {
           {/* Win Rate Card */}
           <div className="metric-card">
             <span className="eyebrow block">Win Performance</span>
-            <div className="text-3xl font-extrabold text-indigo-600">
+            <div className="text-3xl font-extrabold text-[#2f5d62]">
               {stats.winRate}%
             </div>
             <span className="text-[10px] text-slate-400 uppercase font-semibold">
@@ -155,7 +155,7 @@ export const History: React.FC = () => {
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border">
                   <div
-                    className="bg-indigo-600 h-full rounded-full"
+                    className="bg-[#2f5d62] h-full rounded-full"
                     style={{ width: `${stats.affWinRate}%` }}
                   ></div>
                 </div>
@@ -180,7 +180,7 @@ export const History: React.FC = () => {
         {/* Argument tracker */}
         <div className="panel space-y-4">
           <span className="eyebrow block flex items-center gap-1.5 text-slate-700 font-bold">
-            <TrendingUp size={14} className="text-indigo-600" /> Arguments win rate impact
+            <TrendingUp size={14} className="text-[#2f5d62]" /> Arguments win rate impact
           </span>
           <div className="space-y-3">
             {stats.argumentPerformance.map((arg, idx) => (
@@ -229,7 +229,7 @@ export const History: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {selectedRecord.flows.map((flow) => (
                   <div key={flow.speechId} className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg space-y-1">
-                    <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded uppercase">
+                    <span className="text-[9px] font-bold text-[#2c504c] bg-[#dfe7e1] border border-[#c5d5c9] px-1.5 py-0.5 rounded uppercase">
                       {flow.speechId}
                     </span>
                     <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed pt-2">
