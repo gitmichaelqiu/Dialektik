@@ -1,4 +1,9 @@
-import { useState } from "react";
+import { AppProvider, useApp } from "./context/AppContext";
+import { Documents } from "./pages/Documents";
+import { InRound } from "./pages/InRound";
+import { Records } from "./pages/Records";
+import { Practice } from "./pages/Practice";
+import { Settings } from "./pages/Settings";
 import { 
   FileText, 
   Activity, 
@@ -11,18 +16,19 @@ import {
   CloudOff
 } from "lucide-react";
 
-type Page = "documents" | "inround" | "records" | "practice" | "settings";
-
-function App() {
-  const [activePage, setActivePage] = useState<Page>("documents");
-  const isPeerConnected = false;
-  const isGitConnected = false;
-
+function AppContent() {
+  const { 
+    activePage, 
+    setActivePage, 
+    isPeerConnected, 
+    isGitConnected, 
+    roomCode 
+  } = useApp();
 
   return (
     <div className="flex h-screen w-screen bg-slate-900 text-slate-100 overflow-hidden font-sans select-none">
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-slate-950 flex flex-col justify-between border-r border-slate-800">
+      <aside className="w-64 bg-slate-950 flex flex-col justify-between border-r border-slate-800 shrink-0">
         <div>
           {/* Logo */}
           <div className="p-6 flex items-center gap-3">
@@ -126,7 +132,7 @@ function App() {
               {isGitConnected ? (
                 <CloudLightning size={12} className="text-emerald-500" />
               ) : (
-                <CloudOff size={12} className="text-slate-600" />
+                <CloudOff size={12} className="text-slate-650" />
               )}
               GitHub Sync
             </span>
@@ -140,66 +146,35 @@ function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-900">
         {/* Header Bar */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-900/60 backdrop-blur">
+        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-slate-900/60 backdrop-blur shrink-0">
           <h2 className="text-lg font-semibold tracking-tight text-white capitalize">
             {activePage === "inround" ? "In-Round UI" : activePage.replace("-", " ")}
           </h2>
           <div className="flex items-center gap-4">
             <div className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-              Session: <span className="font-mono text-indigo-400">None</span>
+              Session Code: <span className="font-mono text-indigo-400 font-bold">{roomCode || "None"}</span>
             </div>
           </div>
         </header>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-8">
-          {activePage === "documents" && (
-            <div className="text-center py-20 max-w-lg mx-auto">
-              <h3 className="text-xl font-bold text-slate-200 mb-2">Documents Portal</h3>
-              <p className="text-slate-400 text-sm">
-                Colloborate with partners on cases and blocks in real-time. Document setup in progress.
-              </p>
-            </div>
-          )}
-
-          {activePage === "inround" && (
-            <div className="text-center py-20 max-w-lg mx-auto">
-              <h3 className="text-xl font-bold text-slate-200 mb-2">In-Round flow and timers</h3>
-              <p className="text-slate-400 text-sm">
-                Keep speech order, timers, and flow blocks running. Setup in progress.
-              </p>
-            </div>
-          )}
-
-          {activePage === "records" && (
-            <div className="text-center py-20 max-w-lg mx-auto">
-              <h3 className="text-xl font-bold text-slate-200 mb-2">Tournament Records</h3>
-              <p className="text-slate-400 text-sm">
-                View histories, statistics, and records of matches. Setup in progress.
-              </p>
-            </div>
-          )}
-
-          {activePage === "practice" && (
-            <div className="text-center py-20 max-w-lg mx-auto">
-              <h3 className="text-xl font-bold text-slate-200 mb-2">AI Sparring Arena</h3>
-              <p className="text-slate-400 text-sm">
-                Practice debating against an AI and receive scorecards. Setup in progress.
-              </p>
-            </div>
-          )}
-
-          {activePage === "settings" && (
-            <div className="text-center py-20 max-w-lg mx-auto">
-              <h3 className="text-xl font-bold text-slate-200 mb-2">Configurations</h3>
-              <p className="text-slate-400 text-sm">
-                Manage API keys, GitHub tokens, and networking settings. Setup in progress.
-              </p>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto p-8 bg-slate-900">
+          {activePage === "documents" && <Documents />}
+          {activePage === "inround" && <InRound />}
+          {activePage === "records" && <Records />}
+          {activePage === "practice" && <Practice />}
+          {activePage === "settings" && <Settings />}
         </div>
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
   );
 }
 
