@@ -3,6 +3,8 @@ import "fake-indexeddb/auto";
 import { deriveKey, encryptData, decryptData } from "./crypto";
 import { db } from "./db";
 import { GitHubSyncService } from "./github";
+import { DebateTimer } from "./timers";
+
 
 // Mock Octokit rest APIs using vi.hoisted to prevent hoisting issues
 const { mockGetContent, mockCreateOrUpdateFileContents, mockReposGet } = vi.hoisted(() => {
@@ -192,4 +194,31 @@ describe("GitHub Synchronization Service", () => {
     expect(savedDoc?.content).toBe("# Remote Content\nHello World");
   });
 });
+
+describe("Debate Timer Services", () => {
+  it("should calculate remaining time using wall clock without drift", async () => {
+    const timer = new DebateTimer(60); // 60 seconds
+    const state = timer.getState();
+    expect(state.isRunning).toBe(false);
+    expect(state.remaining).toBe(60000);
+
+    timer.start();
+    const stateRunning = timer.getState();
+    expect(stateRunning.isRunning).toBe(true);
+    expect(stateRunning.targetTime).toBeGreaterThan(Date.now());
+
+    // Wait 100ms
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const remainingAfterWait = timer.getRemaining();
+    expect(remainingAfterWait).toBeLessThan(60000);
+    expect(remainingAfterWait).toBeGreaterThan(59000);
+
+    timer.pause();
+    const statePaused = timer.getState();
+    expect(statePaused.isRunning).toBe(false);
+    expect(statePaused.remaining).toBe(remainingAfterWait);
+  });
+});
+
 
