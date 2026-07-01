@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { db } from "../services/db";
-import { deriveKey, KeyManager } from "../services/crypto";
+import { KeyManager } from "../services/crypto";
 import { PeerMeshManager } from "../services/webrtc";
-import { GitHubSyncService } from "../services/github";
+import { notify } from "../utils/notifications";
 
 
 export interface Debater {
@@ -53,7 +53,7 @@ interface AppContextType {
   aiModel: string;
   userName: string;
   mesh: PeerMeshManager;
-  githubService: GitHubSyncService | null;
+  githubService: null;
   activePage: string;
   setActivePage: (page: any) => void;
   initializeCrypto: (passphrase: string) => Promise<boolean>;
@@ -81,13 +81,14 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 const meshManager = new PeerMeshManager();
+const ACTIVE_SESSION_KEY = "dialektik.activeSession";
+const ACTIVE_ROOM_KEY = "dialektik.activeRoom";
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<SessionState | null>(null);
+  const [session, setSessionState] = useState<SessionState | null>(null);
   const debateTimerRef = useRef<any | null>(null);
   const prepTimerRef = useRef<any | null>(null);
   const [passphrase, setPassphrase] = useState("");
-  const [cryptoKey, setCryptoKey] = useState<CryptoKey | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [isHost, setIsHost] = useState(false);
   const [isPeerConnected, setIsPeerConnected] = useState(false);
@@ -110,36 +111,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [aiModel, setAiModel] = useState("gpt-4o");
   const [userName, setUserName] = useState("");
 
-  const [githubService, setGithubService] = useState<GitHubSyncService | null>(null);
+  const githubService = null;
+
+  const setSession: React.Dispatch<React.SetStateAction<SessionState | null>> = (value) => {
+    setSessionState(prev => {
+      const next = typeof value === "function" ? (value as (prev: SessionState | null) => SessionState | null)(prev) : value;
+      if (next && next.status !== "ended") {
+        localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(next));
+      } else {
+        localStorage.removeItem(ACTIVE_SESSION_KEY);
+      }
+      return next;
+    });
+  };
 
   // Load configuration from DB on startup
   useEffect(() => {
     async function loadConfigs() {
       // 1. Try to load secure credentials from keychain
-      const token = await KeyManager.get("github_token");
       const apiKey = await KeyManager.get("ai_api_key");
 
-      if (token) setGithubToken(token);
       if (apiKey) setAiApiKey(apiKey);
 
       // 2. Load other configurations from Dexie db.settings
       const settings = await db.settings.toArray();
       for (const item of settings) {
-        if (item.key === "github_owner") setGithubOwner(item.value);
-        if (item.key === "github_repo") setGithubRepo(item.value);
         if (item.key === "ai_endpoint") setAiEndpoint(item.value);
         if (item.key === "ai_model") setAiModel(item.value);
         if (item.key === "user_name") setUserName(item.value);
       }
-
-      // If passphrase salt is missing, generate one
-      let salt = await db.settings.get("passphrase_salt");
-      if (!salt) {
-        const newSalt = Math.random().toString(36).substring(2, 15);
-        await db.settings.put({ key: "passphrase_salt", value: newSalt });
-      }
     }
     loadConfigs();
+  }, []);
+
+  useEffect(() => {
+    const storedSession = localStorage.getItem(ACTIVE_SESSION_KEY);
+    const storedRoom = localStorage.getItem(ACTIVE_ROOM_KEY);
+    if (!storedSession || !storedRoom) return;
+
+    try {
+      const restoredSession = JSON.parse(storedSession) as SessionState;
+      const restoredRoom = JSON.parse(storedRoom) as { code: string; host: boolean };
+      if (!restoredSession || !restoredRoom.code || restoredSession.status === "ended") return;
+
+      setSessionState(restoredSession);
+      setActivePage("inround");
+      startSession(restoredRoom.code, restoredRoom.host);
+    } catch (err) {
+      console.error("Failed to restore active room:", err);
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(ACTIVE_ROOM_KEY);
+    }
   }, []);
 
   // Update peer network connections list on state change
@@ -148,14 +170,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsPeerConnected(meshManager.connections.size > 0 || meshManager.isHost);
       setPeersList([...meshManager.peersList]);
 
-      // Client automatically broadcasts a pairing-request to Host
-      if (!meshManager.isHost) {
-        meshManager.broadcast({
-          type: "pairing-request",
-          version: meshManager.appVersion,
-          senderId: meshManager.peerId
-        });
-      }
     });
 
     meshManager.onConnectionClose(() => {
@@ -164,7 +178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     meshManager.onVersionMismatch(() => {
-      alert("App version mismatch! Please refresh your browser or update the app.");
+      notify("App version mismatch. Please refresh your browser or update the app.");
     });
 
     // Handle incoming match details from the host
@@ -175,29 +189,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // WebRTC connection listeners for auto key-pairing sync
-    meshManager.onMessage((senderId, msg) => {
-      if (msg.type === "pairing-request") {
-        if (meshManager.isHost) {
-          setPairingRequest({ peerId: senderId });
-        }
-      } else if (msg.type === "vault-sync") {
-        if (!meshManager.isHost && msg.payload) {
-          const { githubToken: tok, githubOwner: own, githubRepo: rep, passphrase: pass } = msg.payload;
-          
-          initializeCrypto(pass).then((success) => {
-            if (success) {
-              saveSettings({
-                githubToken: tok,
-                githubOwner: own,
-                githubRepo: rep
-              }).then(() => {
-                alert("Vault sync successful! Local database is now securely linked with Host.");
-              });
-            }
-          });
-        }
-      } else if (msg.type === "session-state") {
+    // WebRTC connection listeners
+    meshManager.onMessage((_senderId, msg) => {
+      if (msg.type === "session-state") {
         if (!meshManager.isHost && msg.payload) {
           setSession(prev => ({
             ...msg.payload,
@@ -208,39 +202,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
-  // Re-initialize GitHubSyncService when credentials/cryptoKey change
-  useEffect(() => {
-    if (githubToken && githubOwner && githubRepo && cryptoKey) {
-      const service = new GitHubSyncService({
-        token: githubToken,
-        repoOwner: githubOwner,
-        repoName: githubRepo,
-        passphraseKey: cryptoKey
-      });
-      setGithubService(service);
-      setIsGitConnected(true);
-    } else {
-      setGithubService(null);
-      setIsGitConnected(false);
-    }
-  }, [githubToken, githubOwner, githubRepo, cryptoKey]);
-
   /**
-   * Initializes cryptography by deriving key from user passphrase
+   * Local client encryption is currently disabled; keep this as a no-op for older UI flows.
    */
   const initializeCrypto = async (pwd: string): Promise<boolean> => {
-    try {
-      let saltSetting = await db.settings.get("passphrase_salt");
-      const salt = saltSetting ? saltSetting.value : "dialektik-default-salt";
-      
-      const key = await deriveKey(pwd, salt);
-      setCryptoKey(key);
-      setPassphrase(pwd);
-      return true;
-    } catch (error) {
-      console.error("Crypto init failed:", error);
-      return false;
-    }
+    setPassphrase(pwd);
+    return true;
   };
 
   /**
@@ -260,15 +227,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUserName(settings.userName);
     }
     if (settings.githubToken !== undefined) {
-      await KeyManager.set("github_token", settings.githubToken);
       setGithubToken(settings.githubToken);
     }
     if (settings.githubOwner !== undefined) {
-      await db.settings.put({ key: "github_owner", value: settings.githubOwner });
       setGithubOwner(settings.githubOwner);
     }
     if (settings.githubRepo !== undefined) {
-      await db.settings.put({ key: "github_repo", value: settings.githubRepo });
       setGithubRepo(settings.githubRepo);
     }
     if (settings.aiApiKey !== undefined) {
@@ -298,17 +262,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsHost(false);
       }
       setRoomCode(code);
+      localStorage.setItem(ACTIVE_ROOM_KEY, JSON.stringify({ code, host }));
       setIsPeerConnected(meshManager.connections.size > 0 || meshManager.isHost);
       setPeersList([...meshManager.peersList]);
     } catch (err) {
       console.error("Session creation failed:", err);
-      alert("Failed to connect room. Verify network or STUN signaling.");
+      notify("Failed to connect room. Verify network or STUN signaling.");
     }
   };
 
   const endSession = () => {
     meshManager.terminateSession();
     setSession(null);
+    localStorage.removeItem(ACTIVE_ROOM_KEY);
     if (debateTimerRef.current) {
       debateTimerRef.current.reset();
       debateTimerRef.current = null;
@@ -339,17 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const approvePairingRequest = (peerId: string) => {
-    meshManager.sendToPeer(peerId, {
-      type: "vault-sync",
-      version: meshManager.appVersion,
-      senderId: meshManager.peerId,
-      payload: {
-        githubToken,
-        githubOwner,
-        githubRepo,
-        passphrase
-      }
-    });
+    void peerId;
     setPairingRequest(null);
   };
 
@@ -361,18 +317,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * Sync GitHub repository push/pull
    */
   const syncData = async () => {
-    if (!githubService) {
-      alert("Please configure GitHub integration and encryption passphrase first!");
-      return;
-    }
-    try {
-      await githubService.pull();
-      await githubService.push();
-      alert("GitHub synchronization successful!");
-    } catch (error) {
-      console.error("Sync action failed:", error);
-      alert("Sync failed! Check GitHub token permissions or network connectivity.");
-    }
+    setIsGitConnected(false);
   };
 
   return (
@@ -383,7 +328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         debateTimerRef,
         prepTimerRef,
         passphrase,
-        isKeyDerived: cryptoKey !== null,
+        isKeyDerived: true,
         roomCode,
         isHost,
         isPeerConnected,

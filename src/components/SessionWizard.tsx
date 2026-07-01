@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { Users, UserPlus, Play, ArrowLeft, X, RefreshCw, Radio } from "lucide-react";
+import { notify } from "../utils/notifications";
 
 interface SessionWizardProps {
   onClose: () => void;
@@ -61,7 +62,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
       setStep(3);
     } catch (err) {
       console.error(err);
-      alert("Failed to initialize host room. Check network.");
+      notify("Failed to initialize host room. Check network.");
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +78,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
       setStep(3); // show handshaking step
     } catch (err) {
       console.error(err);
-      alert("Failed to join room. Verify the code and ensure the host is online.");
+      notify("Failed to join room. Verify the code and ensure the host is online.");
       setIsLoading(false);
     }
   };

@@ -9,9 +9,7 @@ import {
   Radio, 
   Bot,
   History as HistoryIcon, 
-  Settings as SettingsIcon,
-  ShieldCheck,
-  CloudLightning
+  Settings as SettingsIcon
 } from "lucide-react";
 
 function AppContent() {
@@ -19,10 +17,6 @@ function AppContent() {
     activePage, 
     setActivePage, 
     isPeerConnected, 
-    isGitConnected, 
-    pairingRequest,
-    approvePairingRequest,
-    declinePairingRequest,
     userName
   } = useApp();
 
@@ -83,17 +77,17 @@ function AppContent() {
           </button>
         </nav>
 
-        {/* Security Vault Indicator */}
+        {/* Peer Status Indicator */}
         <div className="sync-card flex flex-col gap-1 text-slate-350">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={18} className="text-emerald-500" />
-            <strong>Vault Online</strong>
+            <Radio size={18} className="text-emerald-500" />
+            <strong>Peer Sync</strong>
           </div>
           <span className="text-[10px] text-slate-400 block">
             P2P Link: {isPeerConnected ? "Active" : "Offline"}
           </span>
           <span className="text-[10px] text-slate-400 block">
-            GitHub Sync: {isGitConnected ? "Synced" : "Manual"}
+            Recovery: peers only
           </span>
         </div>
       </aside>
@@ -106,38 +100,6 @@ function AppContent() {
         {activePage === "history" && <History />}
         {activePage === "settings" && <Settings />}
       </main>
-
-      {/* P2P Vault Key Approval Modal */}
-      {pairingRequest && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm bg-white border border-slate-300 rounded-xl p-6 shadow-2xl space-y-4 text-center">
-            <CloudLightning className="mx-auto text-[#2f5d62]" size={32} />
-            <div className="space-y-1.5">
-              <h3 className="text-sm font-bold text-slate-800">Partner Vault Sync Request</h3>
-              <p className="text-xs text-slate-500 leading-relaxed text-left">
-                A debate partner (Peer: <span className="font-mono text-[#2f5d62] font-bold">{pairingRequest.peerId.substring(0, 10)}...</span>) is connecting. 
-                Allow them to securely synchronize your private case encryption vault and GitHub keys over WebRTC?
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => approvePairingRequest(pairingRequest.peerId)}
-                className="flex-grow command primary text-xs font-bold py-2.5 rounded-lg transition-colors"
-              >
-                Approve & Share
-              </button>
-              <button
-                type="button"
-                onClick={declinePairingRequest}
-                className="flex-grow command text-xs font-bold py-2.5 rounded-lg transition-colors"
-              >
-                Decline
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

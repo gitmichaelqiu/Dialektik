@@ -25,7 +25,7 @@ async function computeSHA256(text: string): Promise<string> {
 }
 
 export const Documents: React.FC = () => {
-  const { isPeerConnected, mesh, isKeyDerived, session } = useApp();
+  const { isPeerConnected, mesh, session } = useApp();
 
   const [docs, setDocs] = useState<DebateDocument[]>([]);
   const [cards, setCards] = useState<EvidenceCard[]>([]);
@@ -47,6 +47,7 @@ export const Documents: React.FC = () => {
     start: 0,
     end: 0
   });
+  const [pendingDelete, setPendingDelete] = useState<{ type: "document" | "card"; id: string; label: string } | null>(null);
 
   // Evidence card form
   const [cardTitle, setCardTitle] = useState("");
@@ -171,10 +172,14 @@ export const Documents: React.FC = () => {
     // Sync from local edit to Yjs
     const handleYjsUpdate = () => {
       if (isSyncingRef.current) return;
-      setEditorContent(ytext.toString());
+      const nextContent = ytext.toString();
+      const nextDoc = { ...selectedDoc, content: nextContent, lastModified: Date.now() };
+      setEditorContent(nextContent);
+      setSelectedDoc(nextDoc);
+      setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
       db.documents.update(selectedDoc.id, { 
-        content: ytext.toString(),
-        lastModified: Date.now()
+        content: nextContent,
+        lastModified: nextDoc.lastModified
       });
     };
     ytext.observe(handleYjsUpdate);
@@ -185,7 +190,7 @@ export const Documents: React.FC = () => {
     const isSharedWritable = docFolder !== "private" && (selectedDoc.encryptedHash !== "read"); // we use encryptedHash as mode string to bypass index limitation
     
     if (isPeerConnected && isSharedWritable) {
-      const provider = new PeerJSYjsProvider(ydoc, mesh);
+      const provider = new PeerJSYjsProvider(ydoc, mesh, selectedDoc.id);
       yproviderRef.current = provider;
     }
 
@@ -354,12 +359,23 @@ export const Documents: React.FC = () => {
   };
 
   // Delete document
-  const handleDeleteDoc = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this document?")) {
-      await db.documents.delete(id);
+  const requestDeleteDoc = (doc: DebateDocument) => {
+    setPendingDelete({ type: "document", id: doc.id, label: doc.name.replace(/\.md$/i, "") });
+  };
+
+  const confirmPendingDelete = async () => {
+    if (!pendingDelete) return;
+    if (pendingDelete.type === "document") {
+      await db.documents.delete(pendingDelete.id);
       setSelectedDoc(null);
       await loadDocs();
+      triggerToast("Document deleted.");
+    } else {
+      await db.cards.delete(pendingDelete.id);
+      await loadCards();
+      triggerToast("Evidence card deleted.");
     }
+    setPendingDelete(null);
   };
 
   const handleAddCard = async (e: React.FormEvent) => {
@@ -387,10 +403,8 @@ export const Documents: React.FC = () => {
   };
 
   const handleDeleteCard = async (id: string) => {
-    if (window.confirm("Delete this evidence card from library?")) {
-      await db.cards.delete(id);
-      loadCards();
-    }
+    const card = cards.find(item => item.id === id);
+    setPendingDelete({ type: "card", id, label: card?.title || "Evidence card" });
   };
 
   const triggerToast = (msg: string) => {
@@ -557,7 +571,23 @@ export const Documents: React.FC = () => {
   );
 
   return (
-    <section className="documents-layout">
+    <section className="documents-layout documents-with-evidence">
+      {pendingDelete && (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-item-title">
+          <div className="confirm-dialog">
+            <h2 id="delete-item-title">Delete {pendingDelete.type === "document" ? "Document" : "Evidence Card"}?</h2>
+            <p>{pendingDelete.label} will be removed from this local workspace.</p>
+            <div className="confirm-actions">
+              <button type="button" className="command" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button type="button" className="command danger-command inline-danger" onClick={confirmPendingDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 1. Left Sidebar directory list */}
       <aside className="file-rail flex flex-col justify-between overflow-y-auto">
         <div className="space-y-4">
@@ -621,7 +651,7 @@ export const Documents: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteDoc(doc.id);
+                      requestDeleteDoc(doc);
                     }}
                     className="hover:text-rose-600 p-0.5 opacity-60 hover:opacity-100"
                   >
@@ -633,14 +663,14 @@ export const Documents: React.FC = () => {
           ))}
         </div>
 
-        {/* Vault status block at bottom left of document tab */}
+        {/* Local workspace status block at bottom left of document tab */}
         <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mt-auto space-y-1">
           <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
-            <ShieldCheck size={13} className={isKeyDerived ? "text-emerald-600" : "text-rose-500"} />
-            <span>Case Encryption Vault</span>
+            <ShieldCheck size={13} className="text-emerald-600" />
+            <span>Local Workspace</span>
           </div>
           <p className="text-[9px] text-slate-500 leading-relaxed">
-            {isKeyDerived ? "Decryption key derived. Private cases are secure." : "Vault is locked. Configure settings to unlock."}
+            Files are saved locally and shared through connected peers when placed in team or public folders.
           </p>
         </div>
       </aside>
@@ -783,13 +813,14 @@ export const Documents: React.FC = () => {
       </section>
 
       {/* 3. Right Sidebar Evidence Library */}
-      <aside className="w-80 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Cut Evidence Card</h3>
+      <aside className="file-rail evidence-rail flex flex-col overflow-hidden">
+        <div className="panel-header compact border-b pb-2">
+          <h2>Evidence Cards</h2>
+          <ShieldCheck size={17} />
         </div>
 
         {/* Card Form */}
-        <form onSubmit={handleAddCard} className="p-4 border-b border-slate-200 space-y-3 bg-slate-50/50">
+        <form onSubmit={handleAddCard} className="space-y-2 border-b pb-3">
           <input
             type="text"
             required
@@ -819,10 +850,9 @@ export const Documents: React.FC = () => {
         </form>
 
         {/* Cards List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Evidence Cards</h4>
+        <div className="folder-group flex-1 overflow-y-auto">
           {cards.map((card) => (
-            <div key={card.id} className="bg-slate-50 border border-slate-200 p-3 rounded-lg space-y-2 relative group/card">
+            <div key={card.id} className="file-card group/card">
               <div className="flex items-center justify-between">
                 <strong className="text-xs text-slate-800">{card.title}</strong>
                 <button

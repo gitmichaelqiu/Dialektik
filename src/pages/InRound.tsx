@@ -110,7 +110,7 @@ export const InRound: React.FC = () => {
   const handleHostCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName) {
-      alert("Please set your UserName in Settings first!");
+      triggerToast("Please set your UserName in Settings first.");
       setActivePage("settings");
       return;
     }
@@ -127,15 +127,7 @@ export const InRound: React.FC = () => {
       roomCode: code,
       status: "lobby",
       handout: { title: "", problem: "", details: "" },
-      debaters: [
-        {
-          id: mesh.peerId,
-          name: userName,
-          status: "approved",
-          team: "affirmative",
-          position: 1
-        }
-      ],
+      debaters: [],
       speakerNotes: {},
       speechDuration: 240,
       prepDuration: 180
@@ -159,7 +151,7 @@ export const InRound: React.FC = () => {
   const handleClientJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName) {
-      alert("Please set your UserName in Settings first!");
+      triggerToast("Please set your UserName in Settings first.");
       setActivePage("settings");
       return;
     }
@@ -298,7 +290,9 @@ export const InRound: React.FC = () => {
   // Host Action: Approve connecting debater
   const handleApproveDebater = (request: Debater) => {
     if (!session) return;
-    const updatedDebaters = [...session.debaters, { ...request, status: "approved" as const }];
+    const updatedDebaters = session.debaters.some(d => d.id === request.id)
+      ? session.debaters.map(d => d.id === request.id ? { ...d, status: "approved" as const } : d)
+      : [...session.debaters, { ...request, status: "approved" as const }];
     const nextSession = {
       ...session,
       debaters: updatedDebaters
@@ -323,9 +317,10 @@ export const InRound: React.FC = () => {
   // Host updates debater side/position
   const updateDebaterConfig = (debaterId: string, side: "affirmative" | "negative", position: number) => {
     if (!session) return;
+    const boundedPosition = Math.min(session.teamSize, Math.max(1, position));
     const updated = session.debaters.map(d => {
       if (d.id === debaterId) {
-        return { ...d, team: side, position };
+        return { ...d, team: side, position: boundedPosition };
       }
       return d;
     });
@@ -365,16 +360,24 @@ export const InRound: React.FC = () => {
     
     // Check constraints
     if (!session.handout.title.trim() || !session.handout.problem.trim()) {
-      alert("Please complete the Handout Title and Problem description before starting!");
+      triggerToast("Complete the handout title and problem before starting.");
       return;
     }
     if (session.debaters.length === 0) {
-      alert("Wait for debaters to join the room first!");
+      triggerToast("Wait for at least one debater to join the room.");
       return;
     }
-    const unassigned = session.debaters.some(d => !d.team || !d.position);
-    if (unassigned) {
-      alert("Assign teams (Aff/Neg) and speaking positions for all approved debaters before starting!");
+    const approvedDebaters = session.debaters.filter(d => d.status === "approved");
+    const invalidAssignment = approvedDebaters.some(d => !d.team || !d.position || d.position < 1 || d.position > session.teamSize);
+    if (invalidAssignment) {
+      triggerToast(`Assign each debater a side and position from 1 to ${session.teamSize}.`);
+      return;
+    }
+    const duplicateSlot = approvedDebaters.some((d, index) => 
+      approvedDebaters.findIndex(other => other.team === d.team && other.position === d.position) !== index
+    );
+    if (duplicateSlot) {
+      triggerToast("Each side can use a speaker position only once.");
       return;
     }
 
@@ -486,14 +489,14 @@ export const InRound: React.FC = () => {
       const allDocs = await db.documents.toArray();
       const cases = allDocs.filter(d => (d.partnerAccess || "private") === "private");
       if (cases.length === 0) {
-        alert("Please draft a private Case document first under the Documents tab!");
+        triggerToast("Draft a private case document first under Documents.");
         return;
       }
       cases.sort((a, b) => b.lastModified - a.lastModified);
       const latestCase = cases[0];
 
       if (!aiApiKey) {
-        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        triggerToast("Configure your AI API key under Settings first.");
         return;
       }
 
@@ -507,7 +510,7 @@ export const InRound: React.FC = () => {
       handleUpdateSpeakerNote(notesText);
       triggerToast("AI Outline loaded into speaker notes.");
     } catch (err: any) {
-      alert(`AI Outline failed: ${err.message}`);
+      triggerToast(`AI outline failed: ${err.message}`);
     }
   };
 
@@ -802,15 +805,15 @@ export const InRound: React.FC = () => {
                                 Neg
                               </button>
                             </div>
-                            <input 
-                              type="number"
-                              min={1}
-                              max={4}
+                            <select
                               value={d.position || 1}
                               onChange={(e) => updateDebaterConfig(d.id, d.team || "affirmative", parseInt(e.target.value, 10))}
                               className="position-input w-16"
-                              placeholder="Pos"
-                            />
+                            >
+                              {Array.from({ length: session.teamSize }, (_, index) => index + 1).map(position => (
+                                <option key={position} value={position}>{position}</option>
+                              ))}
+                            </select>
                           </>
                         ) : (
                           <div className="text-xs font-semibold text-[#2f5d62]">

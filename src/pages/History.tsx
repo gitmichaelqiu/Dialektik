@@ -6,6 +6,7 @@ export const History: React.FC = () => {
   const [records, setRecords] = useState<TournamentRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TournamentRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<TournamentRecord | null>(null);
 
   // Statistics state
   const [stats, setStats] = useState({
@@ -62,12 +63,12 @@ export const History: React.FC = () => {
     });
   };
 
-  const handleDeleteRecord = async (id: string) => {
-    if (window.confirm("Delete this tournament round history?")) {
-      await db.history.delete(id);
-      setSelectedRecord(null);
-      await loadRecords();
-    }
+  const confirmDeleteRecord = async () => {
+    if (!pendingDelete) return;
+    await db.history.delete(pendingDelete.id);
+    setSelectedRecord(null);
+    setPendingDelete(null);
+    await loadRecords();
   };
 
   const filteredRecords = records.filter(r => 
@@ -77,6 +78,22 @@ export const History: React.FC = () => {
 
   return (
     <div className="documents-layout">
+      {pendingDelete && (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-history-title">
+          <div className="confirm-dialog">
+            <h2 id="delete-history-title">Delete Round?</h2>
+            <p>{pendingDelete.matchName} will be removed from local history.</p>
+            <div className="confirm-actions">
+              <button type="button" className="command" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button type="button" className="command danger-command inline-danger" onClick={confirmDeleteRecord}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 1. Left Sidebar directory list */}
       <aside className="file-rail flex flex-col justify-between overflow-y-auto">
         <div className="space-y-4">
@@ -219,7 +236,7 @@ export const History: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => handleDeleteRecord(selectedRecord.id)}
+                    onClick={() => setPendingDelete(selectedRecord)}
                 className="command danger-command inline-danger py-1 px-3 text-xs flex items-center gap-1"
               >
                 <Trash2 size={13} /> Delete log

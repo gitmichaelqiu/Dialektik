@@ -43,9 +43,24 @@ export class PeerMeshManager {
   /**
    * Register event handlers
    */
-  public onConnectionOpen(cb: ConnectionCallback) { this.onConnectionOpenCallbacks.push(cb); }
-  public onConnectionClose(cb: (peerId: string) => void) { this.onConnectionCloseCallbacks.push(cb); }
-  public onMessage(cb: MessageCallback) { this.onMessageCallbacks.push(cb); }
+  public onConnectionOpen(cb: ConnectionCallback) {
+    this.onConnectionOpenCallbacks.push(cb);
+    return () => {
+      this.onConnectionOpenCallbacks = this.onConnectionOpenCallbacks.filter(item => item !== cb);
+    };
+  }
+  public onConnectionClose(cb: (peerId: string) => void) {
+    this.onConnectionCloseCallbacks.push(cb);
+    return () => {
+      this.onConnectionCloseCallbacks = this.onConnectionCloseCallbacks.filter(item => item !== cb);
+    };
+  }
+  public onMessage(cb: MessageCallback) {
+    this.onMessageCallbacks.push(cb);
+    return () => {
+      this.onMessageCallbacks = this.onMessageCallbacks.filter(item => item !== cb);
+    };
+  }
   public onVersionMismatch(cb: () => void) { this.onVersionMismatchCallback = cb; }
   public onHostMigration(cb: (newHostId: string) => void) { this.onHostMigrationCallback = cb; }
   public onMatchDetails(cb: (details: any) => void) { this.onMatchDetailsCallback = cb; }

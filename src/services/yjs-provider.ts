@@ -29,17 +29,27 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export class PeerJSYjsProvider {
   public doc: Y.Doc;
   public mesh: PeerMeshManager;
+  private roomName: string;
+  private unsubscribeConnectionOpen: (() => void) | null = null;
+  private unsubscribeMessage: (() => void) | null = null;
 
-  constructor(doc: Y.Doc, mesh: PeerMeshManager) {
+  constructor(doc: Y.Doc, mesh: PeerMeshManager, roomName: string) {
     this.doc = doc;
     this.mesh = mesh;
+    this.roomName = roomName;
 
     // Set up local doc changes sync to P2P mesh
     this.doc.on("update", this.handleDocUpdate);
 
     // Set up incoming network messages binding
-    this.mesh.onConnectionOpen(this.handlePeerConnect);
-    this.mesh.onMessage(this.handleIncomingP2PMessage);
+    this.unsubscribeConnectionOpen = this.mesh.onConnectionOpen(this.handlePeerConnect);
+    this.unsubscribeMessage = this.mesh.onMessage(this.handleIncomingP2PMessage);
+
+    for (const conn of this.mesh.connections.values()) {
+      if (conn.open) {
+        this.handlePeerConnect(conn.peer, conn);
+      }
+    }
   }
 
   /**
@@ -47,6 +57,10 @@ export class PeerJSYjsProvider {
    */
   public destroy() {
     this.doc.off("update", this.handleDocUpdate);
+    this.unsubscribeConnectionOpen?.();
+    this.unsubscribeMessage?.();
+    this.unsubscribeConnectionOpen = null;
+    this.unsubscribeMessage = null;
   }
 
   /**
@@ -60,7 +74,7 @@ export class PeerJSYjsProvider {
     this.mesh.broadcast({
       type: "yjs-update",
       senderId: this.mesh.peerId,
-      payload: { update: base64Update }
+      payload: { roomName: this.roomName, update: base64Update }
     });
   };
 
@@ -75,7 +89,7 @@ export class PeerJSYjsProvider {
     conn.send({
       type: "yjs-sync-step-1",
       senderId: this.mesh.peerId,
-      payload: { sv: base64Sv }
+      payload: { roomName: this.roomName, sv: base64Sv }
     });
   };
 
@@ -85,6 +99,7 @@ export class PeerJSYjsProvider {
   private handleIncomingP2PMessage = (senderId: string, msg: PeerMessage) => {
     const conn = this.mesh.connections.get(senderId);
     if (!conn) return;
+    if (msg.payload?.roomName !== this.roomName) return;
 
     switch (msg.type) {
       case "yjs-sync-step-1": {
@@ -97,7 +112,7 @@ export class PeerJSYjsProvider {
           conn.send({
             type: "yjs-sync-step-2",
             senderId: this.mesh.peerId,
-            payload: { update: base64Update }
+            payload: { roomName: this.roomName, update: base64Update }
           });
         }
         break;

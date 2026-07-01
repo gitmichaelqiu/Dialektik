@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import { db, type DebateDocument, type PracticeSession } from "../services/db";
 import { AIService } from "../services/ai";
+import { notify } from "../utils/notifications";
 import { 
   Bot, 
   User, 
@@ -52,14 +53,6 @@ export const AI: React.FC = () => {
       </div>
     );
   }
-
-  const triggerToast = (msg: string) => {
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.innerText = msg;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
-  };
 
   // Tab View Mode: Chat vs Sparring
   const [viewMode, setViewMode] = useState<"chat" | "sparring">("chat");
@@ -168,7 +161,7 @@ export const AI: React.FC = () => {
     try {
       let aiResponseText = "";
       if (!aiApiKey) {
-        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        notify("Configure your AI API key under Settings first.");
         setChatBusy(false);
         return;
       }
@@ -241,7 +234,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         content: newContent,
         lastModified: Date.now()
       });
-      alert(`Successfully updated case prep file: ${path}!`);
+      notify(`Updated case prep file: ${path}.`);
     } else {
       const newDoc: DebateDocument = {
         id: `doc-${Math.random().toString(36).substring(2, 11)}`,
@@ -253,7 +246,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         encryptedHash: "write"
       };
       await db.documents.put(newDoc);
-      alert(`Created and saved new case file: ${path}!`);
+      notify(`Created case prep file: ${path}.`);
     }
 
     loadDocs();
@@ -262,7 +255,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
   // --- AI SPARRING ACTIONS ---
   const handleStartSparring = async () => {
     if (!topic.trim()) {
-      alert("Please enter a debatetopic resolution to begin.");
+      notify("Enter a debate topic resolution to begin.");
       return;
     }
 
@@ -307,7 +300,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
       let responseText = "";
       let scorecard = activeSparSession.scorecard;
       if (!aiApiKey) {
-        alert("AI API Key not configured! Please configure your OpenAI API Key under the Settings tab first.");
+        notify("Configure your AI API key under Settings first.");
         setSparBusy(false);
         return;
       }
@@ -354,7 +347,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
       setActiveSparSession(prev => prev ? { ...prev, transcripts: finalMsgs, scorecard } : null);
 
     } catch (err: any) {
-      alert(`Sparring failed: ${err.message}`);
+      notify(`Sparring failed: ${err.message}`);
     } finally {
       setSparBusy(false);
     }
@@ -411,7 +404,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                       timestamp: Date.now()
                     }
                   ]);
-                  triggerToast("New conversation started.");
+                  notify("New conversation started.");
                 }}
               >
                 New Chat
@@ -472,7 +465,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                           </button>
                           <button 
                             type="button"
-                            onClick={() => triggerToast("Proposal rejected.")}
+                            onClick={() => notify("Proposal rejected.")}
                             className="bg-slate-100 border hover:bg-slate-200 text-slate-600 text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold"
                           >
                             <X size={11} /> Decline
