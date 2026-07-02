@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { ArrowLeft, Play, Radio, RefreshCw, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, Play, UserPlus, Users } from "lucide-react";
 import { notify } from "../utils/notifications";
 import { 
   Button, 
