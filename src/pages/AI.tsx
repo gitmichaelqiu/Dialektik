@@ -417,11 +417,11 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
 
   if (!aiApiKey) {
     return (
-      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-white border border-slate-300 rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
-        <Bot size={48} className="text-slate-300" />
+      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-card border border-border rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
+        <Bot size={48} className="text-muted-foreground" />
         <div className="space-y-2">
-          <h2 className="text-base font-bold text-slate-800">AI Debate Assistant Locked</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
+          <h2 className="text-base font-bold text-foreground">AI Debate Assistant Locked</h2>
+          <p className="text-xs text-muted-foreground leading-relaxed">
             AI sparring, practice resolutions, and constructive outline features require an OpenAI API Key.
             Configure your AI Settings to activate the assistant.
           </p>
@@ -440,10 +440,10 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] overflow-hidden space-y-4">
       {/* Top navigation controls mode */}
-      <div className="flex items-center justify-between border-b pb-2 shrink-0 bg-white p-4 rounded-lg border border-slate-300 shadow-2xs">
+      <div className="flex items-center justify-between border-b pb-2 shrink-0 bg-card p-4 rounded-lg border border-border shadow-2xs">
         <div>
-          <h2 className="text-sm font-bold text-slate-800">AI debate Sparring & consultation</h2>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Explore cases or debate practice rounds with AI.</span>
+          <h2 className="text-sm font-bold text-foreground">AI debate Sparring & consultation</h2>
+          <span className="text-[10px] text-muted-foreground block mt-0.5">Explore cases or debate practice rounds with AI.</span>
         </div>
         <div className="segmented">
           <button 
@@ -468,7 +468,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         <div className="flex-1 grid grid-cols-1 md:grid-cols-[200px_1fr_240px] gap-4 min-h-0 overflow-hidden">
           
           {/* Left panel conversations */}
-          <aside className="conversation-rail flex flex-col justify-between overflow-y-auto bg-white border border-slate-300 rounded-xl">
+          <aside className="conversation-rail flex flex-col justify-between overflow-y-auto bg-card border border-border rounded-xl">
             <div className="space-y-4">
               <button 
                 type="button"
@@ -495,7 +495,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
           </aside>
 
           {/* Middle panel chat logs */}
-          <section className="chat-panel bg-white border border-slate-300 rounded-xl relative flex flex-col min-h-0">
+          <section className="chat-panel bg-card border border-border rounded-xl relative flex flex-col min-h-0">
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {chatMessages.map((msg, idx) => {
                 const isSystem = msg.role === "assistant";
@@ -504,7 +504,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 return (
                   <div key={idx} className={`flex gap-3 max-w-2xl ${isSystem ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                     <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                      isSystem ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-[#2f5d62]/10 text-[#2f5d62] border-[#2f5d62]/20"
+                      isSystem ? "bg-muted/50 text-foreground border-border" : "bg-primary/10 text-primary border-primary/20"
                     }`}>
                       {isSystem ? <Bot size={15} /> : <User size={15} />}
                     </div>
@@ -512,8 +512,8 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                     <div className="space-y-2">
                       <div className={`p-4 rounded-xl text-xs leading-relaxed ${
                         isSystem 
-                          ? "bg-slate-50 border rounded-tl-none border-slate-200 text-slate-700" 
-                          : "bg-[#dfe7e1] border rounded-tr-none border-[#c5d5c9] text-[#2c504c]"
+                          ? "bg-muted/50 border rounded-tl-none border-border text-foreground" 
+                          : "bg-secondary border rounded-tr-none border-border text-secondary-foreground"
                       }`}>
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       </div>
@@ -524,14 +524,14 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                           <button 
                             type="button"
                             onClick={() => handleApplyFileEdit(msg.content)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold shadow-xs"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-primary-foreground text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold shadow-xs"
                           >
                             <Check size={11} /> Accept Proposal
                           </button>
                           <button 
                             type="button"
                             onClick={() => notify("Proposal rejected.")}
-                            className="bg-slate-100 border hover:bg-slate-200 text-slate-600 text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold"
+                            className="bg-muted border hover:bg-accent text-muted-foreground text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold"
                           >
                             <X size={11} /> Decline
                           </button>
@@ -563,11 +563,11 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </div>
 
             {/* Chat Composer */}
-            <form onSubmit={handleSendChatMessage} className="p-4 border-t bg-slate-50 flex gap-2 relative">
+            <form onSubmit={handleSendChatMessage} className="p-4 border-t bg-muted/50 flex gap-2 relative">
               {/* Autocomplete box overlay */}
               {showSuggest && (
-                <div className="absolute bottom-full left-4 mb-2 w-64 bg-white border border-slate-300 rounded-lg shadow-2xl p-1 z-35 max-h-48 overflow-y-auto">
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 py-1 border-b">
+                <div className="absolute bottom-full left-4 mb-2 w-64 bg-card border border-border rounded-lg shadow-2xl p-1 z-35 max-h-48 overflow-y-auto">
+                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-2 py-1 border-b">
                     Mention prep file...
                   </div>
                   {suggestDocs.map(d => (
@@ -575,9 +575,9 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                       key={d.id}
                       type="button"
                       onClick={() => handleSelectAutocomplete(d)}
-                      className="w-full text-left text-[11px] text-slate-700 hover:bg-slate-100 p-2 rounded flex items-center gap-1.5"
+                      className="w-full text-left text-[11px] text-foreground hover:bg-muted p-2 rounded flex items-center gap-1.5"
                     >
-                      <FileText size={11} className="text-[#2f5d62]" />
+                      <FileText size={11} className="text-primary" />
                       <span>{d.partnerAccess || "private"}/{d.name.replace(".md", "")}</span>
                     </button>
                   ))}
@@ -602,26 +602,26 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
           </section>
 
           {/* Right panel: Cited Files checklists */}
-          <aside className="context-panel bg-white border border-slate-300 rounded-xl overflow-y-auto">
+          <aside className="context-panel bg-card border border-border rounded-xl overflow-y-auto">
             <div className="panel-header compact border-b pb-2">
               <h2>Cited Files</h2>
               <FileText size={16} />
             </div>
-            <p className="text-[10px] text-slate-400 mb-3">AI consults only checked files.</p>
+            <p className="text-[10px] text-muted-foreground mb-3">AI consults only checked files.</p>
             <div className="space-y-2">
               {documents.map(d => (
-                <label key={d.id} className="check-row text-xs text-slate-600 hover:text-slate-800 cursor-pointer">
+                <label key={d.id} className="check-row text-xs text-muted-foreground hover:text-foreground cursor-pointer">
                   <input 
                     type="checkbox"
                     checked={checkedDocs[d.id] || false}
                     onChange={(e) => setCheckedDocs(prev => ({ ...prev, [d.id]: e.target.checked }))}
-                    className="rounded border-slate-300 text-[#2f5d62]"
+                    className="rounded border-border text-primary"
                   />
                   <span className="truncate">{d.partnerAccess || "private"}/{d.name}</span>
                 </label>
               ))}
               {documents.length === 0 && (
-                <span className="text-[10px] text-slate-400 italic block py-4 text-center">No case files created yet.</span>
+                <span className="text-[10px] text-muted-foreground italic block py-4 text-center">No case files created yet.</span>
               )}
             </div>
           </aside>
@@ -632,13 +632,13 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         <div className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4 min-h-0 overflow-hidden">
           
           {/* Middle Sparring Arena */}
-          <section className="bg-white border border-slate-300 rounded-xl flex flex-col min-h-0 overflow-hidden">
+          <section className="bg-card border border-border rounded-xl flex flex-col min-h-0 overflow-hidden">
             {!isSparringActive ? (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-5">
-                <Bot size={40} className="text-[#2f5d62]" />
+                <Bot size={40} className="text-primary" />
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Practice Debate Arena</h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  <h3 className="text-sm font-bold text-foreground">Practice Debate Arena</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     Spar against a world-class AI debater. Practice speech outlines, receive judge feedback and analytics.
                   </p>
                 </div>
@@ -705,10 +705,10 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
               </div>
             ) : (
               <>
-                <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                <div className="p-4 border-b bg-muted/50 flex items-center justify-between">
                   <div className="min-w-0">
                     <span className="eyebrow block">Sparring Resolution</span>
-                    <strong className="text-xs text-slate-800 block truncate">{activeSparSession?.topic}</strong>
+                    <strong className="text-xs text-foreground block truncate">{activeSparSession?.topic}</strong>
                   </div>
                   <button 
                     type="button"
@@ -725,15 +725,15 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                     return (
                       <div key={idx} className={`flex gap-3 max-w-xl ${isAI ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
                         <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                          isAI ? "bg-slate-50 text-slate-700 border-slate-300" : "bg-[#2f5d62]/10 text-[#2f5d62] border-[#2f5d62]/20"
+                          isAI ? "bg-muted/50 text-foreground border-border" : "bg-primary/10 text-primary border-primary/20"
                         }`}>
                           {isAI ? <Bot size={15} /> : <User size={15} />}
                         </div>
 
                         <div className={`p-4 rounded-xl text-xs leading-relaxed ${
                           isAI 
-                            ? "bg-slate-50 border rounded-tl-none border-slate-200 text-slate-700" 
-                            : "bg-[#dfe7e1] border rounded-tr-none border-[#c5d5c9] text-[#2c504c]"
+                            ? "bg-muted/50 border rounded-tl-none border-border text-foreground" 
+                            : "bg-secondary border rounded-tr-none border-border text-secondary-foreground"
                         }`}>
                           <p className="whitespace-pre-wrap">{msg.text}</p>
                         </div>
@@ -741,14 +741,14 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                     );
                   })}
                   {sparBusy && (
-                    <div className="flex items-center gap-2 text-xs text-slate-400 animate-pulse">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
                       <Bot size={15} className="animate-bounce" />
                       AI Partner is counter-arguing...
                     </div>
                   )}
                 </div>
 
-                <form onSubmit={handleSendSparMessage} className="p-4 border-t bg-slate-50 flex gap-2">
+                <form onSubmit={handleSendSparMessage} className="p-4 border-t bg-muted/50 flex gap-2">
                   <input 
                     value={sparInput}
                     onChange={(e) => setSparInput(e.target.value)}
@@ -769,24 +769,24 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
           </section>
 
           {/* Right scorecard pane */}
-          <aside className="bg-white border border-slate-300 rounded-xl overflow-y-auto p-4 flex flex-col">
+          <aside className="bg-card border border-border rounded-xl overflow-y-auto p-4 flex flex-col">
             <div className="panel-header compact border-b pb-2 mb-3">
               <h2>Judge Scorecard</h2>
-              <Award size={17} className="text-[#2f5d62]" />
+              <Award size={17} className="text-primary" />
             </div>
 
             {activeSparSession?.scorecard ? (
               <div className="space-y-4 flex-grow overflow-y-auto">
-                <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="text-center py-4 bg-muted/50 rounded-xl border border-border">
                   <span className="eyebrow block">Performance Score</span>
-                  <div className="text-3xl font-extrabold text-[#2f5d62]">
-                    {activeSparSession.scorecard.score}<span className="text-[11px] text-slate-400">/100</span>
+                  <div className="text-3xl font-extrabold text-primary">
+                    {activeSparSession.scorecard.score}<span className="text-[11px] text-muted-foreground">/100</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <span className="eyebrow block text-emerald-600 font-bold">Strengths</span>
-                  <ul className="list-disc pl-4 text-xs text-slate-600 space-y-1">
+                  <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
                     {activeSparSession.scorecard.strengths.map((str, i) => (
                       <li key={i}>{str}</li>
                     ))}
@@ -794,8 +794,8 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 </div>
 
                 <div className="space-y-2">
-                  <span className="eyebrow block text-rose-600 font-bold">Weaknesses</span>
-                  <ul className="list-disc pl-4 text-xs text-slate-600 space-y-1">
+                  <span className="eyebrow block text-destructive font-bold">Weaknesses</span>
+                  <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
                     {activeSparSession.scorecard.weaknesses.map((weak, i) => (
                       <li key={i}>{weak}</li>
                     ))}
@@ -803,11 +803,11 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 </div>
 
                 <div className="space-y-2">
-                  <span className="eyebrow block text-[#2f5d62] font-bold">Recommendations</span>
-                  <ul className="text-xs text-slate-600 space-y-1.5 pl-1">
+                  <span className="eyebrow block text-primary font-bold">Recommendations</span>
+                  <ul className="text-xs text-muted-foreground space-y-1.5 pl-1">
                     {activeSparSession.scorecard.suggestions.map((sug, i) => (
                       <li key={i} className="flex items-start gap-1">
-                        <ArrowRight size={11} className="text-[#2f5d62] shrink-0 mt-0.5" />
+                        <ArrowRight size={11} className="text-primary shrink-0 mt-0.5" />
                         <span>{sug}</span>
                       </li>
                     ))}
@@ -815,8 +815,8 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col justify-center items-center text-center text-slate-400 text-xs gap-2 py-10">
-                <Trophy size={20} className="text-slate-200" />
+              <div className="flex-1 flex flex-col justify-center items-center text-center text-muted-foreground text-xs gap-2 py-10">
+                <Trophy size={20} className="text-muted" />
                 <span>Scorecard metrics will render after the first exchange.</span>
               </div>
             )}

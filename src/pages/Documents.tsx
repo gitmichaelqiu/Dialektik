@@ -444,13 +444,13 @@ export const Documents: React.FC = () => {
       escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
       escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
       escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
-      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-slate-100 px-1 py-0.5 rounded font-mono text-[#2f5d62] text-[10px]'>$1</code>");
+      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-muted px-1 py-0.5 rounded font-mono text-primary text-[10px]'>$1</code>");
 
       return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
     };
 
     return (
-      <div className="prose max-w-none text-slate-800 text-xs leading-relaxed font-sans min-h-[400px] space-y-4">
+      <div className="prose max-w-none text-foreground text-xs leading-relaxed font-sans min-h-[400px] space-y-4">
         {parts.map((part, index) => {
           const match = part.match(/\[\[([^\]]+)\]\]/);
           if (match) {
@@ -466,18 +466,18 @@ export const Documents: React.FC = () => {
                       Cite: {referencedCard.title}
                     </span>
                     {/* Hover Card preview popover */}
-                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-white border border-slate-350 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-slate-700">
+                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-card border border-border p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-foreground">
                       <div className="flex items-center justify-between border-b pb-1.5">
-                        <strong className="text-slate-900 font-bold">{referencedCard.title}</strong>
+                        <strong className="text-foreground font-bold">{referencedCard.title}</strong>
                         <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
                           <ShieldCheck size={11} /> VERIFIED
                         </span>
                       </div>
-                      <p className="text-slate-600 italic line-clamp-3">"{referencedCard.text}"</p>
-                      <div className="flex items-center justify-between pt-1 text-[9px] text-slate-400">
+                      <p className="text-muted-foreground italic line-clamp-3">"{referencedCard.text}"</p>
+                      <div className="flex items-center justify-between pt-1 text-[9px] text-muted-foreground">
                         <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
                         {referencedCard.sourceUrl && (
-                          <span className="flex items-center gap-0.5 text-[#2f5d62]">Link</span>
+                          <span className="flex items-center gap-0.5 text-primary">Link</span>
                         )}
                       </div>
                     </span>
@@ -499,17 +499,17 @@ export const Documents: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => onNavigateDoc(targetDoc)}
-                      className="bg-[#2f5d62]/10 text-[#2f5d62] border border-[#2f5d62]/20 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-[#2f5d62]/20"
+                      className="bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-primary/20"
                     >
                       {title}
                     </button>
                     {/* Hover Wiki preview popover */}
-                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-white border border-slate-350 p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-slate-700">
+                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-card border border-border p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-foreground">
                       <div className="flex items-center justify-between border-b pb-1.5">
-                        <strong className="text-slate-900 font-bold">{targetDoc.name}</strong>
-                        <span className="text-[9px] uppercase font-bold text-slate-400">{targetDoc.partnerAccess || "private"}</span>
+                        <strong className="text-foreground font-bold">{targetDoc.name}</strong>
+                        <span className="text-[9px] uppercase font-bold text-muted-foreground">{targetDoc.partnerAccess || "private"}</span>
                       </div>
-                      <p className="text-slate-600 line-clamp-4 leading-relaxed font-mono text-[9px]">
+                      <p className="text-muted-foreground line-clamp-4 leading-relaxed font-mono text-[9px]">
                         {targetDoc.content.substring(0, 240)}...
                       </p>
                     </span>
@@ -520,7 +520,7 @@ export const Documents: React.FC = () => {
 
             // Fallback for missing link
             return (
-              <span key={index} className="bg-rose-50 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle">
+              <span key={index} className="bg-destructive/10 text-destructive border border-destructive/30 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle">
                 Missing Link: {rawCitation}
               </span>
             );
@@ -531,24 +531,24 @@ export const Documents: React.FC = () => {
             <div key={index} className="inline space-y-2">
               {lines.map((line, lineIdx) => {
                 if (line.startsWith("### ")) {
-                  return <h3 key={lineIdx} className="text-xs font-bold text-slate-800 mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
+                  return <h3 key={lineIdx} className="text-xs font-bold text-foreground mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
                 }
                 if (line.startsWith("## ")) {
-                  return <h2 key={lineIdx} className="text-sm font-bold text-slate-900 mt-5 mb-2 border-b pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
+                  return <h2 key={lineIdx} className="text-sm font-bold text-foreground mt-5 mb-2 border-b pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
                 }
                 if (line.startsWith("# ")) {
-                  return <h1 key={lineIdx} className="text-base font-extrabold text-slate-900 mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
+                  return <h1 key={lineIdx} className="text-base font-extrabold text-foreground mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
                 }
                 if (line.startsWith("- ") || line.startsWith("* ")) {
                   return (
-                    <ul key={lineIdx} className="list-disc list-inside pl-4 text-slate-600 my-1 block">
+                    <ul key={lineIdx} className="list-disc list-inside pl-4 text-muted-foreground my-1 block">
                       <li>{renderInlineStyle(line.substring(2))}</li>
                     </ul>
                   );
                 }
                 if (line.startsWith("> ")) {
                   return (
-                    <blockquote key={lineIdx} className="border-l-2 border-slate-400 pl-4 italic text-slate-500 my-2 block">
+                    <blockquote key={lineIdx} className="border-l-2 border-border pl-4 italic text-muted-foreground my-2 block">
                       {renderInlineStyle(line.substring(2))}
                     </blockquote>
                   );
@@ -643,7 +643,7 @@ export const Documents: React.FC = () => {
             <div key={folder} className="folder-group">
               <span>{folder}</span>
               {groupedDocs[folder].length === 0 && (
-                <div className="text-[10px] text-slate-400 italic px-2">Empty</div>
+                <div className="text-[10px] text-muted-foreground italic px-2">Empty</div>
               )}
               {groupedDocs[folder].map(doc => (
                 <button
@@ -652,7 +652,7 @@ export const Documents: React.FC = () => {
                   onClick={() => handleSelectDoc(doc)}
                   className={`file-item ${selectedDoc?.id === doc.id ? "selected" : ""}`}
                 >
-                  <FileText size={15} className="text-[#2f5d62]" />
+                  <FileText size={15} className="text-primary" />
                   <span>{doc.name.replace(/\.md$/i, "")}</span>
                   <button 
                     type="button"
@@ -660,7 +660,7 @@ export const Documents: React.FC = () => {
                       e.stopPropagation();
                       requestDeleteDoc(doc);
                     }}
-                    className="hover:text-rose-600 p-0.5 opacity-60 hover:opacity-100"
+                    className="hover:text-destructive p-0.5 opacity-60 hover:opacity-100"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -671,12 +671,12 @@ export const Documents: React.FC = () => {
         </div>
 
         {/* Local workspace status block at bottom left of document tab */}
-        <div className="bg-slate-50 border border-slate-200 p-3 rounded-lg mt-auto space-y-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
+        <div className="bg-muted/50 border border-border p-3 rounded-lg mt-auto space-y-1">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-foreground">
             <ShieldCheck size={13} className="text-emerald-600" />
             <span>Local Workspace</span>
           </div>
-          <p className="text-[9px] text-slate-500 leading-relaxed">
+          <p className="text-[9px] text-muted-foreground leading-relaxed">
             Files are saved locally and shared through connected peers when placed in team or public folders.
           </p>
         </div>
@@ -692,7 +692,7 @@ export const Documents: React.FC = () => {
                 value={editorName} 
                 onChange={(e) => setEditorName(e.target.value)}
                 onBlur={handleTitleBlur}
-                className="font-bold border-b border-transparent focus:border-slate-300"
+                className="font-bold border-b border-transparent focus:border-border"
                 placeholder="Rename file..."
               />
               
@@ -795,7 +795,7 @@ export const Documents: React.FC = () => {
             </div>
 
             {/* Bottom Citation stats bar */}
-            <div className="citation-bar text-[10px] text-slate-500 bg-slate-100 flex justify-between px-4 py-2 border-t">
+            <div className="citation-bar text-[10px] text-muted-foreground bg-muted flex justify-between px-4 py-2 border-t">
               <span>Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}</span>
               <span className="flex items-center gap-1">
                 {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
@@ -804,14 +804,14 @@ export const Documents: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Database size={11} className="text-slate-400" /> Saved locally
+                    <Database size={11} className="text-muted-foreground" /> Saved locally
                   </>
                 )}
               </span>
             </div>
           </>
         ) : (
-          <div className="empty-editor text-slate-400 text-xs">
+          <div className="empty-editor text-muted-foreground text-xs">
             <FileText size={32} />
             <h1>No document selected</h1>
             <p>Create a file or select from the shared folders rail to begin.</p>
@@ -861,19 +861,19 @@ export const Documents: React.FC = () => {
           {cards.map((card) => (
             <div key={card.id} className="file-card group/card">
               <div className="flex items-center justify-between">
-                <strong className="text-xs text-slate-800">{card.title}</strong>
+                <strong className="text-xs text-foreground">{card.title}</strong>
                 <button
                   onClick={() => handleDeleteCard(card.id)}
-                  className="opacity-0 group-hover/card:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 transition-opacity"
+                  className="opacity-0 group-hover/card:opacity-100 text-muted-foreground hover:text-destructive p-0.5 transition-opacity"
                 >
                   <Trash2 size={12} />
                 </button>
               </div>
-              <p className="text-[10px] text-slate-500 line-clamp-2">"{card.text}"</p>
-              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 font-mono">
-                <span>ID: <span className="text-[#2f5d62] font-bold select-all">[[{card.id}]]</span></span>
+              <p className="text-[10px] text-muted-foreground line-clamp-2">"{card.text}"</p>
+              <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 font-mono">
+                <span>ID: <span className="text-primary font-bold select-all">[[{card.id}]]</span></span>
                 {card.sourceUrl && (
-                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#2f5d62]">
+                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
                     Source
                   </a>
                 )}

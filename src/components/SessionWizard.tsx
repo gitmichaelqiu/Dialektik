@@ -1,38 +1,41 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Users, UserPlus, Play, ArrowLeft, X, RefreshCw, Radio } from "lucide-react";
+import { ArrowLeft, Play, Radio, RefreshCw, UserPlus, Users, X } from "lucide-react";
 import { notify } from "../utils/notifications";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface SessionWizardProps {
   onClose: () => void;
 }
 
 export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
-  const { 
-    isPeerConnected, 
-    hostSession, 
-    joinSession 
-  } = useApp();
+  const { isPeerConnected, hostSession, joinSession } = useApp();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [role, setRole] = useState<"host" | "client" | null>(null);
-
-  // Host inputs
   const [matchName, setMatchName] = useState("");
   const [opponent, setOpponent] = useState("");
-
-  // Client inputs
   const [code, setCode] = useState("");
-
   const [generatedCode, setGeneratedCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Automatically close wizard once WebRTC P2P connects
   useEffect(() => {
-    if (isPeerConnected) {
-      onClose();
-    }
+    if (isPeerConnected) onClose();
   }, [isPeerConnected, onClose]);
+
+  const title =
+    step === 1
+      ? "Start Debate Session"
+      : step === 2 && role === "host"
+        ? "Configure Match"
+        : step === 2
+          ? "Enter Room Code"
+          : role === "host"
+            ? "Share Room Code"
+            : "Establishing Link";
 
   const handleSelectRole = (selectedRole: "host" | "client") => {
     setRole(selectedRole);
@@ -53,10 +56,9 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
     if (!matchName.trim()) return;
 
     setIsLoading(true);
-    // Generate random 4-digit code
     const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedCode(randomCode);
-    
+
     try {
       await hostSession(randomCode, matchName, opponent);
       setStep(3);
@@ -75,7 +77,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
     setIsLoading(true);
     try {
       await joinSession(code);
-      setStep(3); // show handshaking step
+      setStep(3);
     } catch (err) {
       console.error(err);
       notify("Failed to join room. Verify the code and ensure the host is online.");
@@ -84,178 +86,142 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-lg bg-white border border-[#ccd3ca] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="p-5 border-b border-[#ccd3ca] flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2">
-            {step > 1 && (
-              <button 
-                onClick={handleBack} 
-                className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
-            <h3 className="text-sm font-bold text-slate-800 tracking-wide">
-              {step === 1 && "Start Debate Session"}
-              {step === 2 && (role === "host" ? "Configure Match Details" : "Enter Room Code")}
-              {step === 3 && (role === "host" ? "Share Room Code" : "Establishing Link")}
-            </h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/45 p-4 backdrop-blur-md">
+      <Card className="w-full max-w-lg overflow-hidden shadow-2xl">
+        <CardHeader className="border-b border-border bg-muted/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {step > 1 && (
+                <Button type="button" variant="ghost" size="icon" onClick={handleBack} aria-label="Back">
+                  <ArrowLeft size={16} />
+                </Button>
+              )}
+              <div>
+                <CardTitle>{title}</CardTitle>
+                <CardDescription>
+                  {role === "client" ? "Join a live room from a host code." : "Create a synced debate room."}
+                </CardDescription>
+              </div>
+            </div>
+            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+              <X size={16} />
+            </Button>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-500 hover:text-slate-800 p-1 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
+        </CardHeader>
 
-        {/* Content */}
-        <div className="p-6 flex-1 space-y-6">
-          
-          {/* STEP 1: Select Role */}
+        <CardContent className="p-6">
           {step === 1 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Option Host */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <button
+                type="button"
                 onClick={() => handleSelectRole("host")}
-                className="flex flex-col items-center justify-center p-6 bg-[#fcfdfc] border border-[#ccd3ca] hover:border-[#2f5d62] rounded-xl text-center group transition-all duration-200 space-y-4"
+                className="group flex min-h-48 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <div className="p-4 rounded-full bg-[#2f5d62]/10 text-[#2f5d62] group-hover:bg-[#2f5d62] group-hover:text-white transition-colors duration-200">
+                <span className="rounded-full bg-primary/10 p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <Users size={28} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800 group-hover:text-[#2f5d62] transition-colors">
-                    Host a Match
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Set up a new debate match, manage timers, and invite your partner or opponent.
-                  </p>
-                </div>
+                </span>
+                <span>
+                  <strong className="block text-sm text-foreground">Host a Match</strong>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                    Manage the room, timers, debaters, and handout release.
+                  </span>
+                </span>
               </button>
 
-              {/* Option Client */}
               <button
+                type="button"
                 onClick={() => handleSelectRole("client")}
-                className="flex flex-col items-center justify-center p-6 bg-[#fcfdfc] border border-[#ccd3ca] hover:border-[#2f5d62] rounded-xl text-center group transition-all duration-200 space-y-4"
+                className="group flex min-h-48 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <div className="p-4 rounded-full bg-[#2f5d62]/10 text-[#2f5d62] group-hover:bg-[#2f5d62] group-hover:text-white transition-colors duration-200">
+                <span className="rounded-full bg-primary/10 p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <UserPlus size={28} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-800 group-hover:text-[#2f5d62] transition-colors">
-                    Join a Match
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Enter a 4-digit code provided by your partner or host to sync flow sheets instantly.
-                  </p>
-                </div>
+                </span>
+                <span>
+                  <strong className="block text-sm text-foreground">Join a Match</strong>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                    Connect with a code from the host and sync shared materials.
+                  </span>
+                </span>
               </button>
             </div>
           )}
 
-          {/* STEP 2 (Host): Match Config Form */}
           {step === 2 && role === "host" && (
             <form onSubmit={handleHostSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-500 font-medium">Tournament / Match Name</label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="match-name">Tournament or match name</Label>
+                <Input
+                  id="match-name"
                   required
-                  type="text"
                   value={matchName}
                   onChange={(e) => setMatchName(e.target.value)}
                   placeholder="e.g. NSDA Finals Round 3"
-                  className="w-full bg-white border border-[#ccd3ca] rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62]"
                 />
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-500 font-medium">Opponent Team/Debater Code</label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <Label htmlFor="opponent">Opponent team or debater code</Label>
+                <Input
+                  id="opponent"
                   value={opponent}
                   onChange={(e) => setOpponent(e.target.value)}
                   placeholder="e.g. Lincoln High School AB"
-                  className="w-full bg-white border border-[#ccd3ca] rounded-lg px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62]"
                 />
               </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#2f5d62] hover:bg-[#3b7379] text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+              <Button type="submit" disabled={isLoading} className="w-full">
+                {isLoading ? <RefreshCw className="animate-spin" /> : <Play />}
                 Generate Room & Start Hosting
-              </button>
+              </Button>
             </form>
           )}
 
-          {/* STEP 2 (Client): Enter code */}
           {step === 2 && role === "client" && (
             <form onSubmit={handleClientSubmit} className="space-y-5">
               <div className="space-y-2 text-center">
-                <label className="text-xs text-slate-500 font-medium block">Enter 4-Digit Room Code</label>
-                <p className="text-[10px] text-slate-400">Ask the host of the room for the generated pairing code.</p>
-                <input
+                <Label htmlFor="room-code" className="block">Room code</Label>
+                <p className="text-xs text-muted-foreground">Ask the host for the generated 4-digit pairing code.</p>
+                <Input
+                  id="room-code"
                   required
                   maxLength={4}
-                  type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="e.g. 1234"
-                  className="w-48 bg-white border border-[#ccd3ca] rounded-lg py-3 text-lg font-mono font-bold tracking-widest text-center text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#2f5d62] mx-auto block"
+                  placeholder="1234"
+                  className="mx-auto w-48 text-center font-mono text-lg font-bold tracking-widest"
                 />
               </div>
-
-              <button
-                type="submit"
-                disabled={code.length !== 4 || isLoading}
-                className="w-full bg-[#2f5d62] hover:bg-[#3b7379] disabled:bg-[#1c373b] text-white text-xs font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                {isLoading ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+              <Button type="submit" disabled={code.length !== 4 || isLoading} className="w-full">
+                {isLoading ? <RefreshCw className="animate-spin" /> : <Play />}
                 Connect to Room
-              </button>
+              </Button>
             </form>
           )}
 
-          {/* STEP 3 (Host waiting): Display room code and spin */}
           {step === 3 && role === "host" && (
-            <div className="flex flex-col items-center justify-center space-y-6 py-4 text-center">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Room Pairing Code</span>
-                <div className="font-mono text-5xl font-extrabold text-[#2f5d62] tracking-widest animate-pulse">
-                  {generatedCode}
-                </div>
+            <div className="flex flex-col items-center justify-center gap-5 py-6 text-center">
+              <div>
+                <span className="eyebrow">Room Pairing Code</span>
+                <div className="font-mono text-5xl font-extrabold tracking-widest text-primary">{generatedCode}</div>
               </div>
-
-              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                <Radio size={14} className="text-[#2f5d62] animate-ping" />
-                Waiting for partner to join...
-              </div>
-
-              <div className="text-[10px] text-slate-400 max-w-xs leading-relaxed">
-                Provide this 4-digit code to your debate partner. Once they join, this screen will close and you will proceed to the debate sheet.
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Radio size={16} className="text-primary" />
+                Waiting for partner to join
               </div>
             </div>
           )}
 
-          {/* STEP 3 (Client handshaking) */}
           {step === 3 && role === "client" && (
-            <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
-              <RefreshCw size={36} className="text-[#2f5d62] animate-spin" />
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-800">Connecting to Host Room...</h4>
-                <p className="text-[10px] text-slate-400">Syncing flow outlines and version handshakes.</p>
+            <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
+              <RefreshCw size={36} className="animate-spin text-primary" />
+              <div>
+                <h4 className="text-sm font-bold text-foreground">Connecting to host room</h4>
+                <p className="mt-1 text-xs text-muted-foreground">Syncing flow outlines and version handshakes.</p>
               </div>
             </div>
           )}
-
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
+
 export default SessionWizard;

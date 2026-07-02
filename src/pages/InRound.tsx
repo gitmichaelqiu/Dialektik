@@ -629,12 +629,12 @@ export const InRound: React.FC = () => {
 
       {isRoundStarted && !session ? (
         /* ------------------ CONNECTING LOADER SCREEN ------------------ */
-        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center bg-white border border-slate-300 rounded-xl shadow-xs">
+        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center bg-card border border-border rounded-xl shadow-xs">
           <div className="flex flex-col items-center justify-center space-y-5 max-w-sm">
-            <RefreshCw size={36} className="text-[#2f5d62] animate-spin" />
+            <RefreshCw size={36} className="text-primary animate-spin" />
             <div className="space-y-1.5">
-              <h3 className="text-sm font-bold text-slate-800">Connecting to Room Lobby...</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <h3 className="text-sm font-bold text-foreground">Connecting to Room Lobby...</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Establishing secure WebRTC peer channel and awaiting Host approval request decision...
               </p>
             </div>
@@ -652,11 +652,11 @@ export const InRound: React.FC = () => {
         <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
           
           {/* Header Controls Banner */}
-          <div className="bg-white border border-slate-300 rounded-lg p-5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-xs">
+          <div className="bg-card border border-border rounded-lg p-5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-xs">
             <div>
               <span className="eyebrow">Room Code: {session.roomCode}</span>
-              <h1 className="text-xl font-bold tracking-tight text-slate-800">{session.matchName}</h1>
-              <div className="text-xs text-slate-500 mt-0.5">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">{session.matchName}</h1>
+              <div className="text-xs text-muted-foreground mt-0.5">
                 Group: {session.groupName} | Debaters: {session.debaters.length}
                 {myDebaterInfo?.team && (
                   <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
@@ -678,7 +678,7 @@ export const InRound: React.FC = () => {
                   <select 
                     onChange={(e) => requestEndRound(e.target.value as any)} 
                     defaultValue=""
-                    className="bg-white text-xs border border-slate-300 rounded-lg px-2"
+                    className="bg-card text-xs border border-border rounded-lg px-2"
                   >
                     <option value="" disabled>End debate (Select Winner)</option>
                     <option value="affirmative">Affirmative Wins</option>
@@ -702,13 +702,13 @@ export const InRound: React.FC = () => {
               <div className="flex gap-2">
                 <button 
                   onClick={() => handleApproveDebater(pendingRequests[0])}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-primary-foreground text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
                 >
                   <UserCheck size={14} /> Approve
                 </button>
                 <button 
                   onClick={() => handleRejectDebater(pendingRequests[0])}
-                  className="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
+                  className="bg-destructive hover:bg-destructive/100 text-primary-foreground text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
                 >
                   <UserX size={14} /> Reject
                 </button>
@@ -727,7 +727,7 @@ export const InRound: React.FC = () => {
                     <h2>Debate Handouts</h2>
                     <FileText size={18} />
                   </div>
-                  <p className="text-xs text-slate-500 mb-3">Draft the match problem. Handouts distribute immediately when the host starts the debate.</p>
+                  <p className="text-xs text-muted-foreground mb-3">Draft the match problem. Handouts distribute immediately when the host starts the debate.</p>
                   
                   {isHost ? (
                     <div className="space-y-4">
@@ -759,10 +759,10 @@ export const InRound: React.FC = () => {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-                      <FileText size={40} className="text-slate-350 animate-pulse" />
+                      <FileText size={40} className="text-muted-foreground" />
                       <div className="space-y-1">
-                        <h3 className="text-xs font-bold text-slate-700">Awaiting Handout Distribution</h3>
-                        <p className="text-[11px] text-slate-500 max-w-[240px] leading-relaxed">
+                        <h3 className="text-xs font-bold text-foreground">Awaiting Handout Distribution</h3>
+                        <p className="text-[11px] text-muted-foreground max-w-[240px] leading-relaxed">
                           The host is currently drafting the debate resolution. Handouts will release instantly when the match starts.
                         </p>
                       </div>
@@ -777,19 +777,19 @@ export const InRound: React.FC = () => {
                   <h2>Debaters Teams assignment</h2>
                   <Users size={18} />
                 </div>
-                <p className="text-xs text-slate-500 mb-4">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</p>
+                <p className="text-xs text-muted-foreground mb-4">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</p>
                 
                 <div className="team-list">
                   {session.debaters.length === 0 ? (
-                    <div className="text-center py-10 text-xs text-slate-400">
+                    <div className="text-center py-10 text-xs text-muted-foreground">
                       Waiting for debaters to join the room using code <strong>{session.roomCode}</strong>...
                     </div>
                   ) : (
                     session.debaters.map(d => (
                       <article key={d.id} className="team-row gap-3">
                         <div className="min-w-0">
-                          <strong className="text-xs text-slate-700 truncate block">{d.name}</strong>
-                          <span className="text-[10px] text-slate-400 font-mono">{d.id.substring(0, 8)}</span>
+                          <strong className="text-xs text-foreground truncate block">{d.name}</strong>
+                          <span className="text-[10px] text-muted-foreground font-mono">{d.id.substring(0, 8)}</span>
                         </div>
                         {isHost ? (
                           <>
@@ -820,7 +820,7 @@ export const InRound: React.FC = () => {
                             </select>
                           </>
                         ) : (
-                          <div className="text-xs font-semibold text-[#2f5d62]">
+                          <div className="text-xs font-semibold text-primary">
                             {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
                           </div>
                         )}
@@ -840,20 +840,20 @@ export const InRound: React.FC = () => {
                 <div className="space-y-4">
                   <div className="panel-header compact border-b pb-2">
                     <h2>Match Handout</h2>
-                    <Award size={18} className="text-[#2f5d62]" />
+                    <Award size={18} className="text-primary" />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-800">{session.handout.title}</h3>
+                  <h3 className="text-sm font-bold text-foreground">{session.handout.title}</h3>
                   <div className="space-y-3">
                     <div>
                       <span className="eyebrow">Debate Resolution</span>
-                      <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <p className="text-xs text-muted-foreground leading-relaxed bg-muted/50 p-3 rounded-lg border border-border">
                         {session.handout.problem}
                       </p>
                     </div>
                     {session.handout.details && (
                       <div>
                         <span className="eyebrow">Problem context</span>
-                        <p className="text-[11px] text-slate-500 whitespace-pre-line leading-relaxed">
+                        <p className="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed">
                           {session.handout.details}
                         </p>
                       </div>
@@ -865,9 +865,9 @@ export const InRound: React.FC = () => {
                   <span className="eyebrow">Debater Positions</span>
                   <div className="space-y-1.5">
                     {session.debaters.map(d => (
-                      <div key={d.id} className="flex justify-between items-center text-xs bg-slate-100 p-2 rounded border">
-                        <span className="font-semibold text-slate-700">{d.name}</span>
-                        <span className="text-[10px] uppercase font-bold text-[#2f5d62]">
+                      <div key={d.id} className="flex justify-between items-center text-xs bg-muted p-2 rounded border">
+                        <span className="font-semibold text-foreground">{d.name}</span>
+                        <span className="text-[10px] uppercase font-bold text-primary">
                           {d.team} (Pos {d.position})
                         </span>
                       </div>
@@ -880,7 +880,7 @@ export const InRound: React.FC = () => {
               <div className="panel flex flex-col h-full overflow-y-auto">
                 <div className="panel-header compact border-b pb-2">
                   <h2>Round Timers</h2>
-                  <Clock size={18} className="text-[#2f5d62]" />
+                  <Clock size={18} className="text-primary" />
                 </div>
 
                 <div className="space-y-6 py-4 flex-1">
@@ -900,7 +900,7 @@ export const InRound: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="font-mono text-xl font-bold text-slate-800">
+                    <div className="font-mono text-xl font-bold text-foreground">
                       {formatCountdown(timerRemaining)}
                     </div>
                     
@@ -938,7 +938,7 @@ export const InRound: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="font-mono text-xl font-bold text-slate-800">
+                    <div className="font-mono text-xl font-bold text-foreground">
                       {formatCountdown(prepRemaining)}
                     </div>
 
@@ -968,7 +968,7 @@ export const InRound: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowPositionsOnly(!showPositionsOnly)}
-                      className="text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-2 py-0.5 font-bold text-[#2f5d62]"
+                      className="text-[10px] bg-muted hover:bg-accent border border-border rounded px-2 py-0.5 font-bold text-primary"
                     >
                       {showPositionsOnly ? "Show Names" : "Show Positions"}
                     </button>
@@ -992,13 +992,13 @@ export const InRound: React.FC = () => {
                           onClick={() => handleSelectSpeaker(d.id)}
                           className={`text-xs p-2 rounded-lg border font-semibold flex items-center justify-between gap-1.5 transition-colors ${
                             isLocallySelected
-                              ? "bg-[#2f5d62] border-[#2f5d62] text-white"
-                              : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                              ? "bg-primary border-primary text-primary-foreground"
+                              : "bg-muted/50 hover:bg-muted border-border text-foreground"
                           }`}
                         >
                           <span className="truncate flex-1 text-left">{buttonText}</span>
                           {isGloballySpeaking && (
-                            <span className={`h-2 w-2 rounded-full shrink-0 ${isLocallySelected ? "bg-white animate-pulse" : "bg-emerald-500 animate-pulse"}`} title="Speaking" />
+                            <span className={`h-2 w-2 rounded-full shrink-0 ${isLocallySelected ? "bg-card animate-pulse" : "bg-emerald-500 animate-pulse"}`} title="Speaking" />
                           )}
                         </button>
                       );
@@ -1015,7 +1015,7 @@ export const InRound: React.FC = () => {
                     <button
                       onClick={handleAIOutlineFill}
                       title="AI outline topic"
-                      className="text-[10px] bg-[#dfe7e1] border border-[#c5d5c9] text-[#2c504c] px-2 py-0.5 rounded flex items-center gap-1.5"
+                      className="text-[10px] bg-secondary border border-border text-secondary-foreground px-2 py-0.5 rounded flex items-center gap-1.5"
                     >
                       <Sparkles size={11} /> AI Outline
                     </button>
@@ -1035,7 +1035,7 @@ export const InRound: React.FC = () => {
                         ? `Type markdown notes for ${currentSpeaker?.name}...` 
                         : "Select an active speaker to log speech notes..."
                     }
-                    className="w-full h-full bg-slate-50 border rounded-lg p-3 resize-none text-xs leading-relaxed focus:outline-none"
+                    className="w-full h-full bg-muted/50 border rounded-lg p-3 resize-none text-xs leading-relaxed focus:outline-none"
                   />
                 </div>
               </div>
@@ -1048,11 +1048,11 @@ export const InRound: React.FC = () => {
         /* ------------------ STARTING DEBATE PIPELINE SELECTION ------------------ */
         <div className="flex-grow flex flex-col lg:flex-row gap-6 min-h-0 overflow-y-auto">
           {/* Main Welcome Hero */}
-          <div className="flex-1 bg-white border border-slate-300 rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6 shadow-xs">
-            <Award size={48} className="text-[#2f5d62]" />
+          <div className="flex-1 bg-card border border-border rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6 shadow-xs">
+            <Award size={48} className="text-primary" />
             <div className="max-w-md space-y-2">
-              <h2 className="text-xl font-bold tracking-tight text-slate-800">Start Debate Session</h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">Start Debate Session</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Connect and sync debate sheets in real-time with your partner, manage speech countdowns, and run human-in-the-loop AI outline assistants.
               </p>
             </div>
@@ -1060,7 +1060,7 @@ export const InRound: React.FC = () => {
             <div className="flex gap-4">
               <button
                 onClick={() => setStartMode("host")}
-                className="bg-[#2f5d62] hover:bg-[#3b7379] text-white text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
               >
                 Host Match Session
               </button>
@@ -1130,29 +1130,29 @@ export const InRound: React.FC = () => {
           </div>
 
           {/* Right side: Session History lists */}
-          <div className="w-full lg:w-80 bg-white border border-slate-300 rounded-xl p-6 flex flex-col overflow-hidden shadow-xs">
+          <div className="w-full lg:w-80 bg-card border border-border rounded-xl p-6 flex flex-col overflow-hidden shadow-xs">
             <div className="flex items-center gap-2 mb-4 border-b pb-2">
-              <History size={16} className="text-[#2f5d62]" />
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest">Recent Sessions</h3>
+              <History size={16} className="text-primary" />
+              <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">Recent Sessions</h3>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3">
               {historyList.map((rec) => (
-                <div key={rec.id} className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg space-y-1.5 text-left">
-                  <div className="flex items-center justify-between text-[9px] text-slate-400">
+                <div key={rec.id} className="bg-muted/50 border border-border p-3.5 rounded-lg space-y-1.5 text-left">
+                  <div className="flex items-center justify-between text-[9px] text-muted-foreground">
                     <span className="flex items-center gap-1 font-medium">
                       <Calendar size={10} /> {new Date(rec.timestamp).toLocaleDateString()}
                     </span>
                     <span className={`px-1 rounded font-bold uppercase text-[8px] ${
-                      rec.winLoss === "win" ? "bg-emerald-100 text-emerald-700 border" : "bg-rose-100 text-rose-700 border"
+                      rec.winLoss === "win" ? "bg-emerald-100 text-emerald-700 border" : "bg-rose-100 text-destructive border"
                     }`}>
                       {rec.winLoss}
                     </span>
                   </div>
 
                   <div>
-                    <h4 className="text-xs font-bold text-slate-800 truncate">{rec.matchName}</h4>
-                    <span className="text-[10px] text-slate-500 font-medium truncate block">
+                    <h4 className="text-xs font-bold text-foreground truncate">{rec.matchName}</h4>
+                    <span className="text-[10px] text-muted-foreground font-medium truncate block">
                       vs. {rec.opponentName} | Side: {rec.sides}
                     </span>
                   </div>
@@ -1160,8 +1160,8 @@ export const InRound: React.FC = () => {
               ))}
 
               {historyList.length === 0 && (
-                <div className="text-center py-10 text-slate-400 text-xs flex flex-col justify-center items-center gap-2 h-full">
-                  <Trophy size={20} className="text-slate-200" />
+                <div className="text-center py-10 text-muted-foreground text-xs flex flex-col justify-center items-center gap-2 h-full">
+                  <Trophy size={20} className="text-muted" />
                   <span>No debate sessions archived.</span>
                 </div>
               )}
