@@ -24,6 +24,28 @@ interface ChatMessage {
   timestamp: number;
 }
 
+interface AIConversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  updatedAt: number;
+}
+
+const AI_CONVERSATIONS_KEY = "dialektik.aiConversations";
+const AI_ACTIVE_CONVERSATION_KEY = "dialektik.aiActiveConversation";
+const defaultAssistantMessage = (): ChatMessage => ({
+  role: "assistant",
+  content: "Hello! I am your AI debate assistant. Ask me to outline arguments, critique case documents, or write rebuttal points. Tick documents on the right to include them in my context. Mention files inline with @.",
+  timestamp: Date.now()
+});
+
+const createConversation = (): AIConversation => ({
+  id: `chat-${Math.random().toString(36).substring(2, 11)}`,
+  title: "New Chat",
+  messages: [defaultAssistantMessage()],
+  updatedAt: Date.now()
+});
+
 export const AI: React.FC = () => {
   const { 
     aiApiKey, 
@@ -32,42 +54,25 @@ export const AI: React.FC = () => {
     setActivePage
   } = useApp();
 
-  if (!aiApiKey) {
-    return (
-      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-white border border-slate-300 rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
-        <Bot size={48} className="text-slate-300" />
-        <div className="space-y-2">
-          <h2 className="text-base font-bold text-slate-800">AI Debate Assistant Locked</h2>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            AI sparring, practice resolutions, and constructive outline features require an OpenAI API Key.
-            Configure your AI Settings to activate the assistant.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setActivePage("settings")}
-          className="command primary text-xs py-2 px-5 font-bold rounded-xl"
-        >
-          Open API Settings
-        </button>
-      </div>
-    );
-  }
-
   // Tab View Mode: Chat vs Sparring
   const [viewMode, setViewMode] = useState<"chat" | "sparring">("chat");
 
   // --- AI CHAT MODE STATES ---
-  const [aiRole, setAiRole] = useState<"debater" | "reviewer">("reviewer");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "Hello! I am your AI debate assistant. Ask me to outline arguments, critique case documents, or write rebuttal points. Tick documents on the right to include them in my context. Mention files inline with @.",
-      timestamp: Date.now()
+  const [conversations, setConversations] = useState<AIConversation[]>(() => {
+    const stored = localStorage.getItem(AI_CONVERSATIONS_KEY);
+    if (!stored) return [createConversation()];
+    try {
+      const parsed = JSON.parse(stored) as AIConversation[];
+      return parsed.length > 0 ? parsed : [createConversation()];
+    } catch {
+      return [createConversation()];
     }
-  ]);
+  });
+  const [activeConversationId, setActiveConversationId] = useState(() => localStorage.getItem(AI_ACTIVE_CONVERSATION_KEY) || "");
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(true);
+  const [thinkingText, setThinkingText] = useState("");
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
   
   // Autocomplete state
@@ -85,6 +90,25 @@ export const AI: React.FC = () => {
 
   // Common collections
   const [documents, setDocuments] = useState<DebateDocument[]>([]);
+  const [pastSparSessions, setPastSparSessions] = useState<PracticeSession[]>([]);
+  const activeConversation = conversations.find(conv => conv.id === activeConversationId) || conversations[0];
+  const chatMessages = activeConversation?.messages || [];
+
+  useEffect(() => {
+    if (!activeConversationId && conversations[0]) {
+      setActiveConversationId(conversations[0].id);
+    }
+  }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    localStorage.setItem(AI_CONVERSATIONS_KEY, JSON.stringify(conversations));
+  }, [conversations]);
+
+  useEffect(() => {
+    if (activeConversationId) {
+      localStorage.setItem(AI_ACTIVE_CONVERSATION_KEY, activeConversationId);
+    }
+  }, [activeConversationId]);
 
   useEffect(() => {
     loadDocs();
@@ -106,6 +130,7 @@ export const AI: React.FC = () => {
     const sessions = await db.practice_sessions.toArray();
     if (sessions.length > 0) {
       sessions.sort((a, b) => b.timestamp - a.timestamp);
+      setPastSparSessions(sessions.slice(0, 8));
       setActiveSparSession(sessions[0]);
       setSparMessages(sessions[0].transcripts);
       setIsSparringActive(true);
@@ -131,6 +156,29 @@ export const AI: React.FC = () => {
     }
   };
 
+  const updateActiveConversationMessages = (nextMessages: ChatMessage[]) => {
+    setConversations(prev => prev.map(conv => {
+      if (conv.id !== activeConversation.id) return conv;
+      const firstUserMessage = nextMessages.find(msg => msg.role === "user")?.content;
+      return {
+        ...conv,
+        title: firstUserMessage ? firstUserMessage.slice(0, 48) : conv.title,
+        messages: nextMessages,
+        updatedAt: Date.now()
+      };
+    }));
+  };
+
+  const handleNewConversation = () => {
+    const next = createConversation();
+    setConversations(prev => [next, ...prev]);
+    setActiveConversationId(next.id);
+    setChatInput("");
+    setThinkingText("");
+    setThinkingOpen(true);
+    notify("New conversation started.");
+  };
+
   const handleSelectAutocomplete = (doc: DebateDocument) => {
     // Replace "@query" with "[[folder/title]]"
     const folder = doc.partnerAccess || "private";
@@ -154,9 +202,11 @@ export const AI: React.FC = () => {
     };
 
     const nextMessages = [...chatMessages, userMessage];
-    setChatMessages(nextMessages);
+    updateActiveConversationMessages(nextMessages);
     setChatInput("");
     setChatBusy(true);
+    setThinkingOpen(true);
+    setThinkingText("Reading selected files and preparing a response...");
 
     try {
       let aiResponseText = "";
@@ -172,7 +222,7 @@ export const AI: React.FC = () => {
         `File Path: [[${d.partnerAccess || "private"}/${d.name.replace(".md", "")}]]\n\`\`\`markdown\n${d.content}\n\`\`\``
       ).join("\n\n");
 
-      const systemPrompt = `You are a debate assistant in role: "${aiRole.toUpperCase()}". 
+      const systemPrompt = `You are a debate assistant for NSDA preparation.
 Review the debate case prep files and citations. Answer topics constructively.
 If you need to edit or propose updates to a file, output your edit block EXACTLY in this format:
 [FILE_EDIT:folder/filename]
@@ -197,18 +247,22 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         ]
       );
 
-      setChatMessages(prev => [...prev, {
+      updateActiveConversationMessages([...nextMessages, {
         role: "assistant",
         content: aiResponseText,
         timestamp: Date.now()
       }]);
+      setThinkingText("Response complete.");
+      setThinkingOpen(false);
 
     } catch (err: any) {
-      setChatMessages(prev => [...prev, {
+      updateActiveConversationMessages([...nextMessages, {
         role: "assistant",
         content: `Consultation request failed: ${err.message}`,
         timestamp: Date.now()
       }]);
+      setThinkingText("Request failed.");
+      setThinkingOpen(false);
     } finally {
       setChatBusy(false);
     }
@@ -275,6 +329,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
     };
 
     await db.practice_sessions.put(newSession);
+    setPastSparSessions(prev => [newSession, ...prev.filter(item => item.id !== newSession.id)].slice(0, 8));
     setActiveSparSession(newSession);
     setSparMessages(newSession.transcripts);
     setIsSparringActive(true);
@@ -360,6 +415,28 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
     setTopic("");
   };
 
+  if (!aiApiKey) {
+    return (
+      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-white border border-slate-300 rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
+        <Bot size={48} className="text-slate-300" />
+        <div className="space-y-2">
+          <h2 className="text-base font-bold text-slate-800">AI Debate Assistant Locked</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            AI sparring, practice resolutions, and constructive outline features require an OpenAI API Key.
+            Configure your AI Settings to activate the assistant.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActivePage("settings")}
+          className="command primary text-xs py-2 px-5 font-bold rounded-xl"
+        >
+          Open API Settings
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] overflow-hidden space-y-4">
       {/* Top navigation controls mode */}
@@ -396,35 +473,23 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
               <button 
                 type="button"
                 className="command primary w-full text-xs"
-                onClick={() => {
-                  setChatMessages([
-                    {
-                      role: "assistant",
-                      content: "Reset. Let's consult on new cases. Tick documents to link context.",
-                      timestamp: Date.now()
-                    }
-                  ]);
-                  notify("New conversation started.");
-                }}
+                onClick={handleNewConversation}
               >
                 New Chat
               </button>
 
-              <div className="segmented role-toggle w-full">
-                <button 
-                  type="button"
-                  className={aiRole === "reviewer" ? "selected" : ""} 
-                  onClick={() => setAiRole("reviewer")}
-                >
-                  Reviewer
-                </button>
-                <button 
-                  type="button"
-                  className={aiRole === "debater" ? "selected" : ""} 
-                  onClick={() => setAiRole("debater")}
-                >
-                  Debater
-                </button>
+              <div className="space-y-2">
+                {conversations.map(conv => (
+                  <button
+                    key={conv.id}
+                    type="button"
+                    onClick={() => setActiveConversationId(conv.id)}
+                    className={`conversation ${conv.id === activeConversation.id ? "selected" : ""}`}
+                  >
+                    <MessageSquare size={13} />
+                    <span className="truncate">{conv.title}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </aside>
@@ -478,9 +543,21 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
               })}
 
               {chatBusy && (
-                <div className="flex items-center gap-2 text-xs text-slate-400 font-medium animate-pulse">
-                  <Bot size={15} className="animate-bounce" />
-                  AI Debate Consultant is thinking...
+                <div className="thinking-block">
+                  <button type="button" onClick={() => setThinkingOpen(!thinkingOpen)}>
+                    <Bot size={14} className="animate-bounce" />
+                    <span>Thinking</span>
+                  </button>
+                  {thinkingOpen && <p>{thinkingText}</p>}
+                </div>
+              )}
+              {!chatBusy && thinkingText && (
+                <div className="thinking-block collapsed">
+                  <button type="button" onClick={() => setThinkingOpen(!thinkingOpen)}>
+                    <Bot size={14} />
+                    <span>Thinking</span>
+                  </button>
+                  {thinkingOpen && <p>{thinkingText}</p>}
                 </div>
               )}
             </div>
@@ -569,13 +646,34 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 <div className="w-full space-y-3 text-left">
                   <label className="field compact-field">
                     <span>Debate Topic Resolution</span>
-                    <input 
+                  <input 
                       value={topic} 
                       onChange={(e) => setTopic(e.target.value)} 
                       placeholder="Resolved: The United States should increase trade tariffs..."
                       required
                     />
                   </label>
+                  {pastSparSessions.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="eyebrow">Past Topics</span>
+                      <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                        {pastSparSessions.map(session => (
+                          <button
+                            key={session.id}
+                            type="button"
+                            className="conversation"
+                            onClick={() => {
+                              setTopic(session.topic);
+                              setSide(session.side);
+                            }}
+                          >
+                            <Trophy size={12} />
+                            <span className="truncate">{session.topic}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2">
                     <div className="segmented">
                       <button 

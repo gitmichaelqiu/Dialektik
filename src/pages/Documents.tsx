@@ -90,8 +90,8 @@ export const Documents: React.FC = () => {
     try {
       const allDocs = await db.documents.toArray();
       for (const peerId of mesh.connections.keys()) {
-        const myInfo = session?.debaters.find(d => d.id === mesh.peerId);
-        const peerInfo = session?.debaters.find(d => d.id === peerId);
+        const myInfo = session?.debaters.find(d => d.connectionId === mesh.peerId);
+        const peerInfo = session?.debaters.find(d => d.connectionId === peerId);
         const isSameTeam = myInfo && peerInfo && myInfo.team === peerInfo.team && myInfo.team !== undefined;
         
         const docsToSend = allDocs.filter(doc => {
@@ -143,8 +143,15 @@ export const Documents: React.FC = () => {
       }
     };
 
-    mesh.onMessage(handler);
+    const unsubscribeMessage = mesh.onMessage(handler);
+    const unsubscribeConnect = mesh.onConnectionOpen(() => {
+      syncSharedDocs();
+    });
     syncSharedDocs();
+    return () => {
+      unsubscribeMessage();
+      unsubscribeConnect();
+    };
   }, [isPeerConnected, session]);
 
   // Handle Yjs real-time state synchronization

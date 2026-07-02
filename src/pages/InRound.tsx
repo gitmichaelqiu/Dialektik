@@ -33,6 +33,7 @@ export const InRound: React.FC = () => {
     aiModel,
     roomCode,
     isHost,
+    userId,
     userName,
     setActivePage,
     startSession,
@@ -213,12 +214,15 @@ export const InRound: React.FC = () => {
         // Host receives join request
         if (isHost) {
           const newDebater: Debater = {
-            id: senderId,
+            id: msg.payload?.id || senderId,
             name: msg.payload?.name || "Unknown Debater",
-            status: "pending"
+            status: "pending",
+            connectionId: senderId
           };
           setPendingRequests(prev => {
-            if (prev.some(d => d.id === senderId)) return prev;
+            if (prev.some(d => d.id === newDebater.id)) {
+              return prev.map(d => d.id === newDebater.id ? newDebater : d);
+            }
             return [...prev, newDebater];
           });
           triggerToast(`Join request from ${newDebater.name}`);
@@ -262,8 +266,8 @@ export const InRound: React.FC = () => {
             setterRunning(true);
 
             // Alert target speaker client
-            if (timerType === "speech" && session?.currentSpeakerId === mesh.peerId) {
-              triggerToast("📢 Your speech timer has started!");
+            if (timerType === "speech" && session?.currentSpeakerId === userId) {
+              triggerToast("Your speech timer has started.");
             }
           } else if (action === "pause") {
             targetTimer.pause();
@@ -280,18 +284,18 @@ export const InRound: React.FC = () => {
           mesh.sendToPeer(senderId, {
             type: "join-request",
             senderId: mesh.peerId,
-            payload: { name: userName }
+            payload: { id: userId, name: userName }
           });
         }
       }
     });
-  }, [isRoundStarted, isHost, mesh, userName, session?.speechDuration, session?.prepDuration, session?.currentSpeakerId]);
+  }, [isRoundStarted, isHost, mesh, userId, userName, session?.speechDuration, session?.prepDuration, session?.currentSpeakerId]);
 
   // Host Action: Approve connecting debater
   const handleApproveDebater = (request: Debater) => {
     if (!session) return;
     const updatedDebaters = session.debaters.some(d => d.id === request.id)
-      ? session.debaters.map(d => d.id === request.id ? { ...d, status: "approved" as const } : d)
+      ? session.debaters.map(d => d.id === request.id ? { ...d, name: request.name, connectionId: request.connectionId, status: "approved" as const } : d)
       : [...session.debaters, { ...request, status: "approved" as const }];
     const nextSession = {
       ...session,
@@ -306,7 +310,7 @@ export const InRound: React.FC = () => {
   // Host Action: Reject connecting debater
   const handleRejectDebater = (request: Debater) => {
     setPendingRequests(prev => prev.filter(r => r.id !== request.id));
-    mesh.sendToPeer(request.id, {
+    mesh.sendToPeer(request.connectionId || request.id, {
       type: "timer-action", // reuse command to exit client
       senderId: mesh.peerId,
       payload: { action: "reset", timerType: "speech", durationSeconds: 0 } // dummy to terminate
@@ -447,8 +451,8 @@ export const InRound: React.FC = () => {
       });
 
       // Alert speaker client
-      if (timerType === "speech" && session?.currentSpeakerId === mesh.peerId) {
-        triggerToast("📢 Your speech timer has started!");
+      if (timerType === "speech" && session?.currentSpeakerId === userId) {
+        triggerToast("Your speech timer has started.");
       }
     } else if (action === "pause") {
       targetTimer.pause();
@@ -529,8 +533,8 @@ export const InRound: React.FC = () => {
       id: `history-${Math.random().toString(36).substring(2, 11)}`,
       matchName: session.matchName,
       opponentName: session.groupName,
-      sides: session.debaters.find(d => d.id === mesh.peerId)?.team || "affirmative",
-      winLoss: winner === (session.debaters.find(d => d.id === mesh.peerId)?.team || "affirmative") ? "win" : "loss",
+      sides: session.debaters.find(d => d.id === userId)?.team || "affirmative",
+      winLoss: winner === (session.debaters.find(d => d.id === userId)?.team || "affirmative") ? "win" : "loss",
       speechOrder: ["1AC", "1NC"],
       flows: session.debaters.map(d => ({
         speechId: d.name,
@@ -578,7 +582,7 @@ export const InRound: React.FC = () => {
   const activeSpeakerId = localActiveSpeakerId || session?.currentSpeakerId || "";
   const currentSpeaker = session?.debaters.find(d => d.id === activeSpeakerId);
   const currentSpeakerNotes = activeSpeakerId ? session?.speakerNotes[activeSpeakerId] || "" : "";
-  const myDebaterInfo = session?.debaters.find(d => d.id === mesh.peerId);
+  const myDebaterInfo = session?.debaters.find(d => d.id === userId);
 
   return (
     <div className="space-y-6 h-full flex flex-col overflow-hidden">

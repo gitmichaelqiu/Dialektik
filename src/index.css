@@ -529,11 +529,17 @@ h2 {
 .file-card {
   display: grid;
   gap: 8px;
+  align-content: start;
   padding: 9px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: #20302e;
+}
+
+.evidence-rail .folder-group {
+  align-content: start;
+  align-items: start;
 }
 
 .file-item.selected,
@@ -558,11 +564,22 @@ h2 {
 }
 
 .editor-toolbar {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) 112px 112px 38px 116px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 14px 16px 0;
   color: #51605c;
   font-weight: 700;
+}
+
+.editor-toolbar > * {
+  flex: 0 0 auto;
+}
+
+.editor-toolbar > input {
+  flex: 1 0 220px;
 }
 
 .editor-toolbar input,
@@ -743,6 +760,32 @@ h2 {
 
 .chat-message.assistant {
   margin-right: auto;
+}
+
+.thinking-block {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  padding: 10px 12px;
+  border: 1px solid #ccd3ca;
+  border-radius: 8px;
+  background: #f8faf7;
+  color: #51605c;
+  font-size: 0.76rem;
+}
+
+.thinking-block button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #2f5d62;
+  font-weight: 800;
+}
+
+.thinking-block.collapsed {
+  opacity: 0.78;
 }
 
 .composer {

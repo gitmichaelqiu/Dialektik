@@ -9,6 +9,7 @@ export interface Debater {
   id: string;
   name: string;
   status: "pending" | "approved" | "rejected";
+  connectionId?: string;
   team?: "affirmative" | "negative";
   position?: number;
 }
@@ -51,6 +52,7 @@ interface AppContextType {
   aiApiKey: string;
   aiEndpoint: string;
   aiModel: string;
+  userId: string;
   userName: string;
   mesh: PeerMeshManager;
   githubService: null;
@@ -83,6 +85,7 @@ const AppContext = createContext<AppContextType | null>(null);
 const meshManager = new PeerMeshManager();
 const ACTIVE_SESSION_KEY = "dialektik.activeSession";
 const ACTIVE_ROOM_KEY = "dialektik.activeRoom";
+const ACTIVE_PAGE_KEY = "dialektik.activePage";
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSessionState] = useState<SessionState | null>(null);
@@ -93,7 +96,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isHost, setIsHost] = useState(false);
   const [isPeerConnected, setIsPeerConnected] = useState(false);
   const [peersList, setPeersList] = useState<string[]>([]);
-  const [activePage, setActivePage] = useState("settings"); // start on settings to configure keys
+  const [activePageState, setActivePageState] = useState(() => localStorage.getItem(ACTIVE_PAGE_KEY) || "settings");
  
   // Active debate session details
   const [activeMatchName, setActiveMatchName] = useState("");
@@ -109,9 +112,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiEndpoint, setAiEndpoint] = useState("https://api.openai.com/v1");
   const [aiModel, setAiModel] = useState("gpt-4o");
+  const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
 
   const githubService = null;
+
+  const setActivePage = (page: any) => {
+    localStorage.setItem(ACTIVE_PAGE_KEY, page);
+    setActivePageState(page);
+  };
 
   const setSession: React.Dispatch<React.SetStateAction<SessionState | null>> = (value) => {
     setSessionState(prev => {
@@ -125,6 +134,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const syncPublicDocumentsToPeers = async () => {
+    if (meshManager.connections.size === 0) return;
+    const allDocs = await db.documents.toArray();
+    const publicDocs = allDocs.filter(doc => doc.partnerAccess === "public");
+    if (publicDocs.length === 0) return;
+    meshManager.broadcast({
+      type: "shared-docs-sync",
+      senderId: meshManager.peerId,
+      payload: publicDocs
+    });
+  };
+
   // Load configuration from DB on startup
   useEffect(() => {
     async function loadConfigs() {
@@ -135,11 +156,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Load other configurations from Dexie db.settings
       const settings = await db.settings.toArray();
+      let storedUserId = "";
       for (const item of settings) {
         if (item.key === "ai_endpoint") setAiEndpoint(item.value);
         if (item.key === "ai_model") setAiModel(item.value);
+        if (item.key === "user_id") storedUserId = item.value;
         if (item.key === "user_name") setUserName(item.value);
       }
+      if (!storedUserId) {
+        storedUserId = crypto.randomUUID();
+        await db.settings.put({ key: "user_id", value: storedUserId });
+      }
+      setUserId(storedUserId);
     }
     loadConfigs();
   }, []);
@@ -169,7 +197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     meshManager.onConnectionOpen(() => {
       setIsPeerConnected(meshManager.connections.size > 0 || meshManager.isHost);
       setPeersList([...meshManager.peersList]);
-
+      syncPublicDocumentsToPeers();
     });
 
     meshManager.onConnectionClose(() => {
@@ -198,6 +226,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             speakerNotes: prev?.speakerNotes || {}
           }));
         }
+      } else if (msg.type === "shared-docs-sync" && Array.isArray(msg.payload)) {
+        (async () => {
+          for (const doc of msg.payload) {
+            if (doc.partnerAccess !== "public") continue;
+            const existing = await db.documents.get(doc.id);
+            if (!existing) {
+              await db.documents.put(doc);
+            } else if (doc.lastModified > existing.lastModified) {
+              await db.documents.update(doc.id, {
+                name: doc.name,
+                content: doc.content,
+                lastModified: doc.lastModified,
+                partnerAccess: doc.partnerAccess,
+                encryptedHash: doc.encryptedHash
+              });
+            }
+          }
+        })();
       }
     });
   }, []);
@@ -340,6 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         aiApiKey,
         aiEndpoint,
         aiModel,
+        userId,
         userName,
         activeMatchName,
         activeOpponent,
@@ -350,7 +397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinSession,
         mesh: meshManager,
         githubService,
-        activePage,
+        activePage: activePageState,
         setActivePage,
         initializeCrypto,
         saveSettings,
