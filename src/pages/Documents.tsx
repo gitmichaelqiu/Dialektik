@@ -15,6 +15,26 @@ import {
   FolderOpen,
   Eye
 } from "lucide-react";
+import { 
+  Button, 
+  Card, 
+  TextInput, 
+  Textarea,
+  Text, 
+  Stack, 
+  Group, 
+  Select,
+  SegmentedControl,
+  Paper, 
+  Badge, 
+  Title, 
+  Grid,
+  ScrollArea,
+  ActionIcon,
+  Modal,
+  Notification,
+  HoverCard
+} from "@mantine/core";
 
 async function computeSHA256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -33,8 +53,8 @@ export const Documents: React.FC = () => {
 
   // Directory layout
   const [newDocTitle, setNewDocTitle] = useState("");
-  const [newDocFolder, setNewDocFolder] = useState<"private" | "team" | "public">("private");
-  const [newDocMode, setNewDocMode] = useState<"read" | "write">("write");
+  const [newDocFolder, setNewDocFolder] = useState<string>("private");
+  const [newDocMode, setNewDocMode] = useState<string>("write");
 
   // Editor states
   const [editorName, setEditorName] = useState("");
@@ -48,6 +68,7 @@ export const Documents: React.FC = () => {
     end: 0
   });
   const [pendingDelete, setPendingDelete] = useState<{ type: "document" | "card"; id: string; label: string } | null>(null);
+  const [toastNotification, setToastNotification] = useState<string | null>(null);
 
   // Evidence card form
   const [cardTitle, setCardTitle] = useState("");
@@ -111,7 +132,6 @@ export const Documents: React.FC = () => {
     }
   };
 
-  // WebRTC shared documents sync handler
   useEffect(() => {
     if (!isPeerConnected) return;
 
@@ -154,11 +174,9 @@ export const Documents: React.FC = () => {
     };
   }, [isPeerConnected, session]);
 
-  // Handle Yjs real-time state synchronization
   useEffect(() => {
     if (!selectedDoc) return;
 
-    // Clean up old provider
     if (yproviderRef.current) {
       yproviderRef.current.destroy();
       yproviderRef.current = null;
@@ -168,15 +186,12 @@ export const Documents: React.FC = () => {
       ydocRef.current = null;
     }
 
-    // Initialize new Yjs shared doc
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
 
     const ytext = ydoc.getText("content");
-    // Seed initial content from selected document
     ytext.insert(0, selectedDoc.content);
 
-    // Sync from local edit to Yjs
     const handleYjsUpdate = () => {
       if (isSyncingRef.current) return;
       const nextContent = ytext.toString();
@@ -191,10 +206,8 @@ export const Documents: React.FC = () => {
     };
     ytext.observe(handleYjsUpdate);
 
-    // Connect to WebRTC P2P Mesh for shared files
-    // If it's a team or public folder and writable, sync changes
     const docFolder = selectedDoc.partnerAccess || "private";
-    const isSharedWritable = docFolder !== "private" && (selectedDoc.encryptedHash !== "read"); // we use encryptedHash as mode string to bypass index limitation
+    const isSharedWritable = docFolder !== "private" && (selectedDoc.encryptedHash !== "read");
     
     if (isPeerConnected && isSharedWritable) {
       const provider = new PeerJSYjsProvider(ydoc, mesh, selectedDoc.id);
@@ -299,12 +312,10 @@ export const Documents: React.FC = () => {
     loadDocs();
   };
 
-  // Create document in selected folder
   const handleCreateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDocTitle.trim()) return;
 
-    // Filter invalid title characters
     const cleanTitle = newDocTitle.trim().replace(/[\[\]#?/\\]/g, "");
     const filename = cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`;
 
@@ -314,8 +325,8 @@ export const Documents: React.FC = () => {
       type: "case",
       content: "Type markdown content here...",
       lastModified: Date.now(),
-      partnerAccess: newDocFolder, // store folder scope in partnerAccess
-      encryptedHash: newDocMode // store sharing mode in encryptedHash
+      partnerAccess: newDocFolder as any,
+      encryptedHash: newDocMode
     };
 
     await db.documents.put(newDoc);
@@ -324,7 +335,6 @@ export const Documents: React.FC = () => {
     handleSelectDoc(newDoc);
   };
 
-  // Move document
   const handleMoveDoc = async (folder: "private" | "team" | "public") => {
     if (!selectedDoc) return;
     const nextDoc = { ...selectedDoc, partnerAccess: folder, lastModified: Date.now() };
@@ -335,7 +345,6 @@ export const Documents: React.FC = () => {
     triggerToast(`Moved document to ${folder} folder.`);
   };
 
-  // Toggle mode
   const handleToggleDocMode = async (mode: "read" | "write") => {
     if (!selectedDoc) return;
     const nextDoc = { ...selectedDoc, encryptedHash: mode, lastModified: Date.now() };
@@ -346,7 +355,6 @@ export const Documents: React.FC = () => {
     triggerToast(`Sharing mode updated to: ${mode === "write" ? "shared writable" : "shared read-only"}.`);
   };
 
-  // Duplicate document
   const handleDuplicateDoc = async () => {
     if (!selectedDoc) return;
     const nameWithoutExt = selectedDoc.name.replace(".md", "");
@@ -365,7 +373,6 @@ export const Documents: React.FC = () => {
     triggerToast("Document duplicated.");
   };
 
-  // Delete document
   const requestDeleteDoc = (doc: DebateDocument) => {
     setPendingDelete({ type: "document", id: doc.id, label: doc.name.replace(/\.md$/i, "") });
   };
@@ -415,14 +422,10 @@ export const Documents: React.FC = () => {
   };
 
   const triggerToast = (msg: string) => {
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.innerText = msg;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
+    setToastNotification(msg);
+    setTimeout(() => setToastNotification(null), 2500);
   };
 
-  // Markdown rendering engine for wiki links and card embeds
   interface MarkdownRendererProps {
     content: string;
     cards: EvidenceCard[];
@@ -431,7 +434,6 @@ export const Documents: React.FC = () => {
   }
 
   const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards, docs, onNavigateDoc }) => {
-    // Regex matches [[folder/title]] or [[card-xxx]]
     const parts = content.split(/(\[\[[^\]]+\]\])/g);
 
     const renderInlineStyle = (text: string) => {
@@ -444,49 +446,48 @@ export const Documents: React.FC = () => {
       escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
       escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
       escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
-      escaped = escaped.replace(/`(.*?)`/g, "<code class='bg-muted px-1 py-0.5 rounded font-mono text-primary text-[10px]'>$1</code>");
+      escaped = escaped.replace(/`(.*?)`/g, "<code style='background-color: var(--mantine-color-gray-1); padding: 2px 4px; border-radius: var(--mantine-radius-sm); font-family: monospace; font-size: 10px;'>$1</code>");
 
       return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
     };
 
     return (
-      <div className="prose max-w-none text-foreground text-xs leading-relaxed font-sans min-h-[400px] space-y-4">
+      <Stack gap="xs">
         {parts.map((part, index) => {
           const match = part.match(/\[\[([^\]]+)\]\]/);
           if (match) {
             const rawCitation = match[1].trim();
 
-            // 1. Check if card citation
             if (rawCitation.startsWith("card-")) {
               const referencedCard = cards.find(c => c.id === rawCitation);
               if (referencedCard) {
                 return (
-                  <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 px-1.5 py-0.5 rounded cursor-help font-semibold text-[10px] hover:bg-emerald-100">
-                      Cite: {referencedCard.title}
-                    </span>
-                    {/* Hover Card preview popover */}
-                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-card border border-border p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-foreground">
-                      <div className="flex items-center justify-between border-b pb-1.5">
-                        <strong className="text-foreground font-bold">{referencedCard.title}</strong>
-                        <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
-                          <ShieldCheck size={11} /> VERIFIED
-                        </span>
-                      </div>
-                      <p className="text-muted-foreground italic line-clamp-3">"{referencedCard.text}"</p>
-                      <div className="flex items-center justify-between pt-1 text-[9px] text-muted-foreground">
-                        <span className="font-mono">SHA-256: {referencedCard.hash.substring(0, 12)}...</span>
-                        {referencedCard.sourceUrl && (
-                          <span className="flex items-center gap-0.5 text-primary">Link</span>
-                        )}
-                      </div>
-                    </span>
-                  </span>
+                  <HoverCard key={index} width={320} shadow="md">
+                    <HoverCard.Target>
+                      <Badge color="emerald" variant="light" style={{ cursor: "help" }} size="xs">
+                        Cite: {referencedCard.title}
+                      </Badge>
+                    </HoverCard.Target>
+                    <HoverCard.Dropdown>
+                      <Stack gap="xs">
+                        <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
+                          <Text fw={700} size="xs">{referencedCard.title}</Text>
+                          <Badge color="teal" variant="light" size="xs" leftSection={<ShieldCheck size={11} />}>VERIFIED</Badge>
+                        </Group>
+                        <Text size="xs" style={{ fontStyle: "italic" }}>"{referencedCard.text}"</Text>
+                        <Group justify="space-between">
+                          <Text size="xs" c="dimmed">SHA-256: {referencedCard.hash.substring(0, 12)}...</Text>
+                          {referencedCard.sourceUrl && (
+                            <Text size="xs" c="teal">Link</Text>
+                          )}
+                        </Group>
+                      </Stack>
+                    </HoverCard.Dropdown>
+                  </HoverCard>
                 );
               }
             }
 
-            // 2. Check if wiki link [[folder/title]]
             const pathParts = rawCitation.split("/");
             if (pathParts.length === 2) {
               const folder = pathParts[0];
@@ -495,77 +496,80 @@ export const Documents: React.FC = () => {
 
               if (targetDoc) {
                 return (
-                  <span key={index} className="inline-block group relative mx-0.5 align-middle select-none">
-                    <button
-                      type="button"
-                      onClick={() => onNavigateDoc(targetDoc)}
-                      className="bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded cursor-pointer font-semibold text-[10px] hover:bg-primary/20"
-                    >
-                      {title}
-                    </button>
-                    {/* Hover Wiki preview popover */}
-                    <span className="absolute z-30 bottom-full left-0 mb-2 w-80 scale-0 group-hover:scale-100 transition-all origin-bottom-left bg-card border border-border p-4 rounded-xl shadow-2xl text-[10px] space-y-2 pointer-events-none text-foreground">
-                      <div className="flex items-center justify-between border-b pb-1.5">
-                        <strong className="text-foreground font-bold">{targetDoc.name}</strong>
-                        <span className="text-[9px] uppercase font-bold text-muted-foreground">{targetDoc.partnerAccess || "private"}</span>
-                      </div>
-                      <p className="text-muted-foreground line-clamp-4 leading-relaxed font-mono text-[9px]">
-                        {targetDoc.content.substring(0, 240)}...
-                      </p>
-                    </span>
-                  </span>
+                  <HoverCard key={index} width={320} shadow="md">
+                    <HoverCard.Target>
+                      <Button 
+                        variant="light" 
+                        color="teal" 
+                        size="xs" 
+                        onClick={() => onNavigateDoc(targetDoc)}
+                        styles={{ root: { height: "auto", padding: "2px 6px" } }}
+                      >
+                        {title}
+                      </Button>
+                    </HoverCard.Target>
+                    <HoverCard.Dropdown>
+                      <Stack gap="xs">
+                        <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
+                          <Text fw={700} size="xs">{targetDoc.name}</Text>
+                          <Badge color="gray" variant="light" size="xs">{targetDoc.partnerAccess || "private"}</Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed" style={{ maxHeight: 100, overflowY: "hidden" }}>
+                          {targetDoc.content.substring(0, 240)}...
+                        </Text>
+                      </Stack>
+                    </HoverCard.Dropdown>
+                  </HoverCard>
                 );
               }
             }
 
-            // Fallback for missing link
             return (
-              <span key={index} className="bg-destructive/10 text-destructive border border-destructive/30 px-1.5 py-0.5 rounded font-mono text-[10px] mx-0.5 align-middle">
+              <Badge key={index} color="red" variant="light" size="xs">
                 Missing Link: {rawCitation}
-              </span>
+              </Badge>
             );
           }
 
           const lines = part.split("\n");
           return (
-            <div key={index} className="inline space-y-2">
+            <span key={index}>
               {lines.map((line, lineIdx) => {
                 if (line.startsWith("### ")) {
-                  return <h3 key={lineIdx} className="text-xs font-bold text-foreground mt-4 mb-1.5 block">{renderInlineStyle(line.substring(4))}</h3>;
+                  return <Title key={lineIdx} order={6} mt="xs" mb="xs">{renderInlineStyle(line.substring(4))}</Title>;
                 }
                 if (line.startsWith("## ")) {
-                  return <h2 key={lineIdx} className="text-sm font-bold text-foreground mt-5 mb-2 border-b pb-1 block">{renderInlineStyle(line.substring(3))}</h2>;
+                  return <Title key={lineIdx} order={5} mt="sm" mb="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 2 }}>{renderInlineStyle(line.substring(3))}</Title>;
                 }
                 if (line.startsWith("# ")) {
-                  return <h1 key={lineIdx} className="text-base font-extrabold text-foreground mt-6 mb-3 block">{renderInlineStyle(line.substring(2))}</h1>;
+                  return <Title key={lineIdx} order={4} mt="md" mb="sm">{renderInlineStyle(line.substring(2))}</Title>;
                 }
                 if (line.startsWith("- ") || line.startsWith("* ")) {
                   return (
-                    <ul key={lineIdx} className="list-disc list-inside pl-4 text-muted-foreground my-1 block">
-                      <li>{renderInlineStyle(line.substring(2))}</li>
-                    </ul>
+                    <Text key={lineIdx} size="xs" pl="sm" my={2}>
+                      • {renderInlineStyle(line.substring(2))}
+                    </Text>
                   );
                 }
                 if (line.startsWith("> ")) {
                   return (
-                    <blockquote key={lineIdx} className="border-l-2 border-border pl-4 italic text-muted-foreground my-2 block">
+                    <blockquote key={lineIdx} style={{ borderLeft: "2px solid var(--mantine-color-gray-3)", paddingLeft: "var(--mantine-spacing-sm)", fontStyle: "italic", margin: "var(--mantine-spacing-xs) 0" }}>
                       {renderInlineStyle(line.substring(2))}
                     </blockquote>
                   );
                 }
                 if (!line.trim()) {
-                  return <div key={lineIdx} className="h-2 block" />;
+                  return <div key={lineIdx} style={{ height: 4 }} />;
                 }
-                return <span key={lineIdx} className="block my-1">{renderInlineStyle(line)}</span>;
+                return <Text key={lineIdx} size="xs" my={2}>{renderInlineStyle(line)}</Text>;
               })}
-            </div>
+            </span>
           );
         })}
-      </div>
+      </Stack>
     );
   };
 
-  // Group docs by folder
   const groupedDocs = docs.reduce<{ private: DebateDocument[]; team: DebateDocument[]; public: DebateDocument[] }>(
     (acc, doc) => {
       const folder = doc.partnerAccess || "private";
@@ -578,311 +582,384 @@ export const Documents: React.FC = () => {
   );
 
   return (
-    <section className="documents-layout documents-with-evidence">
-      {pendingDelete && (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-item-title">
-          <div className="confirm-dialog">
-            <h2 id="delete-item-title">Delete {pendingDelete.type === "document" ? "Document" : "Evidence Card"}?</h2>
-            <p>{pendingDelete.label} will be removed from this local workspace.</p>
-            <div className="confirm-actions">
-              <button type="button" className="command" onClick={() => setPendingDelete(null)}>
-                Cancel
-              </button>
-              <button type="button" className="command danger-command inline-danger" onClick={confirmPendingDelete}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+      {toastNotification && (
+        <Notification color="teal" onClose={() => setToastNotification(null)}>
+          {toastNotification}
+        </Notification>
       )}
-      {/* 1. Left Sidebar directory list */}
-      <aside className="file-rail flex flex-col justify-between overflow-y-auto">
-        <div className="space-y-4">
-          <div className="panel-header compact border-b pb-2">
-            <h2>Shared Folders</h2>
-            <FolderOpen size={17} />
-          </div>
 
-          {/* New Document form */}
-          <form onSubmit={handleCreateDoc} className="space-y-2 border-b pb-3">
-            <input 
-              value={newDocTitle} 
-              onChange={(e) => setNewDocTitle(e.target.value)} 
-              placeholder="New document title..."
-              required
-              className="text-xs py-1.5"
-            />
-            <div className={newDocFolder === "private" ? "mb-3" : "split-controls"}>
-              <select 
-                value={newDocFolder} 
-                onChange={(e) => setNewDocFolder(e.target.value as any)}
-                className="text-xs"
-              >
-                <option value="private">private</option>
-                <option value="team">team</option>
-                <option value="public">public</option>
-              </select>
-              {newDocFolder !== "private" && (
-                <select 
-                  value={newDocMode} 
-                  onChange={(e) => setNewDocMode(e.target.value as any)}
-                  className="text-xs"
-                >
-                  <option value="write">shared writable</option>
-                  <option value="read">shared read-only</option>
-                </select>
-              )}
-            </div>
-            <button type="submit" className="command primary w-full text-xs py-1 flex items-center justify-center gap-1">
-              <Plus size={13} /> Create File
-            </button>
-          </form>
+      <Modal 
+        opened={!!pendingDelete} 
+        onClose={() => setPendingDelete(null)} 
+        title={<Text fw={700}>Delete Item?</Text>}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {pendingDelete?.label} will be removed from this local workspace.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmPendingDelete}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
-          {/* Directory Folder Tree list */}
-          {(["private", "team", "public"] as const).map(folder => (
-            <div key={folder} className="folder-group">
-              <span>{folder}</span>
-              {groupedDocs[folder].length === 0 && (
-                <div className="text-[10px] text-muted-foreground italic px-2">Empty</div>
-              )}
-              {groupedDocs[folder].map(doc => (
-                <button
-                  type="button"
-                  key={doc.id}
-                  onClick={() => handleSelectDoc(doc)}
-                  className={`file-item ${selectedDoc?.id === doc.id ? "selected" : ""}`}
-                >
-                  <FileText size={15} className="text-primary" />
-                  <span>{doc.name.replace(/\.md$/i, "")}</span>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      requestDeleteDoc(doc);
-                    }}
-                    className="hover:text-destructive p-0.5 opacity-60 hover:opacity-100"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
+      <Grid style={{ height: "100%", minHeight: 0 }} align="stretch" gutter="md">
+        {/* 1. Left Sidebar directory list */}
+        <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+              <Group justify="space-between" align="center">
+                <Text fw={700} size="sm">Shared Folders</Text>
+                <FolderOpen size={17} color="var(--mantine-color-gray-6)" />
+              </Group>
 
-        {/* Local workspace status block at bottom left of document tab */}
-        <div className="bg-muted/50 border border-border p-3 rounded-lg mt-auto space-y-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-foreground">
-            <ShieldCheck size={13} className="text-emerald-600" />
-            <span>Local Workspace</span>
-          </div>
-          <p className="text-[9px] text-muted-foreground leading-relaxed">
-            Files are saved locally and shared through connected peers when placed in team or public folders.
-          </p>
-        </div>
-      </aside>
-
-      {/* 2. Middle Editor Section */}
-      <section className="editor-pane">
-        {selectedDoc ? (
-          <>
-            {/* Tool bar controls */}
-            <div className="editor-toolbar border-b pb-2 gap-3 items-center">
-              <input 
-                value={editorName} 
-                onChange={(e) => setEditorName(e.target.value)}
-                onBlur={handleTitleBlur}
-                className="font-bold border-b border-transparent focus:border-border"
-                placeholder="Rename file..."
-              />
-              
-              <select
-                value={selectedDoc.partnerAccess || "private"}
-                onChange={(e) => handleMoveDoc(e.target.value as any)}
-                className="text-xs"
-              >
-                <option value="private">private</option>
-                <option value="team">team</option>
-                <option value="public">public</option>
-              </select>
-
-              <select
-                value={selectedDoc.encryptedHash || "write"}
-                disabled={(selectedDoc.partnerAccess || "private") === "private"}
-                onChange={(e) => handleToggleDocMode(e.target.value as any)}
-                className="text-xs"
-              >
-                <option value="write">shared writable</option>
-                <option value="read">shared read-only</option>
-              </select>
-
-              <button 
-                type="button" 
-                onClick={handleDuplicateDoc}
-                title="Duplicate file"
-                className="icon-button"
-              >
-                <Copy size={16} />
-              </button>
-
-              <div className="segmented document-mode ml-auto">
-                <button 
-                  type="button" 
-                  className={editorMode === "edit" ? "selected" : ""} 
-                  onClick={() => setEditorMode("edit")}
-                >
-                  <Edit3 size={12} className="inline mr-1" /> Edit
-                </button>
-                <button 
-                  type="button" 
-                  className={editorMode === "read" ? "selected" : ""} 
-                  onClick={() => setEditorMode("read")}
-                >
-                  <Eye size={12} className="inline mr-1" /> Read
-                </button>
-              </div>
-            </div>
-
-            {/* Editing Box */}
-            <div className="flex-1 min-h-0 relative">
-              {editorMode === "edit" ? (
-                <>
-                  <textarea
-                    ref={editorRef}
-                    value={editorContent}
-                    onChange={handleContentChange}
-                    onSelect={handleEditorSelect}
-                    onKeyUp={handleEditorSelect}
-                    onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
-                    placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
-                    className="w-full h-full min-h-[400px] p-6 focus:outline-none resize-none font-mono text-xs leading-relaxed"
+              <form onSubmit={handleCreateDoc}>
+                <Stack gap="xs">
+                  <TextInput 
+                    value={newDocTitle} 
+                    onChange={(e) => setNewDocTitle(e.target.value)} 
+                    placeholder="New document title..."
+                    required
+                    size="xs"
                   />
-                  {linkMenu.visible && (
-                    <div className="wiki-link-menu">
-                      {docs
-                        .filter(doc => {
-                          const label = `${doc.partnerAccess || "private"}/${doc.name.replace(/\.md$/i, "")}`.toLowerCase();
-                          return label.includes(linkMenu.query.toLowerCase());
-                        })
-                        .slice(0, 8)
-                        .map(doc => (
-                          <button
-                            key={doc.id}
-                            type="button"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              insertWikiLink(doc);
-                            }}
-                          >
-                            <FileText size={13} />
-                            <span>{doc.partnerAccess || "private"}/{doc.name.replace(/\.md$/i, "")}</span>
-                          </button>
-                        ))}
-                      {docs.length === 0 && <span className="wiki-link-empty">No files available</span>}
-                    </div>
+                  
+                  <Select 
+                    value={newDocFolder} 
+                    onChange={(val) => setNewDocFolder(val || "private")}
+                    data={[
+                      { label: "private", value: "private" },
+                      { label: "team", value: "team" },
+                      { label: "public", value: "public" }
+                    ]}
+                    size="xs"
+                  />
+                  {newDocFolder !== "private" && (
+                    <Select 
+                      value={newDocMode} 
+                      onChange={(val) => setNewDocMode(val || "write")}
+                      data={[
+                        { label: "shared writable", value: "write" },
+                        { label: "shared read-only", value: "read" }
+                      ]}
+                      size="xs"
+                    />
                   )}
-                </>
-              ) : (
-                <div className="h-full overflow-y-auto p-6">
-                  <MarkdownRenderer 
-                    content={editorContent} 
-                    cards={cards} 
-                    docs={docs} 
-                    onNavigateDoc={handleSelectDoc}
+                  <Button type="submit" color="teal" size="xs" leftSection={<Plus size={13} />} fullWidth>
+                    Create File
+                  </Button>
+                </Stack>
+              </form>
+
+              <ScrollArea style={{ flex: 1 }}>
+                <Stack gap="md">
+                  {(["private", "team", "public"] as const).map(folder => (
+                    <Stack gap="xs" key={folder}>
+                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>{folder}</Text>
+                      {groupedDocs[folder].length === 0 && (
+                        <Text size="xs" style={{ italic: "true" }} c="dimmed" pl="xs">Empty</Text>
+                      )}
+                      {groupedDocs[folder].map(doc => (
+                        <Paper 
+                          key={doc.id} 
+                          withBorder 
+                          p="xs" 
+                          radius="md" 
+                          bg={selectedDoc?.id === doc.id ? "var(--mantine-color-teal-0)" : "transparent"}
+                          style={{ cursor: "pointer", borderColor: selectedDoc?.id === doc.id ? "var(--mantine-color-teal-3)" : "var(--mantine-color-gray-3)" }}
+                          onClick={() => handleSelectDoc(doc)}
+                        >
+                          <Group justify="space-between" wrap="nowrap">
+                            <Group gap="xs" wrap="nowrap" style={{ overflow: "hidden" }}>
+                              <FileText size={14} color="var(--mantine-color-teal-6)" />
+                              <Text size="xs" fw={500} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {doc.name.replace(/\.md$/i, "")}
+                              </Text>
+                            </Group>
+                            <ActionIcon 
+                              variant="subtle" 
+                              color="red" 
+                              size="xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                requestDeleteDoc(doc);
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </ActionIcon>
+                          </Group>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  ))}
+                </Stack>
+              </ScrollArea>
+
+              <Paper withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
+                <Stack gap={2}>
+                  <Group gap="xs">
+                    <ShieldCheck size={14} color="var(--mantine-color-teal-6)" />
+                    <Text size="xs" fw={700}>Local Workspace</Text>
+                  </Group>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
+                    Files are saved locally and synced automatically through peers when team/public.
+                  </Text>
+                </Stack>
+              </Paper>
+            </Stack>
+          </Card>
+        </Grid.Col>
+
+        {/* 2. Middle Editor Section */}
+        <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+            {selectedDoc ? (
+              <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
+                {/* Editor Header Toolbar */}
+                <Group p="sm" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", backgroundColor: "var(--mantine-color-gray-0)" }}>
+                  <TextInput 
+                    value={editorName} 
+                    onChange={(e) => setEditorName(e.target.value)}
+                    onBlur={handleTitleBlur}
+                    placeholder="Rename file..."
+                    size="xs"
+                    style={{ fontWeight: 700, width: "30%" }}
                   />
+
+                  <Group gap="xs">
+                    <Select
+                      value={selectedDoc.partnerAccess || "private"}
+                      onChange={(val) => handleMoveDoc(val as any)}
+                      data={[
+                        { label: "private", value: "private" },
+                        { label: "team", value: "team" },
+                        { label: "public", value: "public" }
+                      ]}
+                      size="xs"
+                      style={{ width: 90 }}
+                    />
+
+                    <Select
+                      value={selectedDoc.encryptedHash || "write"}
+                      disabled={(selectedDoc.partnerAccess || "private") === "private"}
+                      onChange={(val) => handleToggleDocMode(val as any)}
+                      data={[
+                        { label: "shared writable", value: "write" },
+                        { label: "shared read-only", value: "read" }
+                      ]}
+                      size="xs"
+                      style={{ width: 130 }}
+                    />
+
+                    <ActionIcon 
+                      variant="outline" 
+                      onClick={handleDuplicateDoc}
+                      color="teal"
+                      size="md"
+                    >
+                      <Copy size={16} />
+                    </ActionIcon>
+
+                    <SegmentedControl
+                      value={editorMode}
+                      onChange={(val) => setEditorMode(val as any)}
+                      data={[
+                        { label: "Edit", value: "edit" },
+                        { label: "Read", value: "read" }
+                      ]}
+                      size="xs"
+                      color="teal"
+                    />
+                  </Group>
+                </Group>
+
+                {/* Editor Pane / Workspace */}
+                <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+                  {editorMode === "edit" ? (
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+                      <textarea
+                        ref={editorRef}
+                        value={editorContent}
+                        onChange={handleContentChange}
+                        onSelect={handleEditorSelect}
+                        onKeyUp={handleEditorSelect}
+                        onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
+                        placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
+                        style={{
+                          width: "100%",
+                          flex: 1,
+                          padding: "var(--mantine-spacing-md)",
+                          border: 0,
+                          outline: 0,
+                          resize: "none",
+                          fontFamily: "monospace",
+                          fontSize: "12px",
+                          lineHeight: 1.6
+                        }}
+                      />
+                      
+                      {linkMenu.visible && (
+                        <Paper 
+                          withBorder 
+                          p={4} 
+                          radius="md" 
+                          style={{ position: "absolute", top: "40px", left: "20px", zIndex: 60, width: 280, maxHeight: 180, overflowY: "auto" }}
+                        >
+                          <Stack gap={4}>
+                            {docs
+                              .filter(doc => {
+                                const label = `${doc.partnerAccess || "private"}/${doc.name.replace(/\.md$/i, "")}`.toLowerCase();
+                                return label.includes(linkMenu.query.toLowerCase());
+                              })
+                              .slice(0, 8)
+                              .map(doc => (
+                                <Button
+                                  key={doc.id}
+                                  variant="subtle"
+                                  color="gray"
+                                  size="xs"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    insertWikiLink(doc);
+                                  }}
+                                  justify="flex-start"
+                                  leftSection={<FileText size={13} />}
+                                >
+                                  {doc.partnerAccess || "private"}/{doc.name.replace(/\.md$/i, "")}
+                                </Button>
+                              ))}
+                            {docs.length === 0 && <Text size="xs" c="dimmed" p="xs">No files available</Text>}
+                          </Stack>
+                        </Paper>
+                      )}
+                    </div>
+                  ) : (
+                    <ScrollArea style={{ flex: 1 }} p="md">
+                      <MarkdownRenderer 
+                        content={editorContent} 
+                        cards={cards} 
+                        docs={docs} 
+                        onNavigateDoc={handleSelectDoc}
+                      />
+                    </ScrollArea>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Bottom Citation stats bar */}
-            <div className="citation-bar text-[10px] text-muted-foreground bg-muted flex justify-between px-4 py-2 border-t">
-              <span>Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}</span>
-              <span className="flex items-center gap-1">
-                {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
-                  <>
-                    <Globe size={11} className="text-emerald-500" /> WebRTC live-sync active
-                  </>
-                ) : (
-                  <>
-                    <Database size={11} className="text-muted-foreground" /> Saved locally
-                  </>
-                )}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div className="empty-editor text-muted-foreground text-xs">
-            <FileText size={32} />
-            <h1>No document selected</h1>
-            <p>Create a file or select from the shared folders rail to begin.</p>
-          </div>
-        )}
-      </section>
+                {/* Citation Status Bar */}
+                <Group p="xs" justify="space-between" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", backgroundColor: "var(--mantine-color-gray-1)" }}>
+                  <Text size="xs" c="dimmed">
+                    Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}
+                  </Text>
+                  <Group gap="xs">
+                    {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
+                      <>
+                        <Globe size={13} color="var(--mantine-color-teal-6)" />
+                        <Text size="xs" c="dimmed">WebRTC live-sync active</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Database size={13} color="var(--mantine-color-gray-5)" />
+                        <Text size="xs" c="dimmed">Saved locally</Text>
+                      </>
+                    )}
+                  </Group>
+                </Group>
+              </Stack>
+            ) : (
+              <Stack align="center" justify="center" style={{ flex: 1 }} gap="xs">
+                <FileText size={32} color="var(--mantine-color-gray-4)" />
+                <Title order={4}>No document selected</Title>
+                <Text size="xs" c="dimmed">Create a file or select from the folders rail to begin.</Text>
+              </Stack>
+            )}
+          </Card>
+        </Grid.Col>
 
-      {/* 3. Right Sidebar Evidence Library */}
-      <aside className="file-rail evidence-rail flex flex-col overflow-hidden">
-        <div className="panel-header compact border-b pb-2">
-          <h2>Evidence Cards</h2>
-          <ShieldCheck size={17} />
-        </div>
+        {/* 3. Right Sidebar Evidence Library */}
+        <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+              <Group justify="space-between" align="center">
+                <Text fw={700} size="sm">Evidence Cards</Text>
+                <ShieldCheck size={17} color="var(--mantine-color-teal-6)" />
+              </Group>
 
-        {/* Card Form */}
-        <form onSubmit={handleAddCard} className="space-y-2 border-b pb-3">
-          <input
-            type="text"
-            required
-            value={cardTitle}
-            onChange={(e) => setCardTitle(e.target.value)}
-            placeholder="Citation (e.g. Smith 2024)"
-            className="w-full text-xs"
-          />
-          <input
-            type="url"
-            value={cardSource}
-            onChange={(e) => setCardSource(e.target.value)}
-            placeholder="Source URL (Optional)"
-            className="w-full text-xs"
-          />
-          <textarea
-            required
-            rows={3}
-            value={cardText}
-            onChange={(e) => setCardText(e.target.value)}
-            placeholder="Evidence body text..."
-            className="w-full text-xs resize-none"
-          />
-          <button type="submit" className="command primary w-full text-xs py-1.5 flex items-center justify-center gap-1">
-            <Plus size={12} /> Add to Library
-          </button>
-        </form>
+              <form onSubmit={handleAddCard}>
+                <Stack gap="xs">
+                  <TextInput
+                    required
+                    value={cardTitle}
+                    onChange={(e) => setCardTitle(e.target.value)}
+                    placeholder="Citation (e.g. Smith 2024)"
+                    size="xs"
+                  />
+                  <TextInput
+                    type="url"
+                    value={cardSource}
+                    onChange={(e) => setCardSource(e.target.value)}
+                    placeholder="Source URL (Optional)"
+                    size="xs"
+                  />
+                  <Textarea
+                    required
+                    rows={3}
+                    value={cardText}
+                    onChange={(e) => setCardText(e.target.value)}
+                    placeholder="Evidence body text..."
+                    size="xs"
+                    style={{ resize: "none" }}
+                  />
+                  <Button type="submit" color="teal" size="xs" leftSection={<Plus size={12} />} fullWidth>
+                    Add to Library
+                  </Button>
+                </Stack>
+              </form>
 
-        {/* Cards List */}
-        <div className="folder-group flex-1 overflow-y-auto">
-          {cards.map((card) => (
-            <div key={card.id} className="file-card group/card">
-              <div className="flex items-center justify-between">
-                <strong className="text-xs text-foreground">{card.title}</strong>
-                <button
-                  onClick={() => handleDeleteCard(card.id)}
-                  className="opacity-0 group-hover/card:opacity-100 text-muted-foreground hover:text-destructive p-0.5 transition-opacity"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              <p className="text-[10px] text-muted-foreground line-clamp-2">"{card.text}"</p>
-              <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 font-mono">
-                <span>ID: <span className="text-primary font-bold select-all">[[{card.id}]]</span></span>
-                {card.sourceUrl && (
-                  <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
-                    Source
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-    </section>
+              <ScrollArea style={{ flex: 1 }}>
+                <Stack gap="xs">
+                  {cards.map((card) => (
+                    <Card key={card.id} withBorder p="xs" radius="md">
+                      <Stack gap={4}>
+                        <Group justify="space-between" align="center">
+                          <Text size="xs" fw={700}>{card.title}</Text>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            size="xs"
+                            onClick={() => handleDeleteCard(card.id)}
+                          >
+                            <Trash2 size={12} />
+                          </ActionIcon>
+                        </Group>
+                        <Text size="xs" c="dimmed" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          "{card.text}"
+                        </Text>
+                        <Group justify="space-between" align="center">
+                          <Text size="xs" c="dimmed">
+                            ID: <span style={{ color: "var(--mantine-color-teal-6)", fontWeight: 700 }}>[[{card.id}]]</span>
+                          </Text>
+                          {card.sourceUrl && (
+                            <a href={card.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "10px", color: "var(--mantine-color-teal-6)" }}>
+                              Source
+                            </a>
+                          )}
+                        </Group>
+                      </Stack>
+                    </Card>
+                  ))}
+                </Stack>
+              </ScrollArea>
+            </Stack>
+          </Card>
+        </Grid.Col>
+      </Grid>
+    </Stack>
   );
 };
 
