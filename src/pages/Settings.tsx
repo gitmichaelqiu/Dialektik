@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { 
-  Bot, 
-  Users, 
-  Lock,
-  Radio
-} from "lucide-react";
+import { Bot, Lock, Radio, RotateCcw, Save, Users } from "lucide-react";
 import db from "../services/db";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 
 export const Settings: React.FC = () => {
   const {
@@ -24,21 +23,10 @@ export const Settings: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
-  useEffect(() => {
-    setNameInput(userName);
-  }, [userName]);
-
-  useEffect(() => {
-    setAiKeyInput(aiApiKey);
-  }, [aiApiKey]);
-
-  useEffect(() => {
-    setAiEndInput(aiEndpoint);
-  }, [aiEndpoint]);
-
-  useEffect(() => {
-    setAiModelInput(aiModel);
-  }, [aiModel]);
+  useEffect(() => setNameInput(userName), [userName]);
+  useEffect(() => setAiKeyInput(aiApiKey), [aiApiKey]);
+  useEffect(() => setAiEndInput(aiEndpoint), [aiEndpoint]);
+  useEffect(() => setAiModelInput(aiModel), [aiModel]);
 
   const showNotice = (message: string) => {
     setNotice(message);
@@ -80,106 +68,136 @@ export const Settings: React.FC = () => {
             <h2 id="reset-workspace-title">Reset Workspace?</h2>
             <p>All local settings, documents, evidence cards, history, and active room data will be removed.</p>
             <div className="confirm-actions">
-              <button type="button" className="command" onClick={() => setResetConfirmOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setResetConfirmOpen(false)}>
                 Cancel
-              </button>
-              <button type="button" className="command danger-command inline-danger" onClick={resetLocalWorkspace}>
+              </Button>
+              <Button type="button" variant="destructive" onClick={resetLocalWorkspace}>
                 Reset
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
-      {/* Column 1: User Profile & Security */}
-      <div className="space-y-4">
-        {/* Profile Panel */}
-        <div className="panel">
-          <div className="panel-header compact">
-            <h2>User Profile</h2>
-            <Users size={18} />
-          </div>
-          <form onSubmit={handleProfileSubmit} className="space-y-3">
-            <label className="field compact-field">
-              <span>UserName *</span>
-              <input 
-                value={nameInput} 
-                onChange={(e) => setNameInput(e.target.value)} 
-                placeholder="Enter user name..."
-                required
-              />
-            </label>
-            <button type="submit" className="command primary w-full">
-              Save Profile
-            </button>
-          </form>
-        </div>
 
-        <div className="panel">
-          <div className="panel-header compact">
-            <h2>Peer Sync Policy</h2>
-            <Radio size={18} />
-          </div>
-          <p className="inline-note">
-            GitHub sync, local client encryption setup, and absent-partner fallback are disabled for now. Shared files recover through connected peers in active rooms.
-          </p>
-        </div>
-      </div>
-
-      {/* Column 2: AI Configuration Server */}
       <div className="space-y-4">
-        <div className="panel">
-          <div className="panel-header compact">
-            <h2>AI LLM Configuration</h2>
-            <Bot size={18} />
-          </div>
-          <form onSubmit={handleAISubmit} className="space-y-4">
-            <label className="field compact-field">
-              <span>API Base URL</span>
-              <input 
-                value={aiEndInput} 
-                onChange={(e) => setAiEndInput(e.target.value)} 
-                placeholder="https://api.openai.com/v1"
-              />
-            </label>
-            <label className="field compact-field">
-              <span>Model Name</span>
-              <input 
-                value={aiModelInput} 
-                onChange={(e) => setAiModelInput(e.target.value)} 
-                placeholder="gpt-4o"
-              />
-            </label>
-            <label className="field compact-field">
-              <span>API Key</span>
-              <input 
-                type="password"
-                value={aiKeyInput} 
-                onChange={(e) => setAiKeyInput(e.target.value)} 
-                placeholder="sk-..."
-              />
-            </label>
-            <button type="submit" className="command primary w-full">
-              Save AI Settings
-            </button>
-          </form>
-        </div>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle>User Profile</CardTitle>
+                <CardDescription>Your display name for room pairing and shared rounds.</CardDescription>
+              </div>
+              <Users size={18} className="text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-name">User name</Label>
+                <Input
+                  id="user-name"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="Enter your name"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                <Save size={16} /> Save Profile
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle>Peer Sync Policy</CardTitle>
+                <CardDescription>How this workspace recovers shared room data.</CardDescription>
+              </div>
+              <Radio size={18} className="text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="inline-note">
+              GitHub sync, local client encryption setup, and absent-partner fallback are disabled for now. Shared files recover through connected peers in active rooms.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-4">
-        {/* Reset Panel */}
-        <div className="panel border-rose-200/50 bg-rose-500/5">
-          <div className="panel-header compact text-rose-700">
-            <h2>Destructive Options</h2>
-            <Lock size={15} />
-          </div>
-          <button 
-            type="button" 
-            onClick={() => setResetConfirmOpen(true)} 
-            className="command w-full danger-command inline-danger"
-          >
-            Reset Local Workspace
-          </button>
-        </div>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle>AI Configuration</CardTitle>
+                <CardDescription>Connect the debate assistant to your preferred OpenAI-compatible endpoint.</CardDescription>
+              </div>
+              <Bot size={18} className="text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAISubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ai-endpoint">API base URL</Label>
+                <Input
+                  id="ai-endpoint"
+                  value={aiEndInput}
+                  onChange={(e) => setAiEndInput(e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-model">Model name</Label>
+                <Input
+                  id="ai-model"
+                  value={aiModelInput}
+                  onChange={(e) => setAiModelInput(e.target.value)}
+                  placeholder="gpt-4o"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ai-key">API key</Label>
+                <Input
+                  id="ai-key"
+                  type="password"
+                  value={aiKeyInput}
+                  onChange={(e) => setAiKeyInput(e.target.value)}
+                  placeholder="sk-..."
+                />
+              </div>
+              <Button type="submit" className="w-full">
+                <Save size={16} /> Save AI Settings
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 text-destructive">
+              <div>
+                <CardTitle>Destructive Options</CardTitle>
+                <CardDescription className="text-destructive/75">Reset local data only when you want a clean workspace.</CardDescription>
+              </div>
+              <Lock size={18} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setResetConfirmOpen(true)}
+              className="w-full"
+            >
+              <RotateCcw size={16} /> Reset Local Workspace
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </section>
   );
