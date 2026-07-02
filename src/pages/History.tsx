@@ -143,7 +143,7 @@ export const History: React.FC = () => {
                   <Stack align="center" justify="center" style={{ flex: 1, py: "xl" }} gap="xs">
                     <Trophy size={32} color="var(--mantine-color-gray-4)" />
                     <Text fw={700} size="xs" c="dimmed">No rounds found</Text>
-                    <Text size="xs" c="dimmed" textAlign="center">
+                    <Text size="xs" c="dimmed" ta="center">
                       Saved rounds will appear here after you end an in-round session.
                     </Text>
                   </Stack>
