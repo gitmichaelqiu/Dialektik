@@ -4,7 +4,15 @@ import { InRound } from "./pages/InRound";
 import { History } from "./pages/History";
 import { AI } from "./pages/AI";
 import { Settings } from "./pages/Settings";
-import { motion } from "framer-motion";
+import { 
+  AppShell, 
+  Group, 
+  Stack, 
+  Text, 
+  Paper, 
+  NavLink, 
+  ThemeIcon 
+} from "@mantine/core";
 import { 
   FileText, 
   Radio, 
@@ -32,63 +40,80 @@ function AppContent() {
   ];
 
   return (
-    <div className="app-shell select-none">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark">Δ</div>
-          <div>
-            <strong>Dialektik</strong>
-            <span>{userName || "No user set"}</span>
-          </div>
-        </div>
+    <AppShell
+      navbar={{
+        width: 248,
+        breakpoint: "sm",
+      }}
+      padding="md"
+    >
+      <AppShell.Navbar p="md">
+        <Stack justify="space-between" h="100%">
+          <Stack gap="md">
+            <Group gap="sm">
+              <ThemeIcon variant="filled" size="lg" radius="md" color="teal">
+                Δ
+              </ThemeIcon>
+              <Stack gap={0}>
+                <Text size="sm" fw={700}>Dialektik</Text>
+                <Text size="xs" c="dimmed">{userName || "No user set"}</Text>
+              </Stack>
+            </Group>
 
-        <nav aria-label="Primary">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const selected = activePage === item.id;
+            <Stack gap="xs">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const selected = activePage === item.id;
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={selected ? "active" : ""}
-                onClick={() => setActivePage(item.id)}
-                aria-current={selected ? "page" : undefined}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+                return (
+                  <NavLink
+                    key={item.id}
+                    active={selected}
+                    label={item.label}
+                    leftSection={<Icon size={16} />}
+                    onClick={() => setActivePage(item.id)}
+                    variant="light"
+                    color="teal"
+                    styles={{
+                      root: {
+                        borderRadius: "var(--mantine-radius-md)",
+                      }
+                    }}
+                  />
+                );
+              })}
+            </Stack>
+          </Stack>
 
-        <motion.div
-          className="sync-card"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-        >
-          <div className="flex items-center gap-2">
-            {isPeerConnected ? (
-              <Wifi size={18} className="text-emerald-700" />
-            ) : (
-              <WifiOff size={18} className="text-muted-foreground" />
-            )}
-            <strong>Peer Sync</strong>
-          </div>
-          <span>{isPeerConnected ? "P2P link active" : "Offline until a room connects"}</span>
-          <span>Recovery through peers in active rooms</span>
-        </motion.div>
-      </aside>
+          <Paper withBorder p="sm" radius="md" bg="var(--mantine-color-gray-0)">
+            <Stack gap="xs">
+              <Group gap="xs">
+                {isPeerConnected ? (
+                  <Wifi size={16} color="var(--mantine-color-teal-6)" />
+                ) : (
+                  <WifiOff size={16} color="var(--mantine-color-gray-5)" />
+                )}
+                <Text size="xs" fw={700}>Peer Sync</Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                {isPeerConnected ? "P2P link active" : "Offline until a room connects"}
+              </Text>
+              <Text size="xs" c="dimmed">
+                Recovery through peers in active rooms
+              </Text>
+            </Stack>
+          </Paper>
+        </Stack>
+      </AppShell.Navbar>
 
-      <main className="main-pane overflow-y-auto">
+      <AppShell.Main style={{ overflowY: "auto", height: "100vh" }}>
         {activePage === "inround" && <InRound />}
         {activePage === "documents" && <Documents />}
         {activePage === "ai" && <AI />}
         {activePage === "history" && <History />}
         {activePage === "settings" && <Settings />}
-      </main>
-    </div>
+      </AppShell.Main>
+    </AppShell>
   );
 }
 
