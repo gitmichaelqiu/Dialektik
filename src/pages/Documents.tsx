@@ -8,12 +8,10 @@ import {
   Plus, 
   Trash2, 
   ShieldCheck, 
-  Edit3, 
   Globe,
   Database,
   Copy,
-  FolderOpen,
-  Eye
+  FolderOpen
 } from "lucide-react";
 import { 
   Button, 
