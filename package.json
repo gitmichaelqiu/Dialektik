@@ -11,15 +11,20 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.3.0",
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "dexie": "^4.4.4",
+    "framer-motion": "^12.42.2",
     "lucide-react": "^0.468.0",
     "octokit": "^5.0.5",
     "peerjs": "^1.5.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
     "yjs": "^13.6.31"
   },

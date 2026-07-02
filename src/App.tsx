@@ -4,12 +4,15 @@ import { InRound } from "./pages/InRound";
 import { History } from "./pages/History";
 import { AI } from "./pages/AI";
 import { Settings } from "./pages/Settings";
+import { motion } from "framer-motion";
 import { 
   FileText, 
   Radio, 
   Bot,
   History as HistoryIcon, 
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 
 function AppContent() {
@@ -20,11 +23,17 @@ function AppContent() {
     userName
   } = useApp();
 
+  const navItems = [
+    { id: "inround", label: "In-Round", icon: Radio },
+    { id: "documents", label: "Documents", icon: FileText },
+    { id: "ai", label: "AI Coach", icon: Bot },
+    { id: "history", label: "History", icon: HistoryIcon },
+    { id: "settings", label: "Settings", icon: SettingsIcon }
+  ];
+
   return (
     <div className="app-shell select-none">
-      {/* Sidebar Navigation */}
       <aside className="sidebar">
-        {/* Brand Lockup */}
         <div className="brand-lockup">
           <div className="brand-mark">Δ</div>
           <div>
@@ -33,66 +42,45 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Primary Tabs */}
         <nav aria-label="Primary">
-          <button 
-            type="button" 
-            className={activePage === "inround" ? "active" : ""} 
-            onClick={() => setActivePage("inround")}
-          >
-            <Radio size={18} />
-            In-Round
-          </button>
-          <button 
-            type="button" 
-            className={activePage === "documents" ? "active" : ""} 
-            onClick={() => setActivePage("documents")}
-          >
-            <FileText size={18} />
-            Documents
-          </button>
-          <button 
-            type="button" 
-            className={activePage === "ai" ? "active" : ""} 
-            onClick={() => setActivePage("ai")}
-          >
-            <Bot size={18} />
-            AI
-          </button>
-          <button 
-            type="button" 
-            className={activePage === "history" ? "active" : ""} 
-            onClick={() => setActivePage("history")}
-          >
-            <HistoryIcon size={18} />
-            History
-          </button>
-          <button 
-            type="button" 
-            className={activePage === "settings" ? "active" : ""} 
-            onClick={() => setActivePage("settings")}
-          >
-            <SettingsIcon size={18} />
-            Settings
-          </button>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const selected = activePage === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={selected ? "active" : ""}
+                onClick={() => setActivePage(item.id)}
+                aria-current={selected ? "page" : undefined}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Peer Status Indicator */}
-        <div className="sync-card flex flex-col gap-1 text-slate-350">
+        <motion.div
+          className="sync-card"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+        >
           <div className="flex items-center gap-2">
-            <Radio size={18} className="text-emerald-500" />
+            {isPeerConnected ? (
+              <Wifi size={18} className="text-emerald-700" />
+            ) : (
+              <WifiOff size={18} className="text-muted-foreground" />
+            )}
             <strong>Peer Sync</strong>
           </div>
-          <span className="text-[10px] text-slate-400 block">
-            P2P Link: {isPeerConnected ? "Active" : "Offline"}
-          </span>
-          <span className="text-[10px] text-slate-400 block">
-            Recovery: peers only
-          </span>
-        </div>
+          <span>{isPeerConnected ? "P2P link active" : "Offline until a room connects"}</span>
+          <span>Recovery through peers in active rooms</span>
+        </motion.div>
       </aside>
 
-      {/* Main Content Pane */}
       <main className="main-pane overflow-y-auto">
         {activePage === "inround" && <InRound />}
         {activePage === "documents" && <Documents />}
