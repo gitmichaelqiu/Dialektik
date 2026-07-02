@@ -2,10 +2,19 @@ import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { ArrowLeft, Play, Radio, RefreshCw, UserPlus, Users, X } from "lucide-react";
 import { notify } from "../utils/notifications";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { 
+  Button, 
+  TextInput, 
+  Text, 
+  Stack, 
+  Group, 
+  Modal, 
+  Loader,
+  Paper,
+  ActionIcon,
+  UnstyledButton,
+  ThemeIcon
+} from "@mantine/core";
 
 interface SessionWizardProps {
   onClose: () => void;
@@ -86,141 +95,149 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/45 p-4 backdrop-blur-md">
-      <Card className="w-full max-w-lg overflow-hidden shadow-2xl">
-        <CardHeader className="border-b border-border bg-muted/50 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              {step > 1 && (
-                <Button type="button" variant="ghost" size="icon" onClick={handleBack} aria-label="Back">
-                  <ArrowLeft size={16} />
-                </Button>
-              )}
-              <div>
-                <CardTitle>{title}</CardTitle>
-                <CardDescription>
-                  {role === "client" ? "Join a live room from a host code." : "Create a synced debate room."}
-                </CardDescription>
-              </div>
-            </div>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
-              <X size={16} />
-            </Button>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-6">
-          {step === 1 && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => handleSelectRole("host")}
-                className="group flex min-h-48 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="rounded-full bg-primary/10 p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <Users size={28} />
-                </span>
-                <span>
-                  <strong className="block text-sm text-foreground">Host a Match</strong>
-                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                    Manage the room, timers, debaters, and handout release.
-                  </span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectRole("client")}
-                className="group flex min-h-48 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center transition-colors hover:border-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="rounded-full bg-primary/10 p-4 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <UserPlus size={28} />
-                </span>
-                <span>
-                  <strong className="block text-sm text-foreground">Join a Match</strong>
-                  <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                    Connect with a code from the host and sync shared materials.
-                  </span>
-                </span>
-              </button>
-            </div>
+    <Modal
+      opened={true}
+      onClose={onClose}
+      title={
+        <Group gap="xs" wrap="nowrap">
+          {step > 1 && (
+            <ActionIcon variant="subtle" color="teal" onClick={handleBack}>
+              <ArrowLeft size={16} />
+            </ActionIcon>
           )}
+          <Stack gap={0}>
+            <Text fw={700} size="sm">{title}</Text>
+            <Text size="xs" c="dimmed">
+              {role === "client" ? "Join a live room from a host code." : "Create a synced debate room."}
+            </Text>
+          </Stack>
+        </Group>
+      }
+      centered
+      size="lg"
+    >
+      <Stack gap="md" mt="md">
+        {step === 1 && (
+          <Group grow gap="md">
+            <UnstyledButton onClick={() => handleSelectRole("host")}>
+              <Paper withBorder p="xl" radius="md" style={{ textAlign: "center" }} bg="var(--mantine-color-gray-0)">
+                <Stack align="center" gap="sm">
+                  <ThemeIcon variant="light" size="xl" radius="xl" color="teal">
+                    <Users size={24} />
+                  </ThemeIcon>
+                  <Text fw={700} size="sm">Host a Match</Text>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
+                    Manage the room, timers, debaters, and handout release.
+                  </Text>
+                </Stack>
+              </Paper>
+            </UnstyledButton>
 
-          {step === 2 && role === "host" && (
-            <form onSubmit={handleHostSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="match-name">Tournament or match name</Label>
-                <Input
-                  id="match-name"
-                  required
-                  value={matchName}
-                  onChange={(e) => setMatchName(e.target.value)}
-                  placeholder="e.g. NSDA Finals Round 3"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="opponent">Opponent team or debater code</Label>
-                <Input
-                  id="opponent"
-                  value={opponent}
-                  onChange={(e) => setOpponent(e.target.value)}
-                  placeholder="e.g. Lincoln High School AB"
-                />
-              </div>
-              <Button type="submit" disabled={isLoading} className="w-full">
-                {isLoading ? <RefreshCw className="animate-spin" /> : <Play />}
+            <UnstyledButton onClick={() => handleSelectRole("client")}>
+              <Paper withBorder p="xl" radius="md" style={{ textAlign: "center" }} bg="var(--mantine-color-gray-0)">
+                <Stack align="center" gap="sm">
+                  <ThemeIcon variant="light" size="xl" radius="xl" color="teal">
+                    <UserPlus size={24} />
+                  </ThemeIcon>
+                  <Text fw={700} size="sm">Join a Match</Text>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
+                    Connect with a code from the host and sync shared materials.
+                  </Text>
+                </Stack>
+              </Paper>
+            </UnstyledButton>
+          </Group>
+        )}
+
+        {step === 2 && role === "host" && (
+          <form onSubmit={handleHostSubmit}>
+            <Stack gap="md">
+              <TextInput
+                label="Tournament or match name"
+                id="match-name"
+                required
+                value={matchName}
+                onChange={(e) => setMatchName(e.target.value)}
+                placeholder="e.g. NSDA Finals Round 3"
+              />
+              <TextInput
+                label="Opponent team or debater code"
+                id="opponent"
+                value={opponent}
+                onChange={(e) => setOpponent(e.target.value)}
+                placeholder="e.g. Lincoln High School AB"
+              />
+              <Button type="submit" loading={isLoading} leftSection={<Play size={16} />} color="teal" fullWidth>
                 Generate Room & Start Hosting
               </Button>
-            </form>
-          )}
+            </Stack>
+          </form>
+        )}
 
-          {step === 2 && role === "client" && (
-            <form onSubmit={handleClientSubmit} className="space-y-5">
-              <div className="space-y-2 text-center">
-                <Label htmlFor="room-code" className="block">Room code</Label>
-                <p className="text-xs text-muted-foreground">Ask the host for the generated 4-digit pairing code.</p>
-                <Input
-                  id="room-code"
-                  required
-                  maxLength={4}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="1234"
-                  className="mx-auto w-48 text-center font-mono text-lg font-bold tracking-widest"
-                />
-              </div>
-              <Button type="submit" disabled={code.length !== 4 || isLoading} className="w-full">
-                {isLoading ? <RefreshCw className="animate-spin" /> : <Play />}
+        {step === 2 && role === "client" && (
+          <form onSubmit={handleClientSubmit}>
+            <Stack gap="md" align="center">
+              <Text size="xs" c="dimmed" style={{ textAlign: "center" }}>
+                Ask the host for the generated 4-digit pairing code.
+              </Text>
+              <TextInput
+                label="Room code"
+                id="room-code"
+                required
+                maxLength={4}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="1234"
+                styles={{
+                  input: {
+                    textAlign: "center",
+                    fontFamily: "monospace",
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    letterSpacing: "4px",
+                    width: "160px",
+                    margin: "0 auto"
+                  }
+                }}
+              />
+              <Button 
+                type="submit" 
+                loading={isLoading} 
+                disabled={code.length !== 4} 
+                leftSection={<Play size={16} />} 
+                color="teal" 
+                fullWidth
+              >
                 Connect to Room
               </Button>
-            </form>
-          )}
+            </Stack>
+          </form>
+        )}
 
-          {step === 3 && role === "host" && (
-            <div className="flex flex-col items-center justify-center gap-5 py-6 text-center">
-              <div>
-                <span className="eyebrow">Room Pairing Code</span>
-                <div className="font-mono text-5xl font-extrabold tracking-widest text-primary">{generatedCode}</div>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Radio size={16} className="text-primary" />
-                Waiting for partner to join
-              </div>
-            </div>
-          )}
+        {step === 3 && role === "host" && (
+          <Stack align="center" gap="md" py="xl">
+            <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Room Pairing Code</Text>
+            <Text size="xl" fw={900} c="teal" style={{ fontSize: "48px", fontFamily: "monospace", letterSpacing: "8px" }}>
+              {generatedCode}
+            </Text>
+            <Group gap="xs">
+              <Loader size="xs" color="teal" />
+              <Text size="xs" c="dimmed">Waiting for partner to join</Text>
+            </Group>
+          </Stack>
+        )}
 
-          {step === 3 && role === "client" && (
-            <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
-              <RefreshCw size={36} className="animate-spin text-primary" />
-              <div>
-                <h4 className="text-sm font-bold text-foreground">Connecting to host room</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Syncing flow outlines and version handshakes.</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        {step === 3 && role === "client" && (
+          <Stack align="center" gap="md" py="xl">
+            <Loader size="lg" color="teal" />
+            <Stack gap={2} align="center">
+              <Text size="sm" fw={700}>Connecting to host room</Text>
+              <Text size="xs" c="dimmed">Syncing flow outlines and version handshakes.</Text>
+            </Stack>
+          </Stack>
+        )}
+      </Stack>
+    </Modal>
   );
 };
 
