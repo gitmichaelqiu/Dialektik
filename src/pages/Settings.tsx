@@ -2,10 +2,17 @@ import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Bot, Lock, Radio, RotateCcw, Save, Users } from "lucide-react";
 import db from "../services/db";
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
+import { 
+  Button, 
+  Card, 
+  TextInput, 
+  PasswordInput, 
+  Text, 
+  Stack, 
+  Group, 
+  Modal, 
+  Notification 
+} from "@mantine/core";
 
 export const Settings: React.FC = () => {
   const {
@@ -60,146 +67,146 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <section className="settings-grid">
-      {notice && <div className="toast" role="status">{notice}</div>}
-      {resetConfirmOpen && (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="reset-workspace-title">
-          <div className="confirm-dialog">
-            <h2 id="reset-workspace-title">Reset Workspace?</h2>
-            <p>All local settings, documents, evidence cards, history, and active room data will be removed.</p>
-            <div className="confirm-actions">
-              <Button type="button" variant="outline" onClick={() => setResetConfirmOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="button" variant="destructive" onClick={resetLocalWorkspace}>
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
+    <Stack gap="md">
+      {notice && (
+        <Notification color="teal" icon={<Save size={16} />} onClose={() => setNotice(null)}>
+          {notice}
+        </Notification>
       )}
 
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <CardTitle>User Profile</CardTitle>
-                <CardDescription>Your display name for room pairing and shared rounds.</CardDescription>
-              </div>
-              <Users size={18} className="text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleProfileSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="user-name">User name</Label>
-                <Input
+      <Modal 
+        opened={resetConfirmOpen} 
+        onClose={() => setResetConfirmOpen(false)} 
+        title={<Text fw={700}>Reset Workspace?</Text>}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            All local settings, documents, evidence cards, history, and active room data will be removed.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={() => setResetConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={resetLocalWorkspace}>
+              Reset
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Group align="flex-start" grow gap="md">
+        <Stack gap="md">
+          <Card withBorder radius="md" p="md">
+            <Card.Section inheritPadding py="xs" withBorder>
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={700} size="sm">User Profile</Text>
+                  <Text size="xs" c="dimmed">Your display name for room pairing and shared rounds.</Text>
+                </Stack>
+                <Users size={18} color="var(--mantine-color-gray-6)" />
+              </Group>
+            </Card.Section>
+            
+            <form onSubmit={handleProfileSubmit}>
+              <Stack gap="md" mt="md">
+                <TextInput
+                  label="User name"
                   id="user-name"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   placeholder="Enter your name"
                   required
                 />
-              </div>
-              <Button type="submit" className="w-full">
-                <Save size={16} /> Save Profile
-              </Button>
+                <Button type="submit" leftSection={<Save size={16} />} color="teal" fullWidth>
+                  Save Profile
+                </Button>
+              </Stack>
             </form>
-          </CardContent>
-        </Card>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <CardTitle>Peer Sync Policy</CardTitle>
-                <CardDescription>How this workspace recovers shared room data.</CardDescription>
-              </div>
-              <Radio size={18} className="text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="inline-note">
+          <Card withBorder radius="md" p="md">
+            <Card.Section inheritPadding py="xs" withBorder>
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={700} size="sm">Peer Sync Policy</Text>
+                  <Text size="xs" c="dimmed">How this workspace recovers shared room data.</Text>
+                </Stack>
+                <Radio size={18} color="var(--mantine-color-gray-6)" />
+              </Group>
+            </Card.Section>
+            <Text size="xs" c="dimmed" mt="md" style={{ lineHeight: 1.5 }}>
               GitHub sync, local client encryption setup, and absent-partner fallback are disabled for now. Shared files recover through connected peers in active rooms.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            </Text>
+          </Card>
+        </Stack>
 
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <CardTitle>AI Configuration</CardTitle>
-                <CardDescription>Connect the debate assistant to your preferred OpenAI-compatible endpoint.</CardDescription>
-              </div>
-              <Bot size={18} className="text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAISubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="ai-endpoint">API base URL</Label>
-                <Input
+        <Stack gap="md">
+          <Card withBorder radius="md" p="md">
+            <Card.Section inheritPadding py="xs" withBorder>
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={700} size="sm">AI Configuration</Text>
+                  <Text size="xs" c="dimmed">Connect the debate assistant to your preferred OpenAI-compatible endpoint.</Text>
+                </Stack>
+                <Bot size={18} color="var(--mantine-color-gray-6)" />
+              </Group>
+            </Card.Section>
+
+            <form onSubmit={handleAISubmit}>
+              <Stack gap="md" mt="md">
+                <TextInput
+                  label="API base URL"
                   id="ai-endpoint"
                   value={aiEndInput}
                   onChange={(e) => setAiEndInput(e.target.value)}
                   placeholder="https://api.openai.com/v1"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ai-model">Model name</Label>
-                <Input
+                <TextInput
+                  label="Model name"
                   id="ai-model"
                   value={aiModelInput}
                   onChange={(e) => setAiModelInput(e.target.value)}
                   placeholder="gpt-4o"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ai-key">API key</Label>
-                <Input
+                <PasswordInput
+                  label="API key"
                   id="ai-key"
-                  type="password"
                   value={aiKeyInput}
                   onChange={(e) => setAiKeyInput(e.target.value)}
                   placeholder="sk-..."
                 />
-              </div>
-              <Button type="submit" className="w-full">
-                <Save size={16} /> Save AI Settings
-              </Button>
+                <Button type="submit" leftSection={<Save size={16} />} color="teal" fullWidth>
+                  Save AI Settings
+                </Button>
+              </Stack>
             </form>
-          </CardContent>
-        </Card>
-      </div>
+          </Card>
 
-      <div className="space-y-4">
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4 text-destructive">
-              <div>
-                <CardTitle>Destructive Options</CardTitle>
-                <CardDescription className="text-destructive/75">Reset local data only when you want a clean workspace.</CardDescription>
-              </div>
-              <Lock size={18} />
-            </div>
-          </CardHeader>
-          <CardContent>
+          <Card withBorder radius="md" p="md">
+            <Card.Section inheritPadding py="xs" withBorder>
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={700} size="sm">Destructive Options</Text>
+                  <Text size="xs" c="dimmed">Reset local data only when you want a clean workspace.</Text>
+                </Stack>
+                <Lock size={18} color="var(--mantine-color-gray-6)" />
+              </Group>
+            </Card.Section>
             <Button
               type="button"
-              variant="destructive"
+              color="red"
+              mt="md"
               onClick={() => setResetConfirmOpen(true)}
-              className="w-full"
+              leftSection={<RotateCcw size={16} />}
+              fullWidth
             >
-              <RotateCcw size={16} /> Reset Local Workspace
+              Reset Local Workspace
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </section>
+          </Card>
+        </Stack>
+      </Group>
+    </Stack>
   );
 };
 
