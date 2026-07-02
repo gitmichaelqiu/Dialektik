@@ -17,8 +17,7 @@ import {
   UserX,
   FileText,
   Sparkles,
-  ArrowRight,
-  RefreshCw
+  ArrowRight
 } from "lucide-react";
 import { 
   Button, 
@@ -37,7 +36,10 @@ import {
   ActionIcon,
   Modal,
   Notification,
-  Loader
+  Loader,
+  Card,
+  Alert,
+  SimpleGrid
 } from "@mantine/core";
 
 export const InRound: React.FC = () => {
