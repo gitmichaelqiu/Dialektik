@@ -17,6 +17,24 @@ import {
   UserRound,
   Trophy
 } from "lucide-react";
+import { 
+  Button, 
+  Card, 
+  TextInput, 
+  Text, 
+  Stack, 
+  Group, 
+  Checkbox, 
+  SegmentedControl, 
+  Paper, 
+  Badge, 
+  Title, 
+  Grid,
+  ScrollArea,
+  Notification,
+  Alert,
+  NavLink
+} from "@mantine/core";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -54,7 +72,6 @@ export const AI: React.FC = () => {
     setActivePage
   } = useApp();
 
-  // Tab View Mode: Chat vs Sparring
   const [viewMode, setViewMode] = useState<"chat" | "sparring">("chat");
 
   // --- AI CHAT MODE STATES ---
@@ -118,7 +135,6 @@ export const AI: React.FC = () => {
   async function loadDocs() {
     const list = await db.documents.toArray();
     setDocuments(list);
-    // Auto-check all documents by default
     const checks: Record<string, boolean> = {};
     list.forEach(d => {
       checks[d.id] = true;
@@ -140,8 +156,6 @@ export const AI: React.FC = () => {
   // --- AUTOCOMPLETE LOGIC ---
   const handleChatInputChange = (val: string) => {
     setChatInput(val);
-
-    // Look for "@" symbol at the end of the text
     const atMatch = val.match(/@([a-zA-Z0-9_\-\s]*)$/);
     if (atMatch) {
       const query = atMatch[1].toLowerCase();
@@ -180,7 +194,6 @@ export const AI: React.FC = () => {
   };
 
   const handleSelectAutocomplete = (doc: DebateDocument) => {
-    // Replace "@query" with "[[folder/title]]"
     const folder = doc.partnerAccess || "private";
     const titleWithoutExt = doc.name.replace(".md", "");
     const mention = `[[${folder}/${titleWithoutExt}]] `;
@@ -216,7 +229,6 @@ export const AI: React.FC = () => {
         return;
       }
 
-      // Collect checked files contents as context
       const contextFiles = documents.filter(d => checkedDocs[d.id]);
       const contextPrompt = contextFiles.map(d => 
         `File Path: [[${d.partnerAccess || "private"}/${d.name.replace(".md", "")}]]\n\`\`\`markdown\n${d.content}\n\`\`\``
@@ -236,7 +248,6 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         model: aiModel
       });
 
-      // Combine system, history, and context prompt
       const combinedPrompt = `Debate Context Prep Files:\n${contextPrompt || "No files cited."}\n\nUser request: ${chatInput}`;
       aiResponseText = await ai.sparringPartner(
         "Chat Consultation",
@@ -268,7 +279,6 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
     }
   };
 
-  // Human-in-the-loop: Parse and apply proposed file updates
   const handleApplyFileEdit = async (msgContent: string) => {
     const editRegex = /\[FILE_EDIT:([^\]]+)\]\n([\s\S]*?)\n\[FILE_EDIT_END\]/;
     const match = msgContent.match(editRegex);
@@ -281,7 +291,6 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
     const folder = parts[0];
     const name = parts[1].endsWith(".md") ? parts[1] : `${parts[1]}.md`;
 
-    // Look up existing file or create one
     const targetDoc = documents.find(d => (d.partnerAccess || "private") === folder && d.name === name);
     if (targetDoc) {
       await db.documents.update(targetDoc.id, {
@@ -366,14 +375,12 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         model: aiModel
       });
 
-      // 1. Get debate response
       responseText = await ai.sparringPartner(
         activeSparSession.topic,
         activeSparSession.side,
         nextMsgs
       );
 
-      // 2. Run judge evaluation
       const evaluationTranscripts = [...nextMsgs, { role: "ai" as const, text: responseText, timestamp: Date.now() }];
       try {
         scorecard = await ai.evaluateSpeech(
@@ -417,414 +424,438 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
 
   if (!aiApiKey) {
     return (
-      <div className="flex-grow flex flex-col items-center justify-center p-8 text-center space-y-6 bg-card border border-border rounded-xl shadow-xs max-w-lg mx-auto my-12 h-[350px]">
-        <Bot size={48} className="text-muted-foreground" />
-        <div className="space-y-2">
-          <h2 className="text-base font-bold text-foreground">AI Debate Assistant Locked</h2>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+      <Card withBorder p="xl" radius="md" style={{ maxWidth: 480, margin: "60px auto", textAlign: "center" }}>
+        <Stack gap="md" align="center">
+          <Bot size={48} color="var(--mantine-color-gray-6)" />
+          <Title order={4}>AI Debate Assistant Locked</Title>
+          <Text size="xs" c="dimmed" style={{ lineHeight: 1.5 }}>
             AI sparring, practice resolutions, and constructive outline features require an OpenAI API Key.
             Configure your AI Settings to activate the assistant.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setActivePage("settings")}
-          className="command primary text-xs py-2 px-5 font-bold rounded-xl"
-        >
-          Open API Settings
-        </button>
-      </div>
+          </Text>
+          <Button onClick={() => setActivePage("settings")} color="teal">
+            Open API Settings
+          </Button>
+        </Stack>
+      </Card>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)] overflow-hidden space-y-4">
-      {/* Top navigation controls mode */}
-      <div className="flex items-center justify-between border-b pb-2 shrink-0 bg-card p-4 rounded-lg border border-border shadow-2xs">
-        <div>
-          <h2 className="text-sm font-bold text-foreground">AI debate Sparring & consultation</h2>
-          <span className="text-[10px] text-muted-foreground block mt-0.5">Explore cases or debate practice rounds with AI.</span>
-        </div>
-        <div className="segmented">
-          <button 
-            type="button"
-            className={viewMode === "chat" ? "selected" : ""} 
-            onClick={() => setViewMode("chat")}
-          >
-            <MessageSquare size={13} className="inline mr-1" /> AI Chat
-          </button>
-          <button 
-            type="button"
-            className={viewMode === "sparring" ? "selected" : ""} 
-            onClick={() => setViewMode("sparring")}
-          >
-            <UserRound size={13} className="inline mr-1" /> AI Sparring
-          </button>
-        </div>
-      </div>
+    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+      {/* View Switcher Header */}
+      <Card withBorder p="sm" radius="md">
+        <Group justify="space-between" align="center">
+          <Stack gap={0}>
+            <Title order={4}>AI Debate Sparring & Consultation</Title>
+            <Text size="xs" c="dimmed">Explore cases or debate practice rounds with AI.</Text>
+          </Stack>
+          <SegmentedControl
+            value={viewMode}
+            onChange={(val) => setViewMode(val as "chat" | "sparring")}
+            data={[
+              { label: "AI Chat", value: "chat" },
+              { label: "AI Sparring", value: "sparring" }
+            ]}
+            color="teal"
+          />
+        </Group>
+      </Card>
 
       {viewMode === "chat" ? (
         /* ------------------ AI CHAT CONSULTATION LAYOUT ------------------ */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-[200px_1fr_240px] gap-4 min-h-0 overflow-hidden">
-          
+        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
           {/* Left panel conversations */}
-          <aside className="conversation-rail flex flex-col justify-between overflow-y-auto bg-card border border-border rounded-xl">
-            <div className="space-y-4">
-              <button 
-                type="button"
-                className="command primary w-full text-xs"
-                onClick={handleNewConversation}
-              >
-                New Chat
-              </button>
-
-              <div className="space-y-2">
-                {conversations.map(conv => (
-                  <button
-                    key={conv.id}
-                    type="button"
-                    onClick={() => setActiveConversationId(conv.id)}
-                    className={`conversation ${conv.id === activeConversation.id ? "selected" : ""}`}
-                  >
-                    <MessageSquare size={13} />
-                    <span className="truncate">{conv.title}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
+          <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                <Button onClick={handleNewConversation} color="teal" size="xs" fullWidth>
+                  New Chat
+                </Button>
+                <ScrollArea style={{ flex: 1 }}>
+                  <Stack gap="xs">
+                    {conversations.map(conv => (
+                      <NavLink
+                        key={conv.id}
+                        active={conv.id === activeConversation.id}
+                        label={conv.title}
+                        leftSection={<MessageSquare size={14} />}
+                        onClick={() => setActiveConversationId(conv.id)}
+                        variant="light"
+                        color="teal"
+                        styles={{
+                          root: {
+                            borderRadius: "var(--mantine-radius-md)",
+                          }
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </ScrollArea>
+              </Stack>
+            </Card>
+          </Grid.Col>
 
           {/* Middle panel chat logs */}
-          <section className="chat-panel bg-card border border-border rounded-xl relative flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map((msg, idx) => {
-                const isSystem = msg.role === "assistant";
-                const hasFileProposal = msg.content.includes("[FILE_EDIT:");
+          <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+              <Stack gap="xs" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                {/* Message Log scrollarea */}
+                <ScrollArea style={{ flex: 1 }} p="md">
+                  <Stack gap="md">
+                    {chatMessages.map((msg, idx) => {
+                      const isSystem = msg.role === "assistant";
+                      const hasFileProposal = msg.content.includes("[FILE_EDIT:");
 
-                return (
-                  <div key={idx} className={`flex gap-3 max-w-2xl ${isSystem ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
-                    <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                      isSystem ? "bg-muted/50 text-foreground border-border" : "bg-primary/10 text-primary border-primary/20"
-                    }`}>
-                      {isSystem ? <Bot size={15} /> : <User size={15} />}
-                    </div>
+                      return (
+                        <Group key={idx} justify={isSystem ? "flex-start" : "flex-end"} align="flex-start" gap="xs">
+                          {isSystem && (
+                            <Paper withBorder p={4} radius="md" bg="var(--mantine-color-gray-1)">
+                              <Bot size={15} />
+                            </Paper>
+                          )}
+                          <Stack gap={4} style={{ maxWidth: "80%" }}>
+                            <Paper 
+                              withBorder 
+                              p="sm" 
+                              radius="md" 
+                              bg={isSystem ? "var(--mantine-color-gray-0)" : "var(--mantine-color-teal-0)"}
+                            >
+                              <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                                {msg.content}
+                              </Text>
+                            </Paper>
 
-                    <div className="space-y-2">
-                      <div className={`p-4 rounded-xl text-xs leading-relaxed ${
-                        isSystem 
-                          ? "bg-muted/50 border rounded-tl-none border-border text-foreground" 
-                          : "bg-secondary border rounded-tr-none border-border text-secondary-foreground"
-                      }`}>
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                      </div>
+                            {/* Proposals handler */}
+                            {hasFileProposal && (
+                              <Group gap="xs" mt="xs">
+                                <Button 
+                                  size="xs" 
+                                  color="teal" 
+                                  leftSection={<Check size={12} />}
+                                  onClick={() => handleApplyFileEdit(msg.content)}
+                                >
+                                  Accept Proposal
+                                </Button>
+                                <Button 
+                                  size="xs" 
+                                  variant="outline" 
+                                  color="gray" 
+                                  leftSection={<X size={12} />}
+                                  onClick={() => notify("Proposal rejected.")}
+                                >
+                                  Decline
+                                </Button>
+                              </Group>
+                            )}
+                          </Stack>
+                          {!isSystem && (
+                            <Paper withBorder p={4} radius="md" bg="var(--mantine-color-teal-1)">
+                              <User size={15} />
+                            </Paper>
+                          )}
+                        </Group>
+                      );
+                    })}
 
-                      {/* Apply proposed file update action */}
-                      {hasFileProposal && (
-                        <div className="flex gap-2">
-                          <button 
-                            type="button"
-                            onClick={() => handleApplyFileEdit(msg.content)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-primary-foreground text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold shadow-xs"
-                          >
-                            <Check size={11} /> Accept Proposal
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => notify("Proposal rejected.")}
-                            className="bg-muted border hover:bg-accent text-muted-foreground text-[10px] py-1 px-3 rounded flex items-center gap-1 font-bold"
-                          >
-                            <X size={11} /> Decline
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    {chatBusy && (
+                      <Notification loading title="Thinking" withCloseButton={false} color="teal">
+                        {thinkingText}
+                      </Notification>
+                    )}
 
-              {chatBusy && (
-                <div className="thinking-block">
-                  <button type="button" onClick={() => setThinkingOpen(!thinkingOpen)}>
-                    <Bot size={14} className="animate-bounce" />
-                    <span>Thinking</span>
-                  </button>
-                  {thinkingOpen && <p>{thinkingText}</p>}
-                </div>
-              )}
-              {!chatBusy && thinkingText && (
-                <div className="thinking-block collapsed">
-                  <button type="button" onClick={() => setThinkingOpen(!thinkingOpen)}>
-                    <Bot size={14} />
-                    <span>Thinking</span>
-                  </button>
-                  {thinkingOpen && <p>{thinkingText}</p>}
-                </div>
-              )}
-            </div>
+                    {!chatBusy && thinkingText && (
+                      <Alert color="teal" icon={<Bot size={16} />} title="Response Log">
+                        <Text size="xs">{thinkingText}</Text>
+                      </Alert>
+                    )}
+                  </Stack>
+                </ScrollArea>
 
-            {/* Chat Composer */}
-            <form onSubmit={handleSendChatMessage} className="p-4 border-t bg-muted/50 flex gap-2 relative">
-              {/* Autocomplete box overlay */}
-              {showSuggest && (
-                <div className="absolute bottom-full left-4 mb-2 w-64 bg-card border border-border rounded-lg shadow-2xl p-1 z-35 max-h-48 overflow-y-auto">
-                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-2 py-1 border-b">
-                    Mention prep file...
-                  </div>
-                  {suggestDocs.map(d => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => handleSelectAutocomplete(d)}
-                      className="w-full text-left text-[11px] text-foreground hover:bg-muted p-2 rounded flex items-center gap-1.5"
+                {/* Composer Form */}
+                <form onSubmit={handleSendChatMessage} style={{ borderTop: "1px solid var(--mantine-color-gray-2)", padding: "var(--mantine-spacing-sm)", backgroundColor: "var(--mantine-color-gray-0)", position: "relative" }}>
+                  {showSuggest && (
+                    <Paper 
+                      withBorder 
+                      p="xs" 
+                      radius="md" 
+                      style={{ position: "absolute", bottom: "100%", left: "var(--mantine-spacing-sm)", zIndex: 50, width: 280, maxHeight: 180, overflowY: "auto" }}
                     >
-                      <FileText size={11} className="text-primary" />
-                      <span>{d.partnerAccess || "private"}/{d.name.replace(".md", "")}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                      <Stack gap="xs">
+                        <Text size="xs" fw={700} c="dimmed">Mention prep file...</Text>
+                        {suggestDocs.map(d => (
+                          <Button
+                            key={d.id}
+                            variant="subtle"
+                            color="gray"
+                            size="xs"
+                            onClick={() => handleSelectAutocomplete(d)}
+                            leftSection={<FileText size={12} />}
+                            justify="flex-start"
+                            styles={{ inner: { justifyContent: "flex-start" } }}
+                          >
+                            {d.partnerAccess || "private"}/{d.name.replace(".md", "")}
+                          </Button>
+                        ))}
+                      </Stack>
+                    </Paper>
+                  )}
+                  
+                  <Group gap="xs">
+                    <TextInput
+                      style={{ flex: 1 }}
+                      value={chatInput}
+                      onChange={(e) => handleChatInputChange(e.target.value)}
+                      placeholder="Ask about case contentions... Type @ to autocomplete wiki references."
+                      disabled={chatBusy}
+                    />
+                    <Button type="submit" disabled={chatBusy || !chatInput.trim()} color="teal">
+                      <Send size={14} />
+                    </Button>
+                  </Group>
+                </form>
+              </Stack>
+            </Card>
+          </Grid.Col>
 
-              <input 
-                value={chatInput}
-                onChange={(e) => handleChatInputChange(e.target.value)}
-                placeholder="Ask about case contentions... Type @ to autocomplete wiki references."
-                disabled={chatBusy}
-                className="flex-grow text-xs"
-              />
-              <button 
-                type="submit" 
-                disabled={chatBusy || !chatInput.trim()}
-                className="command primary py-2 px-3 shrink-0"
-              >
-                <Send size={13} />
-              </button>
-            </form>
-          </section>
-
-          {/* Right panel: Cited Files checklists */}
-          <aside className="context-panel bg-card border border-border rounded-xl overflow-y-auto">
-            <div className="panel-header compact border-b pb-2">
-              <h2>Cited Files</h2>
-              <FileText size={16} />
-            </div>
-            <p className="text-[10px] text-muted-foreground mb-3">AI consults only checked files.</p>
-            <div className="space-y-2">
-              {documents.map(d => (
-                <label key={d.id} className="check-row text-xs text-muted-foreground hover:text-foreground cursor-pointer">
-                  <input 
-                    type="checkbox"
-                    checked={checkedDocs[d.id] || false}
-                    onChange={(e) => setCheckedDocs(prev => ({ ...prev, [d.id]: e.target.checked }))}
-                    className="rounded border-border text-primary"
-                  />
-                  <span className="truncate">{d.partnerAccess || "private"}/{d.name}</span>
-                </label>
-              ))}
-              {documents.length === 0 && (
-                <span className="text-[10px] text-muted-foreground italic block py-4 text-center">No case files created yet.</span>
-              )}
-            </div>
-          </aside>
-
-        </div>
+          {/* Right panel: Cited Files checklist */}
+          <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                <Group justify="space-between" align="center">
+                  <Text fw={700} size="sm">Cited Files</Text>
+                  <FileText size={16} color="var(--mantine-color-gray-6)" />
+                </Group>
+                <Text size="xs" c="dimmed">AI consults only checked files.</Text>
+                
+                <ScrollArea style={{ flex: 1 }}>
+                  <Stack gap="xs">
+                    {documents.map(d => (
+                      <Checkbox
+                        key={d.id}
+                        checked={checkedDocs[d.id] || false}
+                        label={`${d.partnerAccess || "private"}/${d.name}`}
+                        onChange={(e) => setCheckedDocs(prev => ({ ...prev, [d.id]: e.target.checked }))}
+                        color="teal"
+                      />
+                    ))}
+                    {documents.length === 0 && (
+                      <Text size="xs" c="dimmed" style={{ italic: "true" }}>No case files created yet.</Text>
+                    )}
+                  </Stack>
+                </ScrollArea>
+              </Stack>
+            </Card>
+          </Grid.Col>
+        </Grid>
       ) : (
         /* ------------------ AI SPARRING MODE LAYOUT ------------------ */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4 min-h-0 overflow-hidden">
-          
+        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
           {/* Middle Sparring Arena */}
-          <section className="bg-card border border-border rounded-xl flex flex-col min-h-0 overflow-hidden">
-            {!isSparringActive ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-5">
-                <Bot size={40} className="text-primary" />
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Practice Debate Arena</h3>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    Spar against a world-class AI debater. Practice speech outlines, receive judge feedback and analytics.
-                  </p>
-                </div>
+          <Grid.Col span={8} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+              {!isSparringActive ? (
+                <Stack align="center" justify="center" style={{ flex: 1, padding: "var(--mantine-spacing-xl)" }} gap="md">
+                  <Bot size={40} color="var(--mantine-color-teal-6)" />
+                  <Stack gap={0} align="center">
+                    <Title order={4}>Practice Debate Arena</Title>
+                    <Text size="xs" c="dimmed" style={{ lineHeight: 1.5, textAlign: "center", maxWidth: 360 }}>
+                      Spar against a world-class AI debater. Practice speech outlines, receive judge feedback and analytics.
+                    </Text>
+                  </Stack>
 
-                <div className="w-full space-y-3 text-left">
-                  <label className="field compact-field">
-                    <span>Debate Topic Resolution</span>
-                  <input 
-                      value={topic} 
-                      onChange={(e) => setTopic(e.target.value)} 
+                  <Stack gap="sm" style={{ width: "100%", maxWidth: 400 }}>
+                    <TextInput
+                      label="Debate Topic Resolution"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
                       placeholder="Resolved: The United States should increase trade tariffs..."
                       required
                     />
-                  </label>
-                  {pastSparSessions.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="eyebrow">Past Topics</span>
-                      <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                        {pastSparSessions.map(session => (
-                          <button
-                            key={session.id}
-                            type="button"
-                            className="conversation"
-                            onClick={() => {
-                              setTopic(session.topic);
-                              setSide(session.side);
-                            }}
-                          >
-                            <Trophy size={12} />
-                            <span className="truncate">{session.topic}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="segmented">
-                      <button 
-                        type="button"
-                        className={side === "affirmative" ? "selected" : ""} 
-                        onClick={() => setSide("affirmative")}
+
+                    {pastSparSessions.length > 0 && (
+                      <Stack gap="xs">
+                        <Text size="xs" fw={700} c="dimmed">Past Topics</Text>
+                        <ScrollArea style={{ maxHeight: 110 }}>
+                          <Stack gap="xs">
+                            {pastSparSessions.map(session => (
+                              <NavLink
+                                key={session.id}
+                                label={session.topic}
+                                leftSection={<Trophy size={12} />}
+                                onClick={() => {
+                                  setTopic(session.topic);
+                                  setSide(session.side);
+                                }}
+                                styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+                              />
+                            ))}
+                          </Stack>
+                        </ScrollArea>
+                      </Stack>
+                    )}
+
+                    <Group justify="space-between" mt="md">
+                      <SegmentedControl
+                        value={side}
+                        onChange={(val) => setSide(val as any)}
+                        data={[
+                          { label: "Affirmative", value: "affirmative" },
+                          { label: "Negative", value: "negative" }
+                        ]}
+                        color="teal"
+                      />
+                      <Button 
+                        onClick={handleStartSparring} 
+                        disabled={!topic.trim()}
+                        color="teal"
+                        leftSection={<Play size={14} />}
                       >
-                        Affirmative
-                      </button>
-                      <button 
-                        type="button"
-                        className={side === "negative" ? "selected" : ""} 
-                        onClick={() => setSide("negative")}
-                      >
-                        Negative
-                      </button>
-                    </div>
+                        Spar
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Stack>
+              ) : (
+                <Stack gap="xs" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Group justify="space-between" p="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", backgroundColor: "var(--mantine-color-gray-0)" }}>
+                    <Stack gap={0} style={{ maxWidth: "70%" }}>
+                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Sparring Resolution</Text>
+                      <Text size="xs" fw={700} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {activeSparSession?.topic}
+                      </Text>
+                    </Stack>
+                    <Button variant="outline" color="red" size="xs" onClick={handleResetSparring}>
+                      Reset Sparring
+                    </Button>
+                  </Group>
 
-                    <button 
-                      type="button"
-                      onClick={handleStartSparring}
-                      disabled={!topic.trim()}
-                      className="command primary py-1 px-4"
-                    >
-                      <Play size={13} className="inline mr-1" /> Spar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="p-4 border-b bg-muted/50 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <span className="eyebrow block">Sparring Resolution</span>
-                    <strong className="text-xs text-foreground block truncate">{activeSparSession?.topic}</strong>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={handleResetSparring}
-                    className="command py-1.5 px-3 text-xs"
-                  >
-                    Reset Sparring
-                  </button>
-                </div>
+                  <ScrollArea style={{ flex: 1 }} p="md">
+                    <Stack gap="md">
+                      {sparMessages.map((msg, idx) => {
+                        const isAI = msg.role === "ai";
+                        return (
+                          <Group key={idx} justify={isAI ? "flex-start" : "flex-end"} align="flex-start" gap="xs">
+                            {isAI && (
+                              <Paper withBorder p={4} radius="md" bg="var(--mantine-color-gray-1)">
+                                <Bot size={15} />
+                              </Paper>
+                            )}
+                            <Paper 
+                              withBorder 
+                              p="sm" 
+                              radius="md" 
+                              style={{ maxWidth: "80%" }}
+                              bg={isAI ? "var(--mantine-color-gray-0)" : "var(--mantine-color-teal-0)"}
+                            >
+                              <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                                {msg.text}
+                              </Text>
+                            </Paper>
+                            {!isAI && (
+                              <Paper withBorder p={4} radius="md" bg="var(--mantine-color-teal-1)">
+                                <User size={15} />
+                              </Paper>
+                            )}
+                          </Group>
+                        );
+                      })}
+                      {sparBusy && (
+                        <Notification loading title="AI Partner" withCloseButton={false} color="teal">
+                          AI Partner is counter-arguing...
+                        </Notification>
+                      )}
+                    </Stack>
+                  </ScrollArea>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {sparMessages.map((msg, idx) => {
-                    const isAI = msg.role === "ai";
-                    return (
-                      <div key={idx} className={`flex gap-3 max-w-xl ${isAI ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
-                        <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center border ${
-                          isAI ? "bg-muted/50 text-foreground border-border" : "bg-primary/10 text-primary border-primary/20"
-                        }`}>
-                          {isAI ? <Bot size={15} /> : <User size={15} />}
-                        </div>
-
-                        <div className={`p-4 rounded-xl text-xs leading-relaxed ${
-                          isAI 
-                            ? "bg-muted/50 border rounded-tl-none border-border text-foreground" 
-                            : "bg-secondary border rounded-tr-none border-border text-secondary-foreground"
-                        }`}>
-                          <p className="whitespace-pre-wrap">{msg.text}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {sparBusy && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
-                      <Bot size={15} className="animate-bounce" />
-                      AI Partner is counter-arguing...
-                    </div>
-                  )}
-                </div>
-
-                <form onSubmit={handleSendSparMessage} className="p-4 border-t bg-muted/50 flex gap-2">
-                  <input 
-                    value={sparInput}
-                    onChange={(e) => setSparInput(e.target.value)}
-                    placeholder="Enter your debate constructive speech, counter-points or rebuttal..."
-                    disabled={sparBusy}
-                    className="flex-grow text-xs"
-                  />
-                  <button 
-                    type="submit" 
-                    disabled={sparBusy || !sparInput.trim()}
-                    className="command primary py-2 px-3 shrink-0"
-                  >
-                    <Send size={13} />
-                  </button>
-                </form>
-              </>
-            )}
-          </section>
+                  <form onSubmit={handleSendSparMessage} style={{ borderTop: "1px solid var(--mantine-color-gray-2)", padding: "var(--mantine-spacing-sm)", backgroundColor: "var(--mantine-color-gray-0)" }}>
+                    <Group gap="xs">
+                      <TextInput
+                        style={{ flex: 1 }}
+                        value={sparInput}
+                        onChange={(e) => setSparInput(e.target.value)}
+                        placeholder="Enter your debate constructive speech, counter-points or rebuttal..."
+                        disabled={sparBusy}
+                      />
+                      <Button type="submit" disabled={sparBusy || !sparInput.trim()} color="teal">
+                        <Send size={14} />
+                      </Button>
+                    </Group>
+                  </form>
+                </Stack>
+              )}
+            </Card>
+          </Grid.Col>
 
           {/* Right scorecard pane */}
-          <aside className="bg-card border border-border rounded-xl overflow-y-auto p-4 flex flex-col">
-            <div className="panel-header compact border-b pb-2 mb-3">
-              <h2>Judge Scorecard</h2>
-              <Award size={17} className="text-primary" />
-            </div>
+          <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                <Group justify="space-between" align="center">
+                  <Text fw={700} size="sm">Judge Scorecard</Text>
+                  <Award size={17} color="var(--mantine-color-teal-6)" />
+                </Group>
+                
+                {activeSparSession?.scorecard ? (
+                  <ScrollArea style={{ flex: 1 }}>
+                    <Stack gap="md">
+                      <Card withBorder p="md" radius="md" bg="var(--mantine-color-gray-0)" style={{ textAlign: "center" }}>
+                        <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Performance Score</Text>
+                        <Text size="xl" fw={900} c="teal">
+                          {activeSparSession.scorecard.score}<span style={{ fontSize: "11px", color: "var(--mantine-color-gray-5)" }}>/100</span>
+                        </Text>
+                      </Card>
 
-            {activeSparSession?.scorecard ? (
-              <div className="space-y-4 flex-grow overflow-y-auto">
-                <div className="text-center py-4 bg-muted/50 rounded-xl border border-border">
-                  <span className="eyebrow block">Performance Score</span>
-                  <div className="text-3xl font-extrabold text-primary">
-                    {activeSparSession.scorecard.score}<span className="text-[11px] text-muted-foreground">/100</span>
-                  </div>
-                </div>
+                      <Stack gap="xs">
+                        <Text size="xs" fw={700} c="teal">Strengths</Text>
+                        <Stack gap={4}>
+                          {activeSparSession.scorecard.strengths.map((str, i) => (
+                            <Group key={i} gap="xs" align="flex-start" wrap="nowrap">
+                              <Text size="xs" c="dimmed">•</Text>
+                              <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>{str}</Text>
+                            </Group>
+                          ))}
+                        </Stack>
+                      </Stack>
 
-                <div className="space-y-2">
-                  <span className="eyebrow block text-emerald-600 font-bold">Strengths</span>
-                  <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
-                    {activeSparSession.scorecard.strengths.map((str, i) => (
-                      <li key={i}>{str}</li>
-                    ))}
-                  </ul>
-                </div>
+                      <Stack gap="xs">
+                        <Text size="xs" fw={700} c="red">Weaknesses</Text>
+                        <Stack gap={4}>
+                          {activeSparSession.scorecard.weaknesses.map((weak, i) => (
+                            <Group key={i} gap="xs" align="flex-start" wrap="nowrap">
+                              <Text size="xs" c="dimmed">•</Text>
+                              <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>{weak}</Text>
+                            </Group>
+                          ))}
+                        </Stack>
+                      </Stack>
 
-                <div className="space-y-2">
-                  <span className="eyebrow block text-destructive font-bold">Weaknesses</span>
-                  <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
-                    {activeSparSession.scorecard.weaknesses.map((weak, i) => (
-                      <li key={i}>{weak}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="space-y-2">
-                  <span className="eyebrow block text-primary font-bold">Recommendations</span>
-                  <ul className="text-xs text-muted-foreground space-y-1.5 pl-1">
-                    {activeSparSession.scorecard.suggestions.map((sug, i) => (
-                      <li key={i} className="flex items-start gap-1">
-                        <ArrowRight size={11} className="text-primary shrink-0 mt-0.5" />
-                        <span>{sug}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col justify-center items-center text-center text-muted-foreground text-xs gap-2 py-10">
-                <Trophy size={20} className="text-muted" />
-                <span>Scorecard metrics will render after the first exchange.</span>
-              </div>
-            )}
-          </aside>
-
-        </div>
+                      <Stack gap="xs">
+                        <Text size="xs" fw={700} c="teal">Recommendations</Text>
+                        <Stack gap={4}>
+                          {activeSparSession.scorecard.suggestions.map((sug, i) => (
+                            <Group key={i} gap="xs" align="flex-start" wrap="nowrap">
+                              <ArrowRight size={12} color="var(--mantine-color-teal-6)" style={{ marginTop: 2, flexShrink: 0 }} />
+                              <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>{sug}</Text>
+                            </Group>
+                          ))}
+                        </Stack>
+                      </Stack>
+                    </Stack>
+                  </ScrollArea>
+                ) : (
+                  <Stack align="center" justify="center" style={{ flex: 1 }} gap="xs">
+                    <Trophy size={24} color="var(--mantine-color-gray-3)" />
+                    <Text size="xs" c="dimmed" style={{ textAlign: "center" }}>
+                      Scorecard metrics will render after the first exchange.
+                    </Text>
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+          </Grid.Col>
+        </Grid>
       )}
-    </div>
+    </Stack>
   );
 };
 
