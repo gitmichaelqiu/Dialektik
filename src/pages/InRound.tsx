@@ -20,6 +20,25 @@ import {
   ArrowRight,
   RefreshCw
 } from "lucide-react";
+import { 
+  Button, 
+  TextInput, 
+  Textarea,
+  Text, 
+  Stack, 
+  Group, 
+  Select,
+  SegmentedControl,
+  Paper, 
+  Badge, 
+  Title, 
+  Grid,
+  ScrollArea,
+  ActionIcon,
+  Modal,
+  Notification,
+  Loader
+} from "@mantine/core";
 
 export const InRound: React.FC = () => {
   const { 
@@ -66,13 +85,13 @@ export const InRound: React.FC = () => {
   // History state for welcome page
   const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
 
-  // Trigger brief top-right notification alert
+  // Trigger brief notification alert
   const triggerToast = (msg: string) => {
     setToastNotification(msg);
     setTimeout(() => setToastNotification(null), 3000);
   };
 
-  // Local active speaker state (whose notes are viewed/edited locally)
+  // Local active speaker state
   const [localActiveSpeakerId, setLocalActiveSpeakerId] = useState<string | null>(null);
   const [showPositionsOnly, setShowPositionsOnly] = useState(false);
 
@@ -81,7 +100,6 @@ export const InRound: React.FC = () => {
     speakerNotes: {}
   });
 
-  // Helper to broadcast session-state, stripping private notes and lobby handouts
   const broadcastSessionState = (state: SessionState) => {
     const broadcastState = sanitizeSessionForBroadcast(state);
     if (state.status === "lobby") {
@@ -117,10 +135,8 @@ export const InRound: React.FC = () => {
     }
     if (!matchName || !groupName) return;
 
-    // Generate room code (4-digits/letters)
     const code = Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    // Initialize state
     const initialSession: SessionState = {
       matchName,
       groupName,
@@ -137,7 +153,6 @@ export const InRound: React.FC = () => {
     setSession(initialSession);
     await startSession(code, true);
 
-    // Auto copy room code to clipboard
     try {
       await navigator.clipboard.writeText(code);
       triggerToast(`Room Code ${code} copied to clipboard!`);
@@ -159,7 +174,6 @@ export const InRound: React.FC = () => {
     if (!joinRoomCode) return;
     const cleanCode = joinRoomCode.trim().toUpperCase();
 
-    // Start PeerJS connection as Client
     await startSession(cleanCode, false);
     setStartMode(null);
     triggerToast("Connecting to Host room...");
@@ -187,7 +201,6 @@ export const InRound: React.FC = () => {
       triggerToast("Prep time expired.");
     });
 
-    // Restore timer remaining and running states on tab mount
     setTimerRemaining(debateTimerRef.current.getRemaining());
     setIsTimerRunning(debateTimerRef.current.getState().isRunning);
     setPrepRemaining(prepTimerRef.current.getRemaining());
@@ -211,7 +224,6 @@ export const InRound: React.FC = () => {
 
     mesh.onMessage((senderId, msg) => {
       if (msg.type === "join-request") {
-        // Host receives join request
         if (isHost) {
           const newDebater: Debater = {
             id: msg.payload?.id || senderId,
@@ -228,7 +240,6 @@ export const InRound: React.FC = () => {
           triggerToast(`Join request from ${newDebater.name}`);
         }
       } else if (msg.type === "session-state") {
-        // Client receives synced session state
         if (!isHost) {
           const syncedSession: SessionState = msg.payload;
           setSession(prev => ({
@@ -236,7 +247,6 @@ export const InRound: React.FC = () => {
             speakerNotes: prev?.speakerNotes || {}
           }));
 
-          // Update durations if changed
           if (debateTimerRef.current && syncedSession.speechDuration !== debateTimerRef.current.getState().duration / 1000) {
             debateTimerRef.current.reset(syncedSession.speechDuration);
             setTimerRemaining(syncedSession.speechDuration * 1000);
@@ -253,7 +263,6 @@ export const InRound: React.FC = () => {
           }
         }
       } else if (msg.type === "timer-action") {
-        // Client receives timer controls
         const { timerType, action, durationSeconds, targetTime } = msg.payload;
         const targetTimer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
         const setterRunning = timerType === "speech" ? setIsTimerRunning : setIsPrepRunning;
@@ -265,7 +274,6 @@ export const InRound: React.FC = () => {
             targetTimer.start();
             setterRunning(true);
 
-            // Alert target speaker client
             if (timerType === "speech" && session?.currentSpeakerId === userId) {
               triggerToast("Your speech timer has started.");
             }
@@ -278,9 +286,7 @@ export const InRound: React.FC = () => {
           }
         }
       } else if (msg.type === "version-reject" || msg.type === "handshake") {
-        // Standard WebRTC link handshakes
         if (!isHost) {
-          // Client sends join request immediately after WebRTC handshake
           mesh.sendToPeer(senderId, {
             type: "join-request",
             senderId: mesh.peerId,
@@ -291,7 +297,6 @@ export const InRound: React.FC = () => {
     });
   }, [isRoundStarted, isHost, mesh, userId, userName, session?.speechDuration, session?.prepDuration, session?.currentSpeakerId]);
 
-  // Host Action: Approve connecting debater
   const handleApproveDebater = (request: Debater) => {
     if (!session) return;
     const updatedDebaters = session.debaters.some(d => d.id === request.id)
@@ -307,18 +312,16 @@ export const InRound: React.FC = () => {
     triggerToast(`${request.name} approved.`);
   };
 
-  // Host Action: Reject connecting debater
   const handleRejectDebater = (request: Debater) => {
     setPendingRequests(prev => prev.filter(r => r.id !== request.id));
     mesh.sendToPeer(request.connectionId || request.id, {
-      type: "timer-action", // reuse command to exit client
+      type: "timer-action",
       senderId: mesh.peerId,
-      payload: { action: "reset", timerType: "speech", durationSeconds: 0 } // dummy to terminate
+      payload: { action: "reset", timerType: "speech", durationSeconds: 0 }
     });
     triggerToast(`${request.name} rejected.`);
   };
 
-  // Host updates debater side/position
   const updateDebaterConfig = (debaterId: string, side: "affirmative" | "negative", position: number) => {
     if (!session) return;
     const boundedPosition = Math.min(session.teamSize, Math.max(1, position));
@@ -333,7 +336,6 @@ export const InRound: React.FC = () => {
     broadcastSessionState(nextSession);
   };
 
-  // Host updates handout fields
   const handleUpdateHandout = (fields: Partial<Handout>) => {
     if (!session) return;
     const nextSession = {
@@ -341,14 +343,11 @@ export const InRound: React.FC = () => {
       handout: { ...session.handout, ...fields }
     };
     setSession(nextSession);
-    // ONLY broadcast handout changes if the session is already active!
-    // During lobby phase, handouts are kept local to the host until started.
     if (session.status === "active") {
       broadcastSessionState(nextSession);
     }
   };
 
-  // Select speaker to view/write notes (host updates globally, client updates locally)
   const handleSelectSpeaker = (debaterId: string) => {
     setLocalActiveSpeakerId(debaterId);
     if (isHost && session) {
@@ -358,11 +357,9 @@ export const InRound: React.FC = () => {
     }
   };
 
-  // Host starts the active debate round
   const handleStartDebate = () => {
     if (!session) return;
     
-    // Check constraints
     if (!session.handout.title.trim() || !session.handout.problem.trim()) {
       triggerToast("Complete the handout title and problem before starting.");
       return;
@@ -391,7 +388,6 @@ export const InRound: React.FC = () => {
     triggerToast("Debate Round Started! Handouts distributed.");
   };
 
-  // Parse custom MM:SS duration
   const parseMMSS = (val: string): number => {
     const parts = val.split(":");
     if (parts.length === 2) {
@@ -404,7 +400,6 @@ export const InRound: React.FC = () => {
     return 240;
   };
 
-  // Host updates duration settings
   const handleTimerDurationChange = (timerType: "speech" | "prep", val: string) => {
     if (!session) return;
     const seconds = parseMMSS(val);
@@ -414,7 +409,6 @@ export const InRound: React.FC = () => {
     };
     setSession(nextSession);
 
-    // Reset local timer instance
     const timer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
     if (timer) {
       timer.reset(seconds);
@@ -428,7 +422,6 @@ export const InRound: React.FC = () => {
     broadcastSessionState(nextSession);
   };
 
-  // Sync timers trigger actions
   const handleTimerClick = (timerType: "speech" | "prep", action: "start" | "pause" | "reset") => {
     const targetTimer = timerType === "speech" ? debateTimerRef.current : prepTimerRef.current;
     const setterRunning = timerType === "speech" ? setIsTimerRunning : setIsPrepRunning;
@@ -450,7 +443,6 @@ export const InRound: React.FC = () => {
         }
       });
 
-      // Alert speaker client
       if (timerType === "speech" && session?.currentSpeakerId === userId) {
         triggerToast("Your speech timer has started.");
       }
@@ -473,7 +465,6 @@ export const InRound: React.FC = () => {
     }
   };
 
-  // Both: Log speaker notes
   const handleUpdateSpeakerNote = (text: string) => {
     if (!session || !activeSpeakerId) return;
     const nextSession = {
@@ -486,7 +477,6 @@ export const InRound: React.FC = () => {
     setSession(nextSession);
   };
 
-  // AI Outlining fill notes
   const handleAIOutlineFill = async () => {
     if (!session || !activeSpeakerId) return;
     try {
@@ -518,7 +508,6 @@ export const InRound: React.FC = () => {
     }
   };
 
-  // Host ends round, saves logs
   const requestEndRound = (winner: "affirmative" | "negative") => {
     setPendingWinner(winner);
   };
@@ -528,7 +517,6 @@ export const InRound: React.FC = () => {
     if (!session) return;
     if (!winner) return;
 
-    // Archive session logs into Dexie history store
     const roundRecord: TournamentRecord = {
       id: `history-${Math.random().toString(36).substring(2, 11)}`,
       matchName: session.matchName,
@@ -547,7 +535,6 @@ export const InRound: React.FC = () => {
 
     await db.history.put(roundRecord);
     
-    // Broadcast end session status to clients
     const nextSession = { ...session, status: "ended" as const, winner };
     setSession(nextSession);
     broadcastSessionState(nextSession);
@@ -558,7 +545,6 @@ export const InRound: React.FC = () => {
     setActivePage("history");
   };
 
-  // Exit lobby
   const handleExitSession = () => {
     setExitConfirmOpen(true);
   };
@@ -570,7 +556,6 @@ export const InRound: React.FC = () => {
     triggerToast("Exited session.");
   };
 
-  // Format countdowns
   const formatCountdown = (ms: number): string => {
     const totalSeconds = Math.ceil(ms / 1000);
     const m = Math.floor(totalSeconds / 60);
@@ -578,598 +563,583 @@ export const InRound: React.FC = () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Find current speaker debater (using local selected speaker, fallback to global active speaker)
   const activeSpeakerId = localActiveSpeakerId || session?.currentSpeakerId || "";
   const currentSpeaker = session?.debaters.find(d => d.id === activeSpeakerId);
   const currentSpeakerNotes = activeSpeakerId ? session?.speakerNotes[activeSpeakerId] || "" : "";
   const myDebaterInfo = session?.debaters.find(d => d.id === userId);
 
   return (
-    <div className="space-y-6 h-full flex flex-col overflow-hidden">
-      {/* Toast Alert */}
+    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
       {toastNotification && (
-        <div className="toast" role="status">
+        <Notification color="teal" onClose={() => setToastNotification(null)}>
           {toastNotification}
-        </div>
+        </Notification>
       )}
 
-      {exitConfirmOpen && (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="exit-session-title">
-          <div className="confirm-dialog">
-            <h2 id="exit-session-title">Exit Session?</h2>
-            <p>Disconnect from the current room and return to the start screen.</p>
-            <div className="confirm-actions">
-              <button type="button" className="command" onClick={() => setExitConfirmOpen(false)}>
-                Cancel
-              </button>
-              <button type="button" className="command danger-command inline-danger" onClick={confirmExitSession}>
-                Exit Session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal 
+        opened={exitConfirmOpen} 
+        onClose={() => setExitConfirmOpen(false)} 
+        title={<Text fw={700}>Exit Session?</Text>}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">Disconnect from the current room and return to the start screen.</Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={() => setExitConfirmOpen(false)}>Cancel</Button>
+            <Button color="red" onClick={confirmExitSession}>Exit Session</Button>
+          </Group>
+        </Stack>
+      </Modal>
 
-      {pendingWinner && (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="end-round-title">
-          <div className="confirm-dialog">
-            <h2 id="end-round-title">End Debate?</h2>
-            <p>Record {pendingWinner.toUpperCase()} as the winner and save this round to history.</p>
-            <div className="confirm-actions">
-              <button type="button" className="command" onClick={() => setPendingWinner(null)}>
-                Cancel
-              </button>
-              <button type="button" className="command primary" onClick={confirmEndRound}>
-                Save Round
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal 
+        opened={!!pendingWinner} 
+        onClose={() => setPendingWinner(null)} 
+        title={<Text fw={700}>End Debate?</Text>}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">Record {pendingWinner?.toUpperCase()} as the winner and save this round to history.</Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={() => setPendingWinner(null)}>Cancel</Button>
+            <Button color="teal" onClick={confirmEndRound}>Save Round</Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {isRoundStarted && !session ? (
         /* ------------------ CONNECTING LOADER SCREEN ------------------ */
-        <div className="flex-grow flex flex-col items-center justify-center p-8 text-center bg-card border border-border rounded-xl shadow-xs">
-          <div className="flex flex-col items-center justify-center space-y-5 max-w-sm">
-            <RefreshCw size={36} className="text-primary animate-spin" />
-            <div className="space-y-1.5">
-              <h3 className="text-sm font-bold text-foreground">Connecting to Room Lobby...</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+        <Card withBorder p="xl" radius="md" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Stack align="center" gap="md" style={{ maxWidth: 360, textAlign: "center" }}>
+            <Loader size="lg" color="teal" />
+            <Stack gap={4}>
+              <Title order={5}>Connecting to Room Lobby...</Title>
+              <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
                 Establishing secure WebRTC peer channel and awaiting Host approval request decision...
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleExitSession}
-              className="command danger-command inline-danger text-xs px-4 py-2 mt-2"
-            >
+              </Text>
+            </Stack>
+            <Button color="red" variant="outline" size="xs" onClick={handleExitSession}>
               Cancel Connection
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Stack>
+        </Card>
       ) : isRoundStarted && session ? (
         /* ------------------ ACTIVE LIVE DEBATE ROUND SECTION ------------------ */
-        <div className="space-y-6 flex-1 flex flex-col overflow-hidden">
-          
+        <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
           {/* Header Controls Banner */}
-          <div className="bg-card border border-border rounded-lg p-5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-xs">
-            <div>
-              <span className="eyebrow">Room Code: {session.roomCode}</span>
-              <h1 className="text-xl font-bold tracking-tight text-foreground">{session.matchName}</h1>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Group: {session.groupName} | Debaters: {session.debaters.length}
-                {myDebaterInfo?.team && (
-                  <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                    My Side: {myDebaterInfo.team.toUpperCase()} (Pos: {myDebaterInfo.position})
-                  </span>
+          <Card withBorder p="sm" radius="md">
+            <Group justify="space-between" align="center">
+              <Stack gap={2}>
+                <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Room Code: {session.roomCode}</Text>
+                <Title order={4}>{session.matchName}</Title>
+                <Group gap="xs">
+                  <Text size="xs" c="dimmed">Group: {session.groupName} • Debaters: {session.debaters.length}</Text>
+                  {myDebaterInfo?.team && (
+                    <Badge color="teal" variant="light" size="xs">
+                      My Side: {myDebaterInfo.team.toUpperCase()} (Pos: {myDebaterInfo.position})
+                    </Badge>
+                  )}
+                </Group>
+              </Stack>
+
+              <Group gap="xs">
+                {isHost && session.status === "lobby" && (
+                  <Button onClick={handleStartDebate} color="teal" leftSection={<Play size={14} />} size="xs">
+                    Start Debate
+                  </Button>
                 )}
-              </div>
-            </div>
+                {isHost && session.status === "active" && (
+                  <Select
+                    placeholder="End debate (Select Winner)"
+                    onChange={(val) => requestEndRound(val as any)}
+                    data={[
+                      { label: "Affirmative Wins", value: "affirmative" },
+                      { label: "Negative Wins", value: "negative" }
+                    ]}
+                    size="xs"
+                    style={{ width: 200 }}
+                  />
+                )}
+                <Button variant="outline" color="red" size="xs" onClick={handleExitSession}>
+                  Exit Session
+                </Button>
+              </Group>
+            </Group>
+          </Card>
 
-            {/* Session Action Commands */}
-            <div className="session-actions">
-              {isHost && session.status === "lobby" && (
-                <button type="button" className="command primary" onClick={handleStartDebate}>
-                  <Play size={16} /> Start Debate
-                </button>
-              )}
-              {isHost && session.status === "active" && (
-                <div className="flex gap-2">
-                  <select 
-                    onChange={(e) => requestEndRound(e.target.value as any)} 
-                    defaultValue=""
-                    className="bg-card text-xs border border-border rounded-lg px-2"
-                  >
-                    <option value="" disabled>End debate (Select Winner)</option>
-                    <option value="affirmative">Affirmative Wins</option>
-                    <option value="negative">Negative Wins</option>
-                  </select>
-                </div>
-              )}
-              <button type="button" className="command danger-command inline-danger" onClick={handleExitSession}>
-                Exit Session
-              </button>
-            </div>
-          </div>
-
-          {/* Pending handshake requests alerts (Host-only overlay) */}
+          {/* Pending requests overlay */}
           {isHost && pendingRequests.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-lg flex items-center justify-between gap-4 animate-pulse shrink-0">
-              <div className="flex items-center gap-2 text-amber-800 text-sm font-semibold">
-                <Users size={16} />
-                <span>Pending link request from: {pendingRequests[0].name}</span>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => handleApproveDebater(pendingRequests[0])}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-primary-foreground text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
-                >
-                  <UserCheck size={14} /> Approve
-                </button>
-                <button 
-                  onClick={() => handleRejectDebater(pendingRequests[0])}
-                  className="bg-destructive hover:bg-destructive/100 text-primary-foreground text-xs font-bold py-1 px-3 rounded-md flex items-center gap-1.5"
-                >
-                  <UserX size={14} /> Reject
-                </button>
-              </div>
-            </div>
+            <Alert color="orange" title="Pending Link Request" icon={<Users size={16} />}>
+              <Group justify="space-between" align="center">
+                <Text size="xs">Pending link request from: {pendingRequests[0].name}</Text>
+                <Group gap="xs">
+                  <Button size="xs" color="teal" leftSection={<UserCheck size={12} />} onClick={() => handleApproveDebater(pendingRequests[0])}>
+                    Approve
+                  </Button>
+                  <Button size="xs" color="red" variant="outline" leftSection={<UserX size={12} />} onClick={() => handleRejectDebater(pendingRequests[0])}>
+                    Reject
+                  </Button>
+                </Group>
+              </Group>
+            </Alert>
           )}
 
           {session.status === "lobby" ? (
             /* ------------------ LOBBY PREP SCREEN ------------------ */
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0 overflow-y-auto">
-              
+            <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
               {/* Handouts panel */}
-              <div className="panel flex flex-col justify-between">
-                <div>
-                  <div className="panel-header compact">
-                    <h2>Debate Handouts</h2>
-                    <FileText size={18} />
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">Draft the match problem. Handouts distribute immediately when the host starts the debate.</p>
-                  
-                  {isHost ? (
-                    <div className="space-y-4">
-                      <label className="field compact-field">
-                        <span>Problem Topic Title</span>
-                        <input 
+              <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                    <Group justify="space-between" align="center">
+                      <Text fw={700} size="sm">Debate Handouts</Text>
+                      <FileText size={17} color="var(--mantine-color-gray-6)" />
+                    </Group>
+                    <Text size="xs" c="dimmed">Draft the match problem. Handouts distribute immediately when host starts the debate.</Text>
+
+                    {isHost ? (
+                      <Stack gap="sm" style={{ flex: 1 }}>
+                        <TextInput 
+                          label="Problem Topic Title"
                           value={session.handout.title} 
                           onChange={(e) => handleUpdateHandout({ title: e.target.value })}
                           placeholder="e.g. Subsidy tariffs on green technology..."
+                          size="xs"
                         />
-                      </label>
-                      <label className="field compact-field">
-                        <span>Problem Resolution Definition</span>
-                        <textarea 
+                        <Textarea 
+                          label="Problem Resolution Definition"
                           value={session.handout.problem} 
                           onChange={(e) => handleUpdateHandout({ problem: e.target.value })}
                           placeholder="Define the primary focus problem..."
+                          size="xs"
+                          rows={4}
                         />
-                      </label>
-                      <label className="field compact-field">
-                        <span>Problem details (optional)</span>
-                        <textarea 
+                        <Textarea 
+                          label="Problem details (optional)"
                           value={session.handout.details || ""} 
                           onChange={(e) => handleUpdateHandout({ details: e.target.value })}
                           placeholder="Context or documentation..."
-                          className="min-h-[80px]"
+                          size="xs"
+                          rows={4}
                         />
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-                      <FileText size={40} className="text-muted-foreground" />
-                      <div className="space-y-1">
-                        <h3 className="text-xs font-bold text-foreground">Awaiting Handout Distribution</h3>
-                        <p className="text-[11px] text-muted-foreground max-w-[240px] leading-relaxed">
+                      </Stack>
+                    ) : (
+                      <Stack align="center" justify="center" style={{ flex: 1 }} gap="xs">
+                        <FileText size={36} color="var(--mantine-color-gray-4)" />
+                        <Text size="xs" fw={700}>Awaiting Handout Distribution</Text>
+                        <Text size="xs" c="dimmed" style={{ textAlign: "center", maxWidth: 280, lineHeight: 1.4 }}>
                           The host is currently drafting the debate resolution. Handouts will release instantly when the match starts.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                        </Text>
+                      </Stack>
+                    )}
+                  </Stack>
+                </Card>
+              </Grid.Col>
 
               {/* Teams & Positions assignments */}
-              <div className="panel">
-                <div className="panel-header compact">
-                  <h2>Debaters Teams assignment</h2>
-                  <Users size={18} />
-                </div>
-                <p className="text-xs text-muted-foreground mb-4">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</p>
-                
-                <div className="team-list">
-                  {session.debaters.length === 0 ? (
-                    <div className="text-center py-10 text-xs text-muted-foreground">
-                      Waiting for debaters to join the room using code <strong>{session.roomCode}</strong>...
-                    </div>
-                  ) : (
-                    session.debaters.map(d => (
-                      <article key={d.id} className="team-row gap-3">
-                        <div className="min-w-0">
-                          <strong className="text-xs text-foreground truncate block">{d.name}</strong>
-                          <span className="text-[10px] text-muted-foreground font-mono">{d.id.substring(0, 8)}</span>
-                        </div>
-                        {isHost ? (
-                          <>
-                            <div className="segmented">
-                              <button 
-                                type="button" 
-                                className={d.team === "affirmative" ? "selected" : ""} 
-                                onClick={() => updateDebaterConfig(d.id, "affirmative", d.position || 1)}
-                              >
-                                Aff
-                              </button>
-                              <button 
-                                type="button" 
-                                className={d.team === "negative" ? "selected" : ""} 
-                                onClick={() => updateDebaterConfig(d.id, "negative", d.position || 1)}
-                              >
-                                Neg
-                              </button>
-                            </div>
-                            <select
-                              value={d.position || 1}
-                              onChange={(e) => updateDebaterConfig(d.id, d.team || "affirmative", parseInt(e.target.value, 10))}
-                              className="position-input w-16"
-                            >
-                              {Array.from({ length: session.teamSize }, (_, index) => index + 1).map(position => (
-                                <option key={position} value={position}>{position}</option>
-                              ))}
-                            </select>
-                          </>
+              <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                    <Group justify="space-between" align="center">
+                      <Text fw={700} size="sm">Debaters Teams Assignment</Text>
+                      <Users size={17} color="var(--mantine-color-gray-6)" />
+                    </Group>
+                    <Text size="xs" c="dimmed">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</Text>
+                    
+                    <ScrollArea style={{ flex: 1 }}>
+                      <Stack gap="xs">
+                        {session.debaters.length === 0 ? (
+                          <Text size="xs" c="dimmed" style={{ textAlign: "center", padding: "40px 0" }}>
+                            Waiting for debaters to join using code <strong>{session.roomCode}</strong>...
+                          </Text>
                         ) : (
-                          <div className="text-xs font-semibold text-primary">
-                            {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
-                          </div>
-                        )}
-                      </article>
-                    ))
-                  )}
-                </div>
-              </div>
+                          session.debaters.map(d => (
+                            <Paper key={d.id} withBorder p="sm" radius="md" bg="var(--mantine-color-gray-0)">
+                              <Group justify="space-between" wrap="nowrap">
+                                <Stack gap={2}>
+                                  <Text size="xs" fw={700}>{d.name}</Text>
+                                  <Text size="xs" c="dimmed" style={{ fontFamily: "monospace" }}>{d.id.substring(0, 8)}</Text>
+                                </Stack>
 
-            </div>
+                                {isHost ? (
+                                  <Group gap="xs">
+                                    <SegmentedControl
+                                      value={d.team || "affirmative"}
+                                      onChange={(val) => updateDebaterConfig(d.id, val as any, d.position || 1)}
+                                      data={[
+                                        { label: "Aff", value: "affirmative" },
+                                        { label: "Neg", value: "negative" }
+                                      ]}
+                                      size="xs"
+                                      color="teal"
+                                    />
+                                    <Select
+                                      value={String(d.position || 1)}
+                                      onChange={(val) => updateDebaterConfig(d.id, d.team || "affirmative", parseInt(val || "1", 10))}
+                                      data={Array.from({ length: session.teamSize }, (_, index) => String(index + 1))}
+                                      size="xs"
+                                      style={{ width: 60 }}
+                                    />
+                                  </Group>
+                                ) : (
+                                  <Badge color="teal" variant="light" size="xs">
+                                    {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
+                                  </Badge>
+                                )}
+                              </Group>
+                            </Paper>
+                          ))
+                        )}
+                      </Stack>
+                    </ScrollArea>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            </Grid>
           ) : (
             /* ------------------ ACTIVE DEBATE SCREEN ------------------ */
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0 overflow-y-auto">
-              
+            <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
               {/* Handout & Info */}
-              <div className="panel flex flex-col justify-between overflow-y-auto h-full">
-                <div className="space-y-4">
-                  <div className="panel-header compact border-b pb-2">
-                    <h2>Match Handout</h2>
-                    <Award size={18} className="text-primary" />
-                  </div>
-                  <h3 className="text-sm font-bold text-foreground">{session.handout.title}</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="eyebrow">Debate Resolution</span>
-                      <p className="text-xs text-muted-foreground leading-relaxed bg-muted/50 p-3 rounded-lg border border-border">
-                        {session.handout.problem}
-                      </p>
-                    </div>
-                    {session.handout.details && (
-                      <div>
-                        <span className="eyebrow">Problem context</span>
-                        <p className="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed">
-                          {session.handout.details}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                    <Group justify="space-between" align="center">
+                      <Text fw={700} size="sm">Match Handout</Text>
+                      <Award size={18} color="var(--mantine-color-teal-6)" />
+                    </Group>
 
-                <div className="pt-4 border-t space-y-2">
-                  <span className="eyebrow">Debater Positions</span>
-                  <div className="space-y-1.5">
-                    {session.debaters.map(d => (
-                      <div key={d.id} className="flex justify-between items-center text-xs bg-muted p-2 rounded border">
-                        <span className="font-semibold text-foreground">{d.name}</span>
-                        <span className="text-[10px] uppercase font-bold text-primary">
-                          {d.team} (Pos {d.position})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                    <ScrollArea style={{ flex: 1 }}>
+                      <Stack gap="md">
+                        <Title order={5}>{session.handout.title}</Title>
+                        
+                        <Stack gap={4}>
+                          <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Debate Resolution</Text>
+                          <Paper withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
+                            <Text size="xs" style={{ lineHeight: 1.5 }}>{session.handout.problem}</Text>
+                          </Paper>
+                        </Stack>
+
+                        {session.handout.details && (
+                          <Stack gap={4}>
+                            <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Problem Context</Text>
+                            <Text size="xs" c="dimmed" style={{ whiteSpace: "pre-line", lineHeight: 1.4 }}>
+                              {session.handout.details}
+                            </Text>
+                          </Stack>
+                        )}
+
+                        <Stack gap="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-xs)" }}>
+                          <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Debater Positions</Text>
+                          {session.debaters.map(d => (
+                            <Paper key={d.id} withBorder p="xs" radius="md">
+                              <Group justify="space-between" align="center">
+                                <Text size="xs" fw={700}>{d.name}</Text>
+                                <Badge size="xs" color="teal">{d.team} (Pos {d.position})</Badge>
+                              </Group>
+                            </Paper>
+                          ))}
+                        </Stack>
+                      </Stack>
+                    </ScrollArea>
+                  </Stack>
+                </Card>
+              </Grid.Col>
 
               {/* Speech & Prep count down timers */}
-              <div className="panel flex flex-col h-full overflow-y-auto">
-                <div className="panel-header compact border-b pb-2">
-                  <h2>Round Timers</h2>
-                  <Clock size={18} className="text-primary" />
-                </div>
+              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                    <Group justify="space-between" align="center">
+                      <Text fw={700} size="sm">Round Timers</Text>
+                      <Clock size={18} color="var(--mantine-color-teal-6)" />
+                    </Group>
 
-                <div className="space-y-6 py-4 flex-1">
-                  {/* Speech timer card */}
-                  <div className="timer-row">
-                    <div>
-                      <strong>Speech countdown ({session.currentSpeakerId ? currentSpeaker?.name : "None"})</strong>
-                      {isHost ? (
-                        <input 
-                          value={speechInput} 
-                          onChange={(e) => setSpeechInput(e.target.value)} 
-                          onBlur={(e) => handleTimerDurationChange("speech", e.target.value)} 
-                          className="timer-input"
-                        />
-                      ) : (
-                        <span>{formatCountdown(timerRemaining)}</span>
-                      )}
-                    </div>
-                    
-                    <div className="font-mono text-xl font-bold text-foreground">
-                      {formatCountdown(timerRemaining)}
-                    </div>
-                    
-                    {isHost && (
-                      <div className="row-actions">
-                        <button 
-                          onClick={() => handleTimerClick("speech", isTimerRunning ? "pause" : "start")}
-                          className="icon-button"
-                        >
-                          {isTimerRunning ? <Pause size={15} /> : <Play size={15} />}
-                        </button>
-                        <button 
-                          onClick={() => handleTimerClick("speech", "reset")}
-                          className="icon-button"
-                        >
-                          <RotateCcw size={15} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    <Stack gap="md" style={{ flex: 1 }}>
+                      {/* Speech timer */}
+                      <Paper withBorder p="sm" radius="md">
+                        <Group justify="space-between" align="center">
+                          <Stack gap={2}>
+                            <Text size="xs" fw={700}>Speech countdown ({session.currentSpeakerId ? currentSpeaker?.name : "None"})</Text>
+                            {isHost ? (
+                              <TextInput 
+                                size="xs"
+                                value={speechInput} 
+                                onChange={(e) => setSpeechInput(e.target.value)} 
+                                onBlur={(e) => handleTimerDurationChange("speech", e.target.value)} 
+                                placeholder="04:00"
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              <Text size="xs" c="dimmed">{formatCountdown(timerRemaining)}</Text>
+                            )}
+                          </Stack>
+                          
+                          <Text size="lg" fw={900} style={{ fontFamily: "monospace", fontSize: "22px" }}>
+                            {formatCountdown(timerRemaining)}
+                          </Text>
 
-                  {/* Prep timer card */}
-                  <div className="timer-row">
-                    <div>
-                      <strong>Partners Prep Timer</strong>
-                      {isHost ? (
-                        <input 
-                          value={prepInput} 
-                          onChange={(e) => setPrepInput(e.target.value)} 
-                          onBlur={(e) => handleTimerDurationChange("prep", e.target.value)} 
-                          className="timer-input"
-                        />
-                      ) : (
-                        <span>{formatCountdown(prepRemaining)}</span>
-                      )}
-                    </div>
-
-                    <div className="font-mono text-xl font-bold text-foreground">
-                      {formatCountdown(prepRemaining)}
-                    </div>
-
-                    {isHost && (
-                      <div className="row-actions">
-                        <button 
-                          onClick={() => handleTimerClick("prep", isPrepRunning ? "pause" : "start")}
-                          className="icon-button"
-                        >
-                          {isPrepRunning ? <Pause size={15} /> : <Play size={15} />}
-                        </button>
-                        <button 
-                          onClick={() => handleTimerClick("prep", "reset")}
-                          className="icon-button"
-                        >
-                          <RotateCcw size={15} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Speakers listing to select / view notes */}
-                <div className="pt-4 border-t space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="eyebrow">Select Active Speaker</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPositionsOnly(!showPositionsOnly)}
-                      className="text-[10px] bg-muted hover:bg-accent border border-border rounded px-2 py-0.5 font-bold text-primary"
-                    >
-                      {showPositionsOnly ? "Show Names" : "Show Positions"}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {session.debaters.map(d => {
-                      const positionText = d.team && d.position 
-                        ? `${d.team === "affirmative" ? "AFF" : "NEG"} Pos ${d.position}`
-                        : "Unassigned";
-                      const buttonText = showPositionsOnly ? positionText : d.name;
-                      
-                      // Check if this speaker is currently globally speaking (marked by host)
-                      const isGloballySpeaking = session.currentSpeakerId === d.id;
-                      // Check if this is the locally viewed speaker for notes
-                      const isLocallySelected = activeSpeakerId === d.id;
-
-                      return (
-                        <button
-                          key={d.id}
-                          type="button"
-                          onClick={() => handleSelectSpeaker(d.id)}
-                          className={`text-xs p-2 rounded-lg border font-semibold flex items-center justify-between gap-1.5 transition-colors ${
-                            isLocallySelected
-                              ? "bg-primary border-primary text-primary-foreground"
-                              : "bg-muted/50 hover:bg-muted border-border text-foreground"
-                          }`}
-                        >
-                          <span className="truncate flex-1 text-left">{buttonText}</span>
-                          {isGloballySpeaking && (
-                            <span className={`h-2 w-2 rounded-full shrink-0 ${isLocallySelected ? "bg-card animate-pulse" : "bg-emerald-500 animate-pulse"}`} title="Speaking" />
+                          {isHost && (
+                            <Group gap={6}>
+                              <ActionIcon size="sm" color="teal" onClick={() => handleTimerClick("speech", isTimerRunning ? "pause" : "start")}>
+                                {isTimerRunning ? <Pause size={13} /> : <Play size={13} />}
+                              </ActionIcon>
+                              <ActionIcon size="sm" variant="outline" color="teal" onClick={() => handleTimerClick("speech", "reset")}>
+                                <RotateCcw size={13} />
+                              </ActionIcon>
+                            </Group>
                           )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
+                        </Group>
+                      </Paper>
+
+                      {/* Prep timer */}
+                      <Paper withBorder p="sm" radius="md">
+                        <Group justify="space-between" align="center">
+                          <Stack gap={2}>
+                            <Text size="xs" fw={700}>Partners Prep Timer</Text>
+                            {isHost ? (
+                              <TextInput 
+                                size="xs"
+                                value={prepInput} 
+                                onChange={(e) => setPrepInput(e.target.value)} 
+                                onBlur={(e) => handleTimerDurationChange("prep", e.target.value)} 
+                                placeholder="03:00"
+                                style={{ width: 70 }}
+                              />
+                            ) : (
+                              <Text size="xs" c="dimmed">{formatCountdown(prepRemaining)}</Text>
+                            )}
+                          </Stack>
+                          
+                          <Text size="lg" fw={900} style={{ fontFamily: "monospace", fontSize: "22px" }}>
+                            {formatCountdown(prepRemaining)}
+                          </Text>
+
+                          {isHost && (
+                            <Group gap={6}>
+                              <ActionIcon size="sm" color="teal" onClick={() => handleTimerClick("prep", isPrepRunning ? "pause" : "start")}>
+                                {isPrepRunning ? <Pause size={13} /> : <Play size={13} />}
+                              </ActionIcon>
+                              <ActionIcon size="sm" variant="outline" color="teal" onClick={() => handleTimerClick("prep", "reset")}>
+                                <RotateCcw size={13} />
+                              </ActionIcon>
+                            </Group>
+                          )}
+                        </Group>
+                      </Paper>
+                    </Stack>
+
+                    {/* Select Active Speaker */}
+                    <Stack gap="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-sm)" }}>
+                      <Group justify="space-between" align="center">
+                        <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Select Active Speaker</Text>
+                        <Button 
+                          size="xs" 
+                          variant="light" 
+                          color="teal" 
+                          onClick={() => setShowPositionsOnly(!showPositionsOnly)}
+                        >
+                          {showPositionsOnly ? "Show Names" : "Show Positions"}
+                        </Button>
+                      </Group>
+
+                      <SimpleGrid cols={2} spacing="xs">
+                        {session.debaters.map(d => {
+                          const positionText = d.team && d.position 
+                            ? `${d.team === "affirmative" ? "AFF" : "NEG"} Pos ${d.position}`
+                            : "Unassigned";
+                          const buttonText = showPositionsOnly ? positionText : d.name;
+                          const isGloballySpeaking = session.currentSpeakerId === d.id;
+                          const isLocallySelected = activeSpeakerId === d.id;
+
+                          return (
+                            <Button
+                              key={d.id}
+                              onClick={() => handleSelectSpeaker(d.id)}
+                              variant={isLocallySelected ? "filled" : "light"}
+                              color="teal"
+                              size="xs"
+                              rightSection={isGloballySpeaking && (
+                                <Badge color="red" variant="filled" circle style={{ width: 6, height: 6, minWidth: 6, padding: 0 }} />
+                              )}
+                            >
+                              <Text size="xs" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {buttonText}
+                              </Text>
+                            </Button>
+                          );
+                        })}
+                      </SimpleGrid>
+                    </Stack>
+                  </Stack>
+                </Card>
+              </Grid.Col>
 
               {/* Speaker Notes */}
-              <div className="panel flex flex-col h-full overflow-y-auto">
-                <div className="panel-header compact border-b pb-2">
-                  <h2>In-Round Notes</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleAIOutlineFill}
-                      title="AI outline topic"
-                      className="text-[10px] bg-secondary border border-border text-secondary-foreground px-2 py-0.5 rounded flex items-center gap-1.5"
-                    >
-                      <Sparkles size={11} /> AI Outline
-                    </button>
-                  </div>
-                </div>
+              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                    <Group justify="space-between" align="center">
+                      <Text fw={700} size="sm">In-Round Notes</Text>
+                      <Button 
+                        size="xs" 
+                        variant="light" 
+                        color="teal" 
+                        onClick={handleAIOutlineFill}
+                        leftSection={<Sparkles size={12} />}
+                      >
+                        AI Outline
+                      </Button>
+                    </Group>
 
-                <div className="flex-1 flex flex-col py-3">
-                  <span className="eyebrow block mb-2">
-                    Active Speaker Notes: {currentSpeaker ? currentSpeaker.name : "None selected"}
-                  </span>
-                  <textarea
-                    value={currentSpeakerNotes}
-                    onChange={(e) => handleUpdateSpeakerNote(e.target.value)}
-                    disabled={!activeSpeakerId}
-                    placeholder={
-                      activeSpeakerId 
-                        ? `Type markdown notes for ${currentSpeaker?.name}...` 
-                        : "Select an active speaker to log speech notes..."
-                    }
-                    className="w-full h-full bg-muted/50 border rounded-lg p-3 resize-none text-xs leading-relaxed focus:outline-none"
-                  />
-                </div>
-              </div>
-
-            </div>
+                    <Stack gap="xs" style={{ flex: 1 }}>
+                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
+                        Active Speaker: {currentSpeaker ? currentSpeaker.name : "None selected"}
+                      </Text>
+                      <Textarea
+                        value={currentSpeakerNotes}
+                        onChange={(e) => handleUpdateSpeakerNote(e.target.value)}
+                        disabled={!activeSpeakerId}
+                        placeholder={
+                          activeSpeakerId 
+                            ? `Type markdown notes for ${currentSpeaker?.name}...` 
+                            : "Select an active speaker to log speech notes..."
+                        }
+                        rows={14}
+                        size="xs"
+                        style={{ flex: 1, display: "flex", flexDirection: "column" }}
+                        styles={{ root: { flex: 1, display: "flex", flexDirection: "column" }, wrapper: { flex: 1 }, input: { height: "100%", resize: "none" } }}
+                      />
+                    </Stack>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            </Grid>
           )}
-
-        </div>
+        </Stack>
       ) : (
         /* ------------------ STARTING DEBATE PIPELINE SELECTION ------------------ */
-        <div className="flex-grow flex flex-col lg:flex-row gap-6 min-h-0 overflow-y-auto">
+        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
           {/* Main Welcome Hero */}
-          <div className="flex-1 bg-card border border-border rounded-xl p-8 flex flex-col justify-center items-center text-center space-y-6 shadow-xs">
-            <Award size={48} className="text-primary" />
-            <div className="max-w-md space-y-2">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">Start Debate Session</h2>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Connect and sync debate sheets in real-time with your partner, manage speech countdowns, and run human-in-the-loop AI outline assistants.
-              </p>
-            </div>
-            
-            <div className="flex gap-4">
-              <button
-                onClick={() => setStartMode("host")}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-6 py-3 rounded-xl transition-all shadow-md flex items-center gap-2"
-              >
-                Host Match Session
-              </button>
-              <button
-                onClick={() => setStartMode("join")}
-                className="command text-xs font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
-              >
-                Join Match Session
-              </button>
-            </div>
+          <Grid.Col span={8} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p="xl" radius="md" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Stack align="center" gap="md" style={{ maxWidth: 440, textAlign: "center" }}>
+                <Award size={48} color="var(--mantine-color-teal-6)" />
+                <Stack gap={4}>
+                  <Title order={4}>Start Debate Session</Title>
+                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.5 }}>
+                    Connect and sync debate sheets in real-time with your partner, manage speech countdowns, and run human-in-the-loop AI outline assistants.
+                  </Text>
+                </Stack>
 
-            {/* Host inputs details */}
-            {startMode === "host" && (
-              <form onSubmit={handleHostCreate} className="w-full max-w-sm border-t pt-6 space-y-4 text-left">
-                <label className="field compact-field">
-                  <span>Debate Match Name</span>
-                  <input 
-                    value={matchName} 
-                    onChange={(e) => setMatchName(e.target.value)} 
-                    placeholder="e.g. State Debate Finals Round 1..."
-                    required 
-                  />
-                </label>
-                <label className="field compact-field">
-                  <span>Debaters School / Group Name</span>
-                  <input 
-                    value={groupName} 
-                    onChange={(e) => setGroupName(e.target.value)} 
-                    placeholder="e.g. Lincoln High School debate club..."
-                    required 
-                  />
-                </label>
-                <label className="field compact-field">
-                  <span>Position Team Size</span>
-                  <input 
-                    type="number"
-                    min={1}
-                    max={4}
-                    value={teamSize} 
-                    onChange={(e) => setTeamSize(parseInt(e.target.value, 10))} 
-                    required 
-                  />
-                </label>
-                <button type="submit" className="command primary w-full flex items-center justify-center gap-2">
-                  Launch Room Lobby <ArrowRight size={14} />
-                </button>
-              </form>
-            )}
+                <Group gap="md" justify="center" mt="md">
+                  <Button onClick={() => setStartMode("host")} color="teal">
+                    Host Match Session
+                  </Button>
+                  <Button onClick={() => setStartMode("join")} color="teal" variant="outline">
+                    Join Match Session
+                  </Button>
+                </Group>
 
-            {/* Join inputs details */}
-            {startMode === "join" && (
-              <form onSubmit={handleClientJoin} className="w-full max-w-sm border-t pt-6 space-y-4 text-left">
-                <label className="field compact-field">
-                  <span>Host Room Code</span>
-                  <input 
-                    value={joinRoomCode} 
-                    onChange={(e) => setJoinRoomCode(e.target.value)} 
-                    placeholder="Enter 4-digit code..."
-                    required 
-                  />
-                </label>
-                <button type="submit" className="command primary w-full flex items-center justify-center gap-2">
-                  Submit Join Request <ArrowRight size={14} />
-                </button>
-              </form>
-            )}
-          </div>
+                {startMode === "host" && (
+                  <form onSubmit={handleHostCreate} style={{ width: "100%", borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-md)", textAlign: "left" }}>
+                    <Stack gap="xs">
+                      <TextInput 
+                        label="Debate Match Name"
+                        value={matchName} 
+                        onChange={(e) => setMatchName(e.target.value)} 
+                        placeholder="e.g. State Debate Finals Round 1..."
+                        required 
+                        size="xs"
+                      />
+                      <TextInput 
+                        label="Debaters School / Group Name"
+                        value={groupName} 
+                        onChange={(e) => setGroupName(e.target.value)} 
+                        placeholder="e.g. Lincoln High School debate club..."
+                        required 
+                        size="xs"
+                      />
+                      <Select 
+                        label="Position Team Size"
+                        value={String(teamSize)} 
+                        onChange={(val) => setTeamSize(parseInt(val || "1", 10))}
+                        data={["1", "2", "3", "4"]}
+                        required 
+                        size="xs"
+                      />
+                      <Button type="submit" color="teal" mt="sm" rightSection={<ArrowRight size={14} />} fullWidth>
+                        Launch Room Lobby
+                      </Button>
+                    </Stack>
+                  </form>
+                )}
+
+                {startMode === "join" && (
+                  <form onSubmit={handleClientJoin} style={{ width: "100%", borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-md)", textAlign: "left" }}>
+                    <Stack gap="xs">
+                      <TextInput 
+                        label="Host Room Code"
+                        value={joinRoomCode} 
+                        onChange={(e) => setJoinRoomCode(e.target.value)} 
+                        placeholder="Enter 4-digit code..."
+                        required 
+                        size="xs"
+                      />
+                      <Button type="submit" color="teal" mt="sm" rightSection={<ArrowRight size={14} />} fullWidth>
+                        Submit Join Request
+                      </Button>
+                    </Stack>
+                  </form>
+                )}
+              </Stack>
+            </Card>
+          </Grid.Col>
 
           {/* Right side: Session History lists */}
-          <div className="w-full lg:w-80 bg-card border border-border rounded-xl p-6 flex flex-col overflow-hidden shadow-xs">
-            <div className="flex items-center gap-2 mb-4 border-b pb-2">
-              <History size={16} className="text-primary" />
-              <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">Recent Sessions</h3>
-            </div>
+          <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
+                <Group justify="space-between" align="center" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: "var(--mantine-spacing-xs)" }}>
+                  <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Recent Sessions</Text>
+                  <History size={16} color="var(--mantine-color-teal-6)" />
+                </Group>
 
-            <div className="flex-1 overflow-y-auto space-y-3">
-              {historyList.map((rec) => (
-                <div key={rec.id} className="bg-muted/50 border border-border p-3.5 rounded-lg space-y-1.5 text-left">
-                  <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-                    <span className="flex items-center gap-1 font-medium">
-                      <Calendar size={10} /> {new Date(rec.timestamp).toLocaleDateString()}
-                    </span>
-                    <span className={`px-1 rounded font-bold uppercase text-[8px] ${
-                      rec.winLoss === "win" ? "bg-emerald-100 text-emerald-700 border" : "bg-rose-100 text-destructive border"
-                    }`}>
-                      {rec.winLoss}
-                    </span>
-                  </div>
+                <ScrollArea style={{ flex: 1 }}>
+                  <Stack gap="xs">
+                    {historyList.map((rec) => (
+                      <Paper key={rec.id} withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
+                        <Stack gap={4}>
+                          <Group justify="space-between" align="center">
+                            <Group gap={4}>
+                              <Calendar size={10} color="var(--mantine-color-gray-5)" />
+                              <Text size="xs" c="dimmed">{new Date(rec.timestamp).toLocaleDateString()}</Text>
+                            </Group>
+                            <Badge color={rec.winLoss === "win" ? "teal" : "red"} size="xs">
+                              {rec.winLoss}
+                            </Badge>
+                          </Group>
+                          
+                          <Stack gap={2}>
+                            <Text size="xs" fw={700}>{rec.matchName}</Text>
+                            <Text size="xs" c="dimmed">vs. {rec.opponentName} | Side: {rec.sides}</Text>
+                          </Stack>
+                        </Stack>
+                      </Paper>
+                    ))}
 
-                  <div>
-                    <h4 className="text-xs font-bold text-foreground truncate">{rec.matchName}</h4>
-                    <span className="text-[10px] text-muted-foreground font-medium truncate block">
-                      vs. {rec.opponentName} | Side: {rec.sides}
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {historyList.length === 0 && (
-                <div className="text-center py-10 text-muted-foreground text-xs flex flex-col justify-center items-center gap-2 h-full">
-                  <Trophy size={20} className="text-muted" />
-                  <span>No debate sessions archived.</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+                    {historyList.length === 0 && (
+                      <Stack align="center" justify="center" style={{ padding: "40px 0" }} gap="xs">
+                        <Trophy size={20} color="var(--mantine-color-gray-3)" />
+                        <Text size="xs" c="dimmed">No debate sessions archived.</Text>
+                      </Stack>
+                    )}
+                  </Stack>
+                </ScrollArea>
+              </Stack>
+            </Card>
+          </Grid.Col>
+        </Grid>
       )}
-    </div>
+    </Stack>
   );
 };
 
