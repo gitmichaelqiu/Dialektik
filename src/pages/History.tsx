@@ -1,9 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { db, type TournamentRecord } from "../services/db";
 import { BarChart2, Calendar, Search, Trash2, Trophy } from "lucide-react";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
+import { 
+  Button, 
+  Card, 
+  TextInput, 
+  Text, 
+  Title, 
+  Stack, 
+  Group, 
+  Modal, 
+  Badge, 
+  Progress, 
+  Grid, 
+  SimpleGrid,
+  NavLink
+} from "@mantine/core";
 
 export const History: React.FC = () => {
   const [records, setRecords] = useState<TournamentRecord[]>([]);
@@ -62,163 +74,189 @@ export const History: React.FC = () => {
   );
 
   return (
-    <div className="documents-layout">
-      {pendingDelete && (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-history-title">
-          <div className="confirm-dialog">
-            <h2 id="delete-history-title">Delete Round?</h2>
-            <p>{pendingDelete.matchName} will be removed from local history.</p>
-            <div className="confirm-actions">
-              <Button type="button" variant="outline" onClick={() => setPendingDelete(null)}>
-                Cancel
-              </Button>
-              <Button type="button" variant="destructive" onClick={confirmDeleteRecord}>
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+      <Modal 
+        opened={!!pendingDelete} 
+        onClose={() => setPendingDelete(null)} 
+        title={<Text fw={700}>Delete Round?</Text>}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            {pendingDelete?.matchName} will be removed from local history.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmDeleteRecord}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
-      <aside className="file-rail flex flex-col justify-between overflow-y-auto">
-        <div className="space-y-4">
-          <div className="panel-header compact border-b border-border pb-3">
-            <div>
-              <h2>Round History</h2>
-              <p className="text-sm text-muted-foreground">Local saved debate rounds</p>
-            </div>
-            <Trophy size={18} className="text-muted-foreground" />
-          </div>
+      <Grid style={{ height: "100%", minHeight: 0 }} align="stretch" gutter="md">
+        <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Card withBorder p="md" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={700} size="sm">Round History</Text>
+                  <Text size="xs" c="dimmed">Local saved debate rounds</Text>
+                </Stack>
+                <Trophy size={18} color="var(--mantine-color-gray-6)" />
+              </Group>
 
-          <div className="relative border-b border-border pb-3">
-            <Search size={15} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" />
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search matches..."
-              className="pl-9"
-            />
-          </div>
+              <TextInput
+                leftSection={<Search size={14} />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search matches..."
+              />
 
-          <div className="space-y-2">
-            {filteredRecords.map((record) => (
-              <button
-                type="button"
-                key={record.id}
-                onClick={() => setSelectedRecord(record)}
-                className={`file-item text-left p-3 ${selectedRecord?.id === record.id ? "selected" : ""}`}
-              >
-                <div className="flex w-full flex-col">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} /> {new Date(record.timestamp).toLocaleDateString()}
-                    </span>
-                    <Badge variant={record.winLoss === "win" ? "default" : "destructive"}>{record.winLoss}</Badge>
-                  </div>
-                  <strong className="mt-2 block truncate text-sm text-foreground">{record.matchName}</strong>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">Vs. {record.opponentName}</span>
-                </div>
-              </button>
-            ))}
-
-            {filteredRecords.length === 0 && (
-              <div className="empty-state min-h-72">
-                <Trophy size={34} />
-                <div>
-                  <h2>No rounds found</h2>
-                  <p className="text-sm text-muted-foreground">Saved rounds will appear here after you end an in-round session.</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      <section className="flex flex-grow flex-col gap-6 overflow-y-auto">
-        <div className="history-grid">
-          <div className="metric-card">
-            <span className="eyebrow block">Win Performance</span>
-            <div className="text-3xl font-extrabold text-primary">{stats.winRate}%</div>
-            <span className="text-xs font-semibold uppercase text-muted-foreground">
-              {records.filter((record) => record.winLoss === "win").length} Wins / {stats.totalRounds} Matches
-            </span>
-          </div>
-
-          <div className="metric-card col-span-2">
-            <span className="eyebrow block flex items-center gap-1">
-              <BarChart2 size={13} /> Win-rate by side
-            </span>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-semibold text-foreground">
-                  <span>Affirmative</span>
-                  <span>{stats.affWinRate}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-muted">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${stats.affWinRate}%` }} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs font-semibold text-foreground">
-                  <span>Negative</span>
-                  <span>{stats.negWinRate}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-muted">
-                  <div className="h-full rounded-full bg-amber-700" style={{ width: `${stats.negWinRate}%` }} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {selectedRecord ? (
-          <div className="panel space-y-5">
-            <div className="flex items-start justify-between gap-4 border-b border-border pb-3">
-              <div>
-                <h3 className="text-base font-bold text-foreground">{selectedRecord.matchName}</h3>
-                <div className="flex flex-wrap gap-4 pt-1 text-xs text-muted-foreground">
-                  <span>Date: {new Date(selectedRecord.timestamp).toLocaleDateString()}</span>
-                  <span>Opponent: {selectedRecord.opponentName}</span>
-                  <span>Side: {selectedRecord.sides}</span>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setPendingDelete(selectedRecord)}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 size={13} /> Delete log
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              <span className="eyebrow block">Speech note logs</span>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {selectedRecord.flows.map((flow) => (
-                  <div key={flow.speechId} className="space-y-2 rounded-2xl border border-border bg-muted/50 p-4">
-                    <Badge variant="secondary">{flow.speechId}</Badge>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                      {flow.notes || "No notes logged for this speech."}
-                    </p>
-                  </div>
+              <Stack gap="xs" style={{ flex: 1, overflowY: "auto" }}>
+                {filteredRecords.map((record) => (
+                  <NavLink
+                    key={record.id}
+                    active={selectedRecord?.id === record.id}
+                    label={record.matchName}
+                    description={`Vs. ${record.opponentName} • ${new Date(record.timestamp).toLocaleDateString()}`}
+                    leftSection={<Calendar size={14} />}
+                    rightSection={
+                      <Badge color={record.winLoss === "win" ? "teal" : "red"}>
+                        {record.winLoss}
+                      </Badge>
+                    }
+                    onClick={() => setSelectedRecord(record)}
+                    variant="light"
+                    color="teal"
+                    styles={{
+                      root: {
+                        borderRadius: "var(--mantine-radius-md)",
+                      }
+                    }}
+                  />
                 ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <Trophy size={38} />
-            <div>
-              <h2>No round selected</h2>
-              <p className="text-sm text-muted-foreground">Select a saved round to review speech notes and outcomes.</p>
-            </div>
-          </div>
-        )}
-      </section>
-    </div>
+
+                {filteredRecords.length === 0 && (
+                  <Stack align="center" justify="center" style={{ flex: 1, py: "xl" }} gap="xs">
+                    <Trophy size={32} color="var(--mantine-color-gray-4)" />
+                    <Text fw={700} size="xs" c="dimmed">No rounds found</Text>
+                    <Text size="xs" c="dimmed" textAlign="center">
+                      Saved rounds will appear here after you end an in-round session.
+                    </Text>
+                  </Stack>
+                )}
+              </Stack>
+            </Stack>
+          </Card>
+        </Grid.Col>
+
+        <Grid.Col span={8} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Stack gap="md" style={{ flex: 1, overflowY: "auto" }}>
+            <Card withBorder p="md" radius="md">
+              <Group justify="space-between" align="center">
+                <Stack gap="xs">
+                  <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
+                    Win Performance
+                  </Text>
+                  <Text size="xl" fw={900} c="teal">
+                    {stats.winRate}%
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {records.filter((record) => record.winLoss === "win").length} Wins / {stats.totalRounds} Matches
+                  </Text>
+                </Stack>
+
+                <Stack gap="xs" style={{ width: "60%" }}>
+                  <Group justify="space-between">
+                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>
+                      Win-rate by side
+                    </Text>
+                    <BarChart2 size={14} color="var(--mantine-color-gray-6)" />
+                  </Group>
+
+                  <Stack gap="xs">
+                    <Stack gap={2}>
+                      <Group justify="space-between">
+                        <Text size="xs" fw={700}>Affirmative</Text>
+                        <Text size="xs" fw={700}>{stats.affWinRate}%</Text>
+                      </Group>
+                      <Progress value={stats.affWinRate} color="teal" size="sm" radius="xl" />
+                    </Stack>
+
+                    <Stack gap={2}>
+                      <Group justify="space-between">
+                        <Text size="xs" fw={700}>Negative</Text>
+                        <Text size="xs" fw={700}>{stats.negWinRate}%</Text>
+                      </Group>
+                      <Progress value={stats.negWinRate} color="orange" size="sm" radius="xl" />
+                    </Stack>
+                  </Stack>
+                </Stack>
+              </Group>
+            </Card>
+
+            {selectedRecord ? (
+              <Card withBorder p="md" radius="md">
+                <Stack gap="md">
+                  <Group justify="space-between" align="flex-start" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: "var(--mantine-spacing-sm)" }}>
+                    <Stack gap="xs">
+                      <Title order={4}>{selectedRecord.matchName}</Title>
+                      <Group gap="md">
+                        <Text size="xs" c="dimmed">Date: {new Date(selectedRecord.timestamp).toLocaleDateString()}</Text>
+                        <Text size="xs" c="dimmed">Opponent: {selectedRecord.opponentName}</Text>
+                        <Text size="xs" c="dimmed">Side: {selectedRecord.sides}</Text>
+                      </Group>
+                    </Stack>
+                    <Button
+                      variant="outline"
+                      color="red"
+                      size="xs"
+                      onClick={() => setPendingDelete(selectedRecord)}
+                      leftSection={<Trash2 size={13} />}
+                    >
+                      Delete log
+                    </Button>
+                  </Group>
+
+                  <Stack gap="xs">
+                    <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
+                      Speech Note Logs
+                    </Text>
+                    <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+                      {selectedRecord.flows.map((flow) => (
+                        <Card key={flow.speechId} withBorder p="md" radius="md" bg="var(--mantine-color-gray-0)">
+                          <Stack gap="xs">
+                            <Badge color="teal" variant="light" size="xs">
+                              {flow.speechId}
+                            </Badge>
+                            <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                              {flow.notes || "No notes logged for this speech."}
+                            </Text>
+                          </Stack>
+                        </Card>
+                      ))}
+                    </SimpleGrid>
+                  </Stack>
+                </Stack>
+              </Card>
+            ) : (
+              <Card withBorder p="md" radius="md" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Stack align="center" gap="xs">
+                  <Trophy size={36} color="var(--mantine-color-gray-4)" />
+                  <Text fw={700} size="sm">No round selected</Text>
+                  <Text size="xs" c="dimmed">
+                    Select a saved round to review speech notes and outcomes.
+                  </Text>
+                </Stack>
+              </Card>
+            )}
+          </Stack>
+        </Grid.Col>
+      </Grid>
+    </Stack>
   );
 };
 
