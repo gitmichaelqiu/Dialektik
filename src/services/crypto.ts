@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 // Helper to check if we are running in Tauri Desktop environment
 export const isTauri = (): boolean => {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  return typeof window !== "undefined" && Boolean((window as any).__TAURI_INTERNALS__);
 };
 
 // Convert string to Uint8Array
@@ -108,11 +108,122 @@ export async function decryptData(encryptedStr: string, key: CryptoKey): Promise
 
 // Credentials service keys
 const SERVICE_NAME = "dialektik_secure_store";
+const FALLBACK_DB_NAME = "DialektikSecureKeyStore";
+const FALLBACK_DB_VERSION = 1;
+const FALLBACK_STORE_NAME = "keys";
+
+function openFallbackDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(FALLBACK_DB_NAME, FALLBACK_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(FALLBACK_STORE_NAME)) {
+        db.createObjectStore(FALLBACK_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getStoredFallbackKey(): Promise<CryptoKey | null> {
+  const db = await openFallbackDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FALLBACK_STORE_NAME, "readonly");
+    const request = tx.objectStore(FALLBACK_STORE_NAME).get("credential_wrap_key");
+    request.onsuccess = () => resolve((request.result as CryptoKey | undefined) || null);
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+async function storeFallbackKey(key: CryptoKey): Promise<void> {
+  const db = await openFallbackDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FALLBACK_STORE_NAME, "readwrite");
+    tx.objectStore(FALLBACK_STORE_NAME).put(key, "credential_wrap_key");
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+async function getFallbackKey(): Promise<CryptoKey> {
+  const existing = await getStoredFallbackKey();
+  if (existing) return existing;
+
+  const key = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+  await storeFallbackKey(key);
+  return key;
+}
+
+async function encryptFallbackSecret(value: string): Promise<string> {
+  const key = await getFallbackKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoder.encode(value)
+  );
+
+  return JSON.stringify({
+    version: 1,
+    alg: "AES-GCM",
+    iv: bufferToBase64(iv.buffer),
+    ciphertext: bufferToBase64(ciphertext)
+  });
+}
+
+async function decryptFallbackSecret(serialized: string): Promise<string> {
+  const payload = JSON.parse(serialized) as { version: number; iv: string; ciphertext: string };
+  if (payload.version !== 1 || !payload.iv || !payload.ciphertext) {
+    throw new Error("Invalid encrypted credential payload");
+  }
+
+  const key = await getFallbackKey();
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: base64ToBytes(payload.iv) },
+    key,
+    base64ToBytes(payload.ciphertext)
+  );
+  return decoder.decode(plaintext);
+}
+
+async function setFallbackCredential(key: string, value: string): Promise<void> {
+  const encrypted = await encryptFallbackSecret(value);
+  localStorage.setItem(`${SERVICE_NAME}_${key}`, encrypted);
+}
+
+async function getFallbackCredential(key: string): Promise<string | null> {
+  const stored = localStorage.getItem(`${SERVICE_NAME}_${key}`);
+  if (!stored) return null;
+
+  try {
+    return await decryptFallbackSecret(stored);
+  } catch {
+    // Legacy plaintext fallback migration from older app versions.
+    await setFallbackCredential(key, stored);
+    return stored;
+  }
+}
 
 /**
  * Secure Key Manager
  * Handles storing, retrieving, and deleting API keys/tokens.
- * Automatically delegates to native OS Keychain in Tauri, or falls back to browser storage.
+ * Automatically delegates to native OS Keychain in Tauri, or falls back to encrypted browser storage.
  */
 export const KeyManager = {
   async set(key: string, value: string): Promise<void> {
@@ -124,7 +235,7 @@ export const KeyManager = {
         console.error("Tauri store_credential failed, falling back to localStorage", err);
       }
     }
-    localStorage.setItem(`${SERVICE_NAME}_${key}`, value);
+    await setFallbackCredential(key, value);
   },
 
   async get(key: string): Promise<string | null> {
@@ -136,7 +247,7 @@ export const KeyManager = {
         console.error("Tauri get_credential failed, checking localStorage", err);
       }
     }
-    return localStorage.getItem(`${SERVICE_NAME}_${key}`);
+    return getFallbackCredential(key);
   },
 
   async delete(key: string): Promise<void> {

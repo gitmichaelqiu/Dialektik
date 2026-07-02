@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, vi } from "vitest";
 import "fake-indexeddb/auto";
-import { deriveKey, encryptData, decryptData } from "./crypto";
+import { deriveKey, encryptData, decryptData, KeyManager } from "./crypto";
 import { db } from "./db";
 import { GitHubSyncService } from "./github";
 import { DebateTimer } from "./timers";
@@ -33,6 +33,16 @@ vi.mock("octokit", () => {
 
 
 describe("Cryptography Services", () => {
+  beforeAll(() => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear()
+    });
+  });
+
   it("should derive a key and successfully encrypt/decrypt data", async () => {
     const passphrase = "super-secret-password";
     const salt = "random-salt-string";
@@ -68,6 +78,20 @@ describe("Cryptography Services", () => {
     // Modifying encrypted text should throw error
     const modifiedEncrypted = encrypted + "abc";
     await expect(decryptData(modifiedEncrypted, key1)).rejects.toThrow();
+  });
+
+  it("should encrypt credential fallback storage while preserving retrieval", async () => {
+    const secret = "sk-test-secret-value";
+    await KeyManager.set("ai_api_key_test", secret);
+
+    const stored = localStorage.getItem("dialektik_secure_store_ai_api_key_test");
+    expect(stored).toBeTruthy();
+    expect(stored).not.toBe(secret);
+    expect(stored).toContain("ciphertext");
+
+    await expect(KeyManager.get("ai_api_key_test")).resolves.toBe(secret);
+    await KeyManager.delete("ai_api_key_test");
+    await expect(KeyManager.get("ai_api_key_test")).resolves.toBeNull();
   });
 });
 
@@ -220,5 +244,3 @@ describe("Debate Timer Services", () => {
     expect(Math.abs(statePaused.remaining - remainingAfterWait)).toBeLessThanOrEqual(5);
   });
 });
-
-

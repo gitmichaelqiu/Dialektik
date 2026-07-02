@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { 
   Bot, 
@@ -23,6 +23,22 @@ export const Settings: React.FC = () => {
   const [aiModelInput, setAiModelInput] = useState(aiModel);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    setNameInput(userName);
+  }, [userName]);
+
+  useEffect(() => {
+    setAiKeyInput(aiApiKey);
+  }, [aiApiKey]);
+
+  useEffect(() => {
+    setAiEndInput(aiEndpoint);
+  }, [aiEndpoint]);
+
+  useEffect(() => {
+    setAiModelInput(aiModel);
+  }, [aiModel]);
 
   const showNotice = (message: string) => {
     setNotice(message);
