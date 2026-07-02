@@ -14,7 +14,6 @@ import {
   Check,
   X,
   FileText,
-  UserRound,
   Trophy
 } from "lucide-react";
 import { 
@@ -27,7 +26,6 @@ import {
   Checkbox, 
   SegmentedControl, 
   Paper, 
-  Badge, 
   Title, 
   Grid,
   ScrollArea,
@@ -88,7 +86,6 @@ export const AI: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState(() => localStorage.getItem(AI_ACTIVE_CONVERSATION_KEY) || "");
   const [chatInput, setChatInput] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
-  const [thinkingOpen, setThinkingOpen] = useState(true);
   const [thinkingText, setThinkingText] = useState("");
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
   
@@ -189,7 +186,6 @@ export const AI: React.FC = () => {
     setActiveConversationId(next.id);
     setChatInput("");
     setThinkingText("");
-    setThinkingOpen(true);
     notify("New conversation started.");
   };
 
@@ -218,7 +214,6 @@ export const AI: React.FC = () => {
     updateActiveConversationMessages(nextMessages);
     setChatInput("");
     setChatBusy(true);
-    setThinkingOpen(true);
     setThinkingText("Reading selected files and preparing a response...");
 
     try {
@@ -264,7 +259,6 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         timestamp: Date.now()
       }]);
       setThinkingText("Response complete.");
-      setThinkingOpen(false);
 
     } catch (err: any) {
       updateActiveConversationMessages([...nextMessages, {
@@ -273,7 +267,6 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
         timestamp: Date.now()
       }]);
       setThinkingText("Request failed.");
-      setThinkingOpen(false);
     } finally {
       setChatBusy(false);
     }
