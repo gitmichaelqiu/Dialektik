@@ -782,8 +782,8 @@ final Map<String, Object?> _initialPreviewState = {
   },
   'settings': <String, Object?>{
     'userName': '',
-    'aiEndpoint': 'https://api.openai.com/v1',
-    'aiModel': 'gpt-4o',
+    'aiEndpoint': '',
+    'aiModel': '',
     'hasAiKey': false,
     'githubOwner': '',
     'githubRepo': '',
