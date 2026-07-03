@@ -393,12 +393,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           leading: CircleAvatar(
-                            backgroundColor: record.result == 'win'
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.errorContainer,
-                            foregroundColor: record.result == 'win'
-                                ? Theme.of(context).colorScheme.onPrimaryContainer
-                                : Theme.of(context).colorScheme.onErrorContainer,
                             child: Icon(record.result == 'win'
                                 ? Icons.emoji_events_outlined
                                 : Icons.flag_outlined),
@@ -408,16 +402,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               '${record.opponentName.isEmpty ? 'Unknown opponent' : record.opponentName} • $dateStr'),
                           trailing: Chip(
                             label: Text(record.result.isEmpty ? 'pending' : record.result),
-                            backgroundColor: record.result == 'win'
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.errorContainer,
-                            labelStyle: TextStyle(
-                              color: record.result == 'win'
-                                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onErrorContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            side: BorderSide.none,
                           ),
                           onTap: () {
                             setState(() {
