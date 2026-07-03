@@ -417,6 +417,7 @@ class _TimersPane extends StatelessWidget {
             _TimerTile(
               name: 'Speech',
               remainingMs: session.speechRemainingMs,
+              running: session.speechRunning,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'speech',
@@ -426,6 +427,7 @@ class _TimersPane extends StatelessWidget {
             _TimerTile(
               name: 'Prep',
               remainingMs: session.prepRemainingMs,
+              running: session.prepRunning,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'prep',

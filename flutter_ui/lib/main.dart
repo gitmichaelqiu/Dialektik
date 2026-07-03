@@ -13,6 +13,10 @@ class PreviewEngineBridge implements EngineBridge {
       : _state = ValueNotifier<AppSnapshot>(
           AppSnapshot.fromJson(_initialPreviewState),
         ) {
+    _lastTick = DateTime.now();
+    Timer.periodic(const Duration(milliseconds: 250), (_) {
+      _tickTimers();
+    });
     _controller = StreamController<AppSnapshot>.broadcast(
       onListen: () {
         _controller.add(_state.value);
@@ -24,6 +28,7 @@ class PreviewEngineBridge implements EngineBridge {
 
   final ValueNotifier<AppSnapshot> _state;
   late final StreamController<AppSnapshot> _controller;
+  late DateTime _lastTick;
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
@@ -194,7 +199,9 @@ class PreviewEngineBridge implements EngineBridge {
           'status': 'lobby',
           'handout': {'title': '', 'problem': '', 'details': ''},
           'speechRemainingMs': 240000,
+          'speechRunning': false,
           'prepRemainingMs': 180000,
+          'prepRunning': false,
           'debaters': [
             {
               'id': 'debater-preview',
@@ -288,6 +295,28 @@ class PreviewEngineBridge implements EngineBridge {
     if (type == 'timer.action') {
       final timerType = payload['timerType'];
       final actionName = payload['action'];
+      if (timerType == 'speech') {
+        _patchSession({
+          if (actionName == 'start') 'speechRunning': true,
+          if (actionName == 'pause') 'speechRunning': false,
+          if (actionName == 'reset') ...{
+            'speechRemainingMs': 240000,
+            'speechRunning': false,
+          },
+        });
+        return;
+      }
+      if (timerType == 'prep') {
+        _patchSession({
+          if (actionName == 'start') 'prepRunning': true,
+          if (actionName == 'pause') 'prepRunning': false,
+          if (actionName == 'reset') ...{
+            'prepRemainingMs': 180000,
+            'prepRunning': false,
+          },
+        });
+        return;
+      }
       if (timerType == 'speech' && actionName == 'reset') {
         _patchSession({'speechRemainingMs': 240000});
       }
@@ -300,13 +329,15 @@ class PreviewEngineBridge implements EngineBridge {
     if (type == 'customTimer.create') {
       final name = payload['name'];
       if (name is! String || name.trim().isEmpty) return;
+      final durationMs = _parseDuration(payload['duration']);
       _patchSession({
         'customTimers': [
           ..._customTimersJson,
           {
             'id': 'timer-${DateTime.now().microsecondsSinceEpoch}',
             'name': name.trim(),
-            'remainingMs': _parseDuration(payload['duration']),
+            'durationMs': durationMs,
+            'remainingMs': durationMs,
             'running': false,
           },
         ],
@@ -329,9 +360,12 @@ class PreviewEngineBridge implements EngineBridge {
       _patchSession({
         'customTimers': _customTimersJson.map((timer) {
           if (timer['id'] != id) return timer;
+          final durationMs = timer['durationMs'] is num
+              ? (timer['durationMs']! as num).toInt()
+              : 60000;
           return {
             ...timer,
-            if (actionName == 'reset') 'remainingMs': 60000,
+            if (actionName == 'reset') 'remainingMs': durationMs,
             if (actionName == 'start') 'running': true,
             if (actionName == 'pause' || actionName == 'reset')
               'running': false,
@@ -504,6 +538,44 @@ class PreviewEngineBridge implements EngineBridge {
     });
   }
 
+  void _tickTimers() {
+    final now = DateTime.now();
+    final elapsedMs = now.difference(_lastTick).inMilliseconds;
+    _lastTick = now;
+    if (elapsedMs <= 0 || _rawState['session'] == null) return;
+
+    final session = _sessionJson;
+    final patch = <String, Object?>{};
+
+    if (session['speechRunning'] == true) {
+      final next = _decrement(session['speechRemainingMs'], elapsedMs);
+      patch['speechRemainingMs'] = next;
+      if (next == 0) patch['speechRunning'] = false;
+    }
+
+    if (session['prepRunning'] == true) {
+      final next = _decrement(session['prepRemainingMs'], elapsedMs);
+      patch['prepRemainingMs'] = next;
+      if (next == 0) patch['prepRunning'] = false;
+    }
+
+    final timers = _customTimersJson;
+    var changedCustomTimers = false;
+    final nextTimers = timers.map((timer) {
+      if (timer['running'] != true) return timer;
+      final next = _decrement(timer['remainingMs'], elapsedMs);
+      changedCustomTimers = true;
+      return {
+        ...timer,
+        'remainingMs': next,
+        if (next == 0) 'running': false,
+      };
+    }).toList();
+
+    if (changedCustomTimers) patch['customTimers'] = nextTimers;
+    if (patch.isNotEmpty) _patchSession(patch);
+  }
+
   String _availableDocumentName(String requestedName, {String? currentId}) {
     final existing = _documentsJson
         .where((doc) => currentId == null || doc['id'] != currentId)
@@ -535,6 +607,12 @@ class PreviewEngineBridge implements EngineBridge {
       _controller.add(_state.value);
     }
   }
+}
+
+int _decrement(Object? value, int elapsedMs) {
+  final current = value is num ? value.toInt() : 0;
+  final next = current - elapsedMs;
+  return next <= 0 ? 0 : next;
 }
 
 List<Map<String, Object?>> _list(Object? value) {
@@ -616,7 +694,9 @@ final Map<String, Object?> _initialPreviewState = {
       'debater-1': 'Opening roadmap and first contention.',
     },
     'speechRemainingMs': 240000,
+    'speechRunning': false,
     'prepRemainingMs': 180000,
+    'prepRunning': false,
     'debaters': <Map<String, Object?>>[
       {
         'id': 'debater-1',
@@ -630,6 +710,7 @@ final Map<String, Object?> _initialPreviewState = {
       {
         'id': 'timer-cross-ex',
         'name': 'Cross-ex',
+        'durationMs': 180000,
         'remainingMs': 180000,
         'running': false,
       },

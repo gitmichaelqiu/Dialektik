@@ -190,7 +190,9 @@ class SessionState {
     required this.currentSpeakerId,
     required this.speakerNotes,
     required this.speechRemainingMs,
+    required this.speechRunning,
     required this.prepRemainingMs,
+    required this.prepRunning,
     required this.customTimers,
   });
 
@@ -210,7 +212,9 @@ class SessionState {
               ) ??
           const {},
       speechRemainingMs: _number(json['speechRemainingMs'], fallback: 240000),
+      speechRunning: json['speechRunning'] == true,
       prepRemainingMs: _number(json['prepRemainingMs'], fallback: 180000),
+      prepRunning: json['prepRunning'] == true,
       customTimers: AppSnapshot._list(json['customTimers'])
           .map(RoundTimer.fromJson)
           .toList(),
@@ -226,7 +230,9 @@ class SessionState {
   final String? currentSpeakerId;
   final Map<String, String> speakerNotes;
   final int speechRemainingMs;
+  final bool speechRunning;
   final int prepRemainingMs;
+  final bool prepRunning;
   final List<RoundTimer> customTimers;
 }
 
