@@ -183,7 +183,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!restoredSession || !restoredRoom.code || restoredSession.status === "ended") return;
 
       setSessionState(restoredSession);
-      setActivePage("inround");
       startSession(restoredRoom.code, restoredRoom.host);
     } catch (err) {
       console.error("Failed to restore active room:", err);
