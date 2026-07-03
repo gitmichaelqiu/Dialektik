@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 // Helper to check if we are running in Tauri Desktop environment
 export const isTauri = (): boolean => {
-  return typeof window !== "undefined" && Boolean((window as any).__TAURI_INTERNALS__);
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return typeof window !== "undefined" && Boolean((window as any).__TAURI_INTERNALS__) && !isMobile;
 };
 
 // Convert string to Uint8Array
