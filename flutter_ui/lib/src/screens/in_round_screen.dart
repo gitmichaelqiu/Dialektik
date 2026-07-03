@@ -30,6 +30,27 @@ class _InRoundScreenState extends State<InRoundScreen> {
   final _notesController = TextEditingController();
   int _teamSize = 1;
   String? _localActiveSpeakerId;
+  bool _hostIsDebater = true;
+
+  Future<bool> _confirmAction(BuildContext context, {required String title, required String content}) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
@@ -98,10 +119,13 @@ class _InRoundScreenState extends State<InRoundScreen> {
       groupController: _groupController,
       teamSize: _teamSize,
       onTeamSizeChanged: (value) => setState(() => _teamSize = value),
+      hostIsDebater: _hostIsDebater,
+      onHostIsDebaterChanged: (value) => setState(() => _hostIsDebater = value),
       onHost: () => widget.bridge.dispatch(action('session.host', {
         'matchName': _matchController.text.trim(),
         'groupName': _groupController.text.trim(),
         'teamSize': _teamSize,
+        'participate': _hostIsDebater,
       })),
     );
 
@@ -141,12 +165,23 @@ class _InRoundScreenState extends State<InRoundScreen> {
     final handoutPane = active
         ? _HandoutReadPane(session: session)
         : _LobbyHandoutPane(
+            session: session,
             titleController: _handoutTitleController,
             problemController: _handoutProblemController,
             detailsController: _handoutDetailsController,
             onChanged: _updateHandout,
             onStart: () =>
                 widget.bridge.dispatch(action('session.startDebate')),
+            onCancel: () async {
+              final confirm = await _confirmAction(
+                context,
+                title: 'Cancel Session',
+                content: 'Are you sure you want to cancel and exit this lobby?',
+              );
+              if (confirm) {
+                widget.bridge.dispatch(action('session.exit'));
+              }
+            },
           );
 
     final timersPane = _TimersPane(
@@ -175,9 +210,26 @@ class _InRoundScreenState extends State<InRoundScreen> {
             },
             onAiOutline: () =>
                 widget.bridge.dispatch(action('session.aiOutline')),
-            onSaveRound: () =>
-                widget.bridge.dispatch(action('session.saveRound')),
-            onExit: () => widget.bridge.dispatch(action('session.exit')),
+            onSaveRound: (winner) async {
+              final confirm = await _confirmAction(
+                context,
+                title: 'End Round & Declare Winner',
+                content: 'Are you sure you want to declare ${winner == 'affirmative' ? 'Affirmative' : 'Negative'} as the winner and save the round to history?',
+              );
+              if (confirm) {
+                widget.bridge.dispatch(action('session.saveRound', {'winner': winner}));
+              }
+            },
+            onExit: () async {
+              final confirm = await _confirmAction(
+                context,
+                title: 'Exit Round',
+                content: 'Are you sure you want to exit? Any unsaved round progress will be lost.',
+              );
+              if (confirm) {
+                widget.bridge.dispatch(action('session.exit'));
+              }
+            },
           )
         : _DebatersPane(
             bridge: widget.bridge,
@@ -252,6 +304,8 @@ class _StartSessionPane extends StatelessWidget {
     required this.groupController,
     required this.teamSize,
     required this.onTeamSizeChanged,
+    required this.hostIsDebater,
+    required this.onHostIsDebaterChanged,
     required this.onHost,
   });
 
@@ -259,6 +313,8 @@ class _StartSessionPane extends StatelessWidget {
   final TextEditingController groupController;
   final int teamSize;
   final ValueChanged<int> onTeamSizeChanged;
+  final bool hostIsDebater;
+  final ValueChanged<bool> onHostIsDebaterChanged;
   final VoidCallback onHost;
 
   @override
@@ -296,7 +352,15 @@ class _StartSessionPane extends StatelessWidget {
                 if (value != null) onTeamSizeChanged(value);
               },
             ),
-            const Spacer(),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              title: const Text('Participate as debater'),
+              value: hostIsDebater,
+              onChanged: (val) => onHostIsDebaterChanged(val ?? true),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -340,7 +404,7 @@ class _JoinSessionPane extends StatelessWidget {
               decoration: const InputDecoration(labelText: 'Room code'),
               onSubmitted: (_) => onJoin(),
             ),
-            const Spacer(),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -358,18 +422,22 @@ class _JoinSessionPane extends StatelessWidget {
 
 class _LobbyHandoutPane extends StatelessWidget {
   const _LobbyHandoutPane({
+    required this.session,
     required this.titleController,
     required this.problemController,
     required this.detailsController,
     required this.onChanged,
     required this.onStart,
+    required this.onCancel,
   });
 
+  final SessionState session;
   final TextEditingController titleController;
   final TextEditingController problemController;
   final TextEditingController detailsController;
   final VoidCallback onChanged;
   final VoidCallback onStart;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -379,9 +447,9 @@ class _LobbyHandoutPane extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SectionHeader(
+            SectionHeader(
               title: 'Debate handout',
-              subtitle: 'Draft the problem before starting the debate',
+              subtitle: 'Room Code: ${session.roomCode} • Draft the resolution',
             ),
             const SizedBox(height: 12),
             TextField(
@@ -394,8 +462,10 @@ class _LobbyHandoutPane extends StatelessWidget {
               controller: problemController,
               minLines: 4,
               maxLines: 7,
-              decoration:
-                  const InputDecoration(labelText: 'Resolution or problem'),
+              decoration: const InputDecoration(
+                labelText: 'Resolution or problem',
+                alignLabelWithHint: true,
+              ),
               onChanged: (_) => onChanged(),
             ),
             const SizedBox(height: 8),
@@ -403,16 +473,32 @@ class _LobbyHandoutPane extends StatelessWidget {
               controller: detailsController,
               minLines: 3,
               maxLines: 6,
-              decoration: const InputDecoration(labelText: 'Context'),
+              decoration: const InputDecoration(
+                labelText: 'Context',
+                alignLabelWithHint: true,
+              ),
               onChanged: (_) => onChanged(),
             ),
-            const Spacer(),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onStart,
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Start debate'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onCancel,
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('Cancel session'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                ),
               ),
             ),
           ],
@@ -712,7 +798,7 @@ class _NotesPane extends StatelessWidget {
   final ValueChanged<Debater> onSpeakerSelected;
   final ValueChanged<String> onNotesChanged;
   final VoidCallback onAiOutline;
-  final VoidCallback onSaveRound;
+  final ValueChanged<String> onSaveRound;
   final VoidCallback onExit;
 
   @override
@@ -755,7 +841,10 @@ class _NotesPane extends StatelessWidget {
                 minLines: null,
                 maxLines: null,
                 textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(labelText: 'Flow notes'),
+                decoration: const InputDecoration(
+                  labelText: 'Flow notes',
+                  alignLabelWithHint: true,
+                ),
                 onChanged: onNotesChanged,
               ),
             ),
@@ -771,10 +860,26 @@ class _NotesPane extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onSaveRound,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Save round'),
+                  child: MenuAnchor(
+                    builder: (context, menuController, child) {
+                      return FilledButton.icon(
+                        onPressed: () => menuController.isOpen
+                            ? menuController.close()
+                            : menuController.open(),
+                        icon: const Icon(Icons.emoji_events_outlined),
+                        label: const Text('Declare Winner'),
+                      );
+                    },
+                    menuChildren: [
+                      MenuItemButton(
+                        onPressed: () => onSaveRound('affirmative'),
+                        child: const Text('Affirmative Wins'),
+                      ),
+                      MenuItemButton(
+                        onPressed: () => onSaveRound('negative'),
+                        child: const Text('Negative Wins'),
+                      ),
+                    ],
                   ),
                 ),
               ],
