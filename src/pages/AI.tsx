@@ -12,6 +12,7 @@ import {
   Send, 
   ArrowRight,
   Check,
+  Edit3,
   X,
   FileText,
   Trophy
@@ -31,6 +32,7 @@ import {
   ScrollArea,
   Notification,
   Alert,
+  ActionIcon,
   NavLink
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -90,6 +92,8 @@ export const AI: React.FC = () => {
   const [chatBusy, setChatBusy] = useState(false);
   const [thinkingText, setThinkingText] = useState("");
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   
   // Autocomplete state
   const [showSuggest, setShowSuggest] = useState(false);
@@ -175,7 +179,7 @@ export const AI: React.FC = () => {
       const firstUserMessage = nextMessages.find(msg => msg.role === "user")?.content;
       return {
         ...conv,
-        title: firstUserMessage ? firstUserMessage.slice(0, 48) : conv.title,
+        title: conv.title === "New Chat" && firstUserMessage ? firstUserMessage.slice(0, 48) : conv.title,
         messages: nextMessages,
         updatedAt: Date.now()
       };
@@ -188,7 +192,21 @@ export const AI: React.FC = () => {
     setActiveConversationId(next.id);
     setChatInput("");
     setThinkingText("");
-    notify("New conversation started.");
+  };
+
+  const startRenameConversation = (conversation: AIConversation) => {
+    setRenamingConversationId(conversation.id);
+    setRenameDraft(conversation.title);
+  };
+
+  const commitRenameConversation = () => {
+    if (!renamingConversationId) return;
+    const title = renameDraft.trim() || "Untitled Chat";
+    setConversations(prev => prev.map(conv => (
+      conv.id === renamingConversationId ? { ...conv, title, updatedAt: Date.now() } : conv
+    )));
+    setRenamingConversationId(null);
+    setRenameDraft("");
   };
 
   const handleSelectAutocomplete = (doc: DebateDocument) => {
@@ -476,8 +494,39 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                       <NavLink
                         key={conv.id}
                         active={conv.id === activeConversation.id}
-                        label={conv.title}
+                        label={
+                          renamingConversationId === conv.id ? (
+                            <TextInput
+                              value={renameDraft}
+                              onChange={(e) => setRenameDraft(e.target.value)}
+                              onBlur={commitRenameConversation}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") commitRenameConversation();
+                                if (e.key === "Escape") {
+                                  setRenamingConversationId(null);
+                                  setRenameDraft("");
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              size="xs"
+                              autoFocus
+                            />
+                          ) : conv.title
+                        }
                         leftSection={<MessageSquare size={14} />}
+                        rightSection={
+                          <ActionIcon
+                            variant="subtle"
+                            size="xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRenameConversation(conv);
+                            }}
+                            aria-label="Rename chat"
+                          >
+                            <Edit3 size={12} />
+                          </ActionIcon>
+                        }
                         onClick={() => setActiveConversationId(conv.id)}
                         variant="light"
                         color="teal"
@@ -719,7 +768,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 <Stack gap="xs" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Group justify="space-between" p="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", backgroundColor: "var(--mantine-color-gray-0)" }}>
                     <Stack gap={0} style={{ maxWidth: "70%" }}>
-                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Sparring Resolution</Text>
+                      <Text size="xs" fw={700} c="dimmed">Sparring resolution</Text>
                       <Text size="xs" fw={700} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {activeSparSession?.topic}
                       </Text>
@@ -798,7 +847,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                   <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                     <Stack gap="md">
                       <Card withBorder p="md" radius="md" bg="var(--mantine-color-gray-0)" style={{ textAlign: "center" }}>
-                        <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Performance Score</Text>
+                        <Text size="xs" fw={700} c="dimmed">Performance score</Text>
                         <Text size="xl" fw={900} c="teal">
                           {activeSparSession.scorecard.score}<span style={{ fontSize: "11px", color: "var(--mantine-color-gray-5)" }}>/100</span>
                         </Text>
