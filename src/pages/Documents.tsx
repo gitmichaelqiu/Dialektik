@@ -47,7 +47,7 @@ async function computeSHA256(text: string): Promise<string> {
 }
 
 export const Documents: React.FC = () => {
-  const { isPeerConnected, mesh, session } = useApp();
+  const { isPeerConnected, mesh, session, userId, userName } = useApp();
   const isMobile = useMediaQuery("(max-width: 48em)");
 
   const [docs, setDocs] = useState<DebateDocument[]>([]);
@@ -118,16 +118,19 @@ export const Documents: React.FC = () => {
         const peerInfo = session?.debaters.find(d => d.connectionId === peerId);
         const isSameTeam = myInfo && peerInfo && myInfo.team === peerInfo.team && myInfo.team !== undefined;
         
-        const docsToSend = allDocs.filter(doc => {
+        const ownedSharedDocs = allDocs.filter(doc => (!doc.ownerId || doc.ownerId === userId) && doc.partnerAccess !== "private");
+        const canPeerSeeDoc = (doc: DebateDocument) => {
           if (doc.partnerAccess === "public") return true;
           if (doc.partnerAccess === "team" && isSameTeam) return true;
           return false;
-        });
+        };
+        const docsToSend = ownedSharedDocs.filter(canPeerSeeDoc);
+        const removeIds = ownedSharedDocs.filter(doc => !canPeerSeeDoc(doc)).map(doc => doc.id);
         
         mesh.sendToPeer(peerId, {
           type: "shared-docs-sync",
           senderId: mesh.peerId,
-          payload: docsToSend
+          payload: { docs: docsToSend, removeIds }
         });
       }
     } catch (err) {
@@ -140,11 +143,20 @@ export const Documents: React.FC = () => {
 
     const handler = (_senderId: string, msg: any) => {
       if (msg.type === "shared-docs-sync") {
-        const incomingDocs: DebateDocument[] = msg.payload;
+        const incomingDocs: DebateDocument[] = Array.isArray(msg.payload) ? msg.payload : msg.payload?.docs || [];
+        const removeIds: string[] = Array.isArray(msg.payload) ? [] : msg.payload?.removeIds || [];
         (async () => {
           let changed = false;
+          for (const id of removeIds) {
+            const existing = await db.documents.get(id);
+            if (existing && existing.ownerId !== userId) {
+              await db.documents.delete(id);
+              changed = true;
+            }
+          }
           for (const doc of incomingDocs) {
             const existing = await db.documents.get(doc.id);
+            if (existing?.ownerId === userId) continue;
             if (!existing) {
               await db.documents.put(doc);
               changed = true;
@@ -154,7 +166,9 @@ export const Documents: React.FC = () => {
                 content: doc.content,
                 lastModified: doc.lastModified,
                 partnerAccess: doc.partnerAccess,
-                encryptedHash: doc.encryptedHash
+                encryptedHash: doc.encryptedHash,
+                ownerId: doc.ownerId,
+                ownerName: doc.ownerName
               });
               changed = true;
             }
@@ -175,7 +189,7 @@ export const Documents: React.FC = () => {
       unsubscribeMessage();
       unsubscribeConnect();
     };
-  }, [isPeerConnected, session]);
+  }, [isPeerConnected, session, userId]);
 
   useEffect(() => {
     if (!selectedDoc) return;
@@ -227,6 +241,15 @@ export const Documents: React.FC = () => {
     setSelectedDoc(doc);
     setEditorName(doc.name);
     setEditorContent(doc.content);
+  };
+
+  const isDocumentOwner = (doc: DebateDocument | null) => {
+    return !doc?.ownerId || doc.ownerId === userId;
+  };
+
+  const isSelectedDocWritable = () => {
+    if (!selectedDoc) return false;
+    return isDocumentOwner(selectedDoc) || selectedDoc.encryptedHash !== "read";
   };
 
   const persistEditorContent = (val: string) => {
@@ -306,6 +329,18 @@ export const Documents: React.FC = () => {
     });
   };
 
+  const insertCardLink = (card: EvidenceCard) => {
+    const mention = `[[${card.id}]]`;
+    const nextContent = `${editorContent.slice(0, linkMenu.start)}${mention}${editorContent.slice(linkMenu.end)}`;
+    const nextCaret = linkMenu.start + mention.length;
+    persistEditorContent(nextContent);
+    setLinkMenu(menu => ({ ...menu, visible: false }));
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
+
   const handleTitleBlur = () => {
     if (!selectedDoc || !editorName.trim()) return;
     const cleanTitle = editorName.trim().replace(/[\[\]#?/\\]/g, "");
@@ -351,7 +386,9 @@ export const Documents: React.FC = () => {
       content: "",
       lastModified: Date.now(),
       partnerAccess: newDocFolder as any,
-      encryptedHash: newDocMode
+      encryptedHash: newDocMode,
+      ownerId: userId,
+      ownerName: userName || "Local Partner"
     };
 
     await db.documents.put(newDoc);
@@ -362,20 +399,28 @@ export const Documents: React.FC = () => {
 
   const handleMoveDoc = async (folder: "private" | "team" | "public") => {
     if (!selectedDoc) return;
+    if (!isDocumentOwner(selectedDoc)) {
+      triggerToast("Only the owner can change document sharing.");
+      return;
+    }
     const nextDoc = { ...selectedDoc, partnerAccess: folder, lastModified: Date.now() };
     setSelectedDoc(nextDoc);
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
-    await db.documents.update(selectedDoc.id, { partnerAccess: folder });
+    await db.documents.update(selectedDoc.id, { partnerAccess: folder, lastModified: nextDoc.lastModified });
     await loadDocs();
     triggerToast(`Moved document to ${folder} folder.`);
   };
 
   const handleToggleDocMode = async (mode: "read" | "write") => {
     if (!selectedDoc) return;
+    if (!isDocumentOwner(selectedDoc)) {
+      triggerToast("Only the owner can change writable settings.");
+      return;
+    }
     const nextDoc = { ...selectedDoc, encryptedHash: mode, lastModified: Date.now() };
     setSelectedDoc(nextDoc);
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
-    await db.documents.update(selectedDoc.id, { encryptedHash: mode });
+    await db.documents.update(selectedDoc.id, { encryptedHash: mode, lastModified: nextDoc.lastModified });
     await loadDocs();
     triggerToast(`Sharing mode updated to: ${mode === "write" ? "shared writable" : "shared read-only"}.`);
   };
@@ -385,12 +430,14 @@ export const Documents: React.FC = () => {
     const nameWithoutExt = selectedDoc.name.replace(".md", "");
     const newDoc: DebateDocument = {
       id: `doc-${Math.random().toString(36).substring(2, 11)}`,
-      name: `${nameWithoutExt}_copy.md`,
+      name: getAvailableFilename(`${nameWithoutExt}_copy.md`),
       type: selectedDoc.type,
       content: selectedDoc.content,
       lastModified: Date.now(),
       partnerAccess: selectedDoc.partnerAccess || "private",
-      encryptedHash: selectedDoc.encryptedHash || "write"
+      encryptedHash: selectedDoc.encryptedHash || "write",
+      ownerId: userId,
+      ownerName: userName || "Local Partner"
     };
     await db.documents.put(newDoc);
     await loadDocs();
@@ -593,6 +640,21 @@ export const Documents: React.FC = () => {
     { private: [], team: [], public: [] }
   );
 
+  const linkQuery = linkMenu.query.toLowerCase();
+  const matchingDocs = docs
+    .filter(doc => {
+      const label = `${doc.partnerAccess || "private"}/${doc.name.replace(/\.md$/i, "")}`.toLowerCase();
+      return label.includes(linkQuery);
+    })
+    .slice(0, 6);
+  const matchingCards = cards
+    .filter(card => {
+      const label = `${card.title} ${card.id} ${card.text}`.toLowerCase();
+      return label.includes(linkQuery);
+    })
+    .slice(0, 6);
+  const canEditSelectedDoc = isSelectedDocWritable();
+
   return (
     <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {toastNotification && (
@@ -727,6 +789,7 @@ export const Documents: React.FC = () => {
                     onChange={(e) => setEditorName(e.target.value)}
                     onBlur={handleTitleBlur}
                     placeholder="Rename file..."
+                    disabled={!isDocumentOwner(selectedDoc)}
                     size="xs"
                     style={{ fontWeight: 700, width: "30%" }}
                   />
@@ -735,6 +798,7 @@ export const Documents: React.FC = () => {
                     <Select
                       value={selectedDoc.partnerAccess || "private"}
                       onChange={(val) => handleMoveDoc(val as any)}
+                      disabled={!isDocumentOwner(selectedDoc)}
                       data={[
                         { label: "private", value: "private" },
                         { label: "team", value: "team" },
@@ -746,7 +810,7 @@ export const Documents: React.FC = () => {
 
                     <Select
                       value={selectedDoc.encryptedHash || "write"}
-                      disabled={(selectedDoc.partnerAccess || "private") === "private"}
+                      disabled={(selectedDoc.partnerAccess || "private") === "private" || !isDocumentOwner(selectedDoc)}
                       onChange={(val) => handleToggleDocMode(val as any)}
                       data={[
                         { label: "shared writable", value: "write" },
@@ -790,6 +854,7 @@ export const Documents: React.FC = () => {
                         onKeyUp={handleEditorSelect}
                         onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
                         placeholder="Type markdown. Cite evidence cards with [[card-id]] or files with [[folder/title]]."
+                        readOnly={!canEditSelectedDoc}
                         style={{
                           width: "100%",
                           flex: 1,
@@ -799,6 +864,7 @@ export const Documents: React.FC = () => {
                           background: "var(--mantine-color-white)",
                           outline: 0,
                           resize: "none",
+                          cursor: canEditSelectedDoc ? "text" : "not-allowed",
                           fontFamily: "monospace",
                           fontSize: "12px",
                           lineHeight: 1.6
@@ -810,16 +876,11 @@ export const Documents: React.FC = () => {
                           withBorder 
                           p={4} 
                           radius="md" 
-                          style={{ position: "absolute", top: "40px", left: "20px", zIndex: 60, width: 280, maxHeight: 180, overflowY: "auto" }}
+                          style={{ position: "absolute", bottom: "16px", left: "20px", zIndex: 60, width: 320, maxHeight: 220, overflowY: "auto" }}
                         >
                           <Stack gap={4}>
-                            {docs
-                              .filter(doc => {
-                                const label = `${doc.partnerAccess || "private"}/${doc.name.replace(/\.md$/i, "")}`.toLowerCase();
-                                return label.includes(linkMenu.query.toLowerCase());
-                              })
-                              .slice(0, 8)
-                              .map(doc => (
+                            {matchingDocs.length > 0 && <Text size="10px" fw={700} c="dimmed" px="xs">Documents</Text>}
+                            {matchingDocs.map(doc => (
                                 <Button
                                   key={doc.id}
                                   variant="subtle"
@@ -835,7 +896,26 @@ export const Documents: React.FC = () => {
                                   {doc.partnerAccess || "private"}/{doc.name.replace(/\.md$/i, "")}
                                 </Button>
                               ))}
-                            {docs.length === 0 && <Text size="xs" c="dimmed" p="xs">No files available</Text>}
+                            {matchingCards.length > 0 && <Text size="10px" fw={700} c="dimmed" px="xs" pt={matchingDocs.length ? 4 : 0}>Evidence cards</Text>}
+                            {matchingCards.map(card => (
+                              <Button
+                                key={card.id}
+                                variant="subtle"
+                                color="gray"
+                                size="xs"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  insertCardLink(card);
+                                }}
+                                justify="flex-start"
+                                leftSection={<ShieldCheck size={13} />}
+                              >
+                                {card.title}
+                              </Button>
+                            ))}
+                            {matchingDocs.length === 0 && matchingCards.length === 0 && (
+                              <Text size="xs" c="dimmed" p="xs">No matching citations</Text>
+                            )}
                           </Stack>
                         </Paper>
                       )}

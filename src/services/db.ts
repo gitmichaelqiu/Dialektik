@@ -15,6 +15,8 @@ export interface DebateDocument {
   lastModified: number;
   encryptedHash?: string; // SHA-256 hash of plaintext for sync comparison
   partnerAccess?: string; // partnership access group identifier
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export interface EvidenceCard {

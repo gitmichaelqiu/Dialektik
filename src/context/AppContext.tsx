@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
-import { db } from "../services/db";
+import { db, type DebateDocument } from "../services/db";
 import { KeyManager } from "../services/crypto";
 import { PeerMeshManager } from "../services/webrtc";
 import { notify } from "../utils/notifications";
@@ -114,6 +114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [aiModel, setAiModel] = useState("gpt-4o");
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
+  const userIdRef = useRef("");
 
   const githubService = null;
 
@@ -121,6 +122,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(ACTIVE_PAGE_KEY, page);
     setActivePageState(page);
   };
+
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   const setSession: React.Dispatch<React.SetStateAction<SessionState | null>> = (value) => {
     setSessionState(prev => {
@@ -137,12 +142,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncPublicDocumentsToPeers = async () => {
     if (meshManager.connections.size === 0) return;
     const allDocs = await db.documents.toArray();
-    const publicDocs = allDocs.filter(doc => doc.partnerAccess === "public");
+    const publicDocs = allDocs.filter(doc => doc.partnerAccess === "public" && (!doc.ownerId || doc.ownerId === userIdRef.current));
     if (publicDocs.length === 0) return;
     meshManager.broadcast({
       type: "shared-docs-sync",
       senderId: meshManager.peerId,
-      payload: publicDocs
+      payload: { docs: publicDocs, removeIds: [] }
     });
   };
 
@@ -225,11 +230,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             speakerNotes: prev?.speakerNotes || {}
           }));
         }
-      } else if (msg.type === "shared-docs-sync" && Array.isArray(msg.payload)) {
+      } else if (msg.type === "shared-docs-sync") {
         (async () => {
-          for (const doc of msg.payload) {
+          const incomingDocs: DebateDocument[] = Array.isArray(msg.payload) ? msg.payload : msg.payload?.docs || [];
+          const removeIds: string[] = Array.isArray(msg.payload) ? [] : msg.payload?.removeIds || [];
+
+          for (const id of removeIds) {
+            const existing = await db.documents.get(id);
+            if (existing && existing.ownerId !== userIdRef.current) {
+              await db.documents.delete(id);
+            }
+          }
+
+          for (const doc of incomingDocs) {
             if (doc.partnerAccess !== "public") continue;
             const existing = await db.documents.get(doc.id);
+            if (existing?.ownerId === userIdRef.current) continue;
             if (!existing) {
               await db.documents.put(doc);
             } else if (doc.lastModified > existing.lastModified) {
@@ -238,7 +254,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 content: doc.content,
                 lastModified: doc.lastModified,
                 partnerAccess: doc.partnerAccess,
-                encryptedHash: doc.encryptedHash
+                encryptedHash: doc.encryptedHash,
+                ownerId: doc.ownerId,
+                ownerName: doc.ownerName
               });
             }
           }
