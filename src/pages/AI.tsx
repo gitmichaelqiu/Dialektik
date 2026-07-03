@@ -74,7 +74,13 @@ export const AI: React.FC = () => {
   } = useApp();
   const isMobile = useMediaQuery("(max-width: 48em)");
 
-  const [viewMode, setViewMode] = useState<"chat" | "sparring">("chat");
+  const [viewMode, setViewMode] = useState<"chat" | "sparring">(() => {
+    return (localStorage.getItem("dialektik.aiViewMode") as "chat" | "sparring") || "chat";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("dialektik.aiViewMode", viewMode);
+  }, [viewMode]);
 
   // --- AI CHAT MODE STATES ---
   const [conversations, setConversations] = useState<AIConversation[]>(() => {
