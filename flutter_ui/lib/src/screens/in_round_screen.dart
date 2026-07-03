@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
@@ -52,11 +53,16 @@ class _InRoundScreenState extends State<InRoundScreen> {
     ) ?? false;
   }
 
+  final Set<String> _shownRequestIds = {};
+
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final session = widget.snapshot.session;
-    if (session == null) return;
+    if (session == null) {
+      _shownRequestIds.clear();
+      return;
+    }
     if (_handoutTitleController.text != session.handout.title) {
       _handoutTitleController.text = session.handout.title;
     }
@@ -72,6 +78,55 @@ class _InRoundScreenState extends State<InRoundScreen> {
     if (_notesController.text != notes &&
         FocusManager.instance.primaryFocus?.context?.widget is! EditableText) {
       _notesController.text = notes;
+    }
+
+    if (session.isHost && session.pendingRequests.isNotEmpty) {
+      for (final req in session.pendingRequests) {
+        if (!_shownRequestIds.contains(req.id)) {
+          _shownRequestIds.add(req.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Colors.black87,
+                content: Row(
+                  children: [
+                    const Icon(Icons.person_add, color: Colors.white70, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Join request from ${req.name}',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        widget.bridge.dispatch(action('session.rejectJoin', {'id': req.id}));
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                      child: const Text('Reject', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        widget.bridge.dispatch(action('session.approveJoin', {'id': req.id}));
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.teal.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                      child: const Text('Approve'),
+                    ),
+                  ],
+                ),
+                duration: const Duration(days: 1),
+              ),
+            );
+          });
+        }
+      }
     }
   }
 
@@ -245,8 +300,6 @@ class _InRoundScreenState extends State<InRoundScreen> {
                 'text': text,
               }));
             },
-            onAiOutline: () =>
-                widget.bridge.dispatch(action('session.aiOutline')),
             onSaveRound: (winner) async {
               final confirm = await _confirmAction(
                 context,
@@ -273,7 +326,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
             session: session,
           );
 
-    final mainLayout = compact
+    return compact
         ? DefaultTabController(
             length: 3,
             child: Scaffold(
@@ -316,57 +369,6 @@ class _InRoundScreenState extends State<InRoundScreen> {
               debatersOrNotesPane,
             ],
           );
-
-    if (session.isHost && session.pendingRequests.isNotEmpty) {
-      return Column(
-        children: [
-          for (final req in session.pendingRequests)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Card(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.person_add, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Join request from ${req.name}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => widget.bridge.dispatch(
-                          action('session.rejectJoin', {'id': req.id}),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                        child: const Text('Reject'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () => widget.bridge.dispatch(
-                          action('session.approveJoin', {'id': req.id}),
-                        ),
-                        child: const Text('Approve'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          Expanded(child: mainLayout),
-        ],
-      );
-    }
-
-    return mainLayout;
   }
 
   String? _activeSpeakerId(SessionState session) {
@@ -535,7 +537,33 @@ class _LobbyHandoutPane extends StatelessWidget {
           children: [
             SectionHeader(
               title: 'Debate handout',
-              subtitle: 'Room Code: ${session.roomCode} • Draft the resolution',
+              subtitle: 'Draft the resolution',
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Room Code: ${session.roomCode}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  iconSize: 16,
+                  icon: const Icon(Icons.copy),
+                  tooltip: 'Copy Room Code',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: session.roomCode));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Room code copied to clipboard!'), duration: Duration(seconds: 1)),
+                    );
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             TextField(
@@ -614,7 +642,33 @@ class _HandoutReadPane extends StatelessWidget {
               title: session.handout.title.isEmpty
                   ? session.matchName
                   : session.handout.title,
-              subtitle: 'Room ${session.roomCode} • ${session.groupName}',
+              subtitle: session.groupName,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Room Code: ${session.roomCode}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                  iconSize: 16,
+                  icon: const Icon(Icons.copy),
+                  tooltip: 'Copy Room Code',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: session.roomCode));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Room code copied to clipboard!'), duration: Duration(seconds: 1)),
+                    );
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text('Debate resolution',
@@ -885,7 +939,6 @@ class _NotesPane extends StatelessWidget {
     required this.controller,
     required this.onSpeakerSelected,
     required this.onNotesChanged,
-    required this.onAiOutline,
     required this.onSaveRound,
     required this.onExit,
   });
@@ -895,7 +948,6 @@ class _NotesPane extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<Debater> onSpeakerSelected;
   final ValueChanged<String> onNotesChanged;
-  final VoidCallback onAiOutline;
   final ValueChanged<String> onSaveRound;
   final VoidCallback onExit;
 
@@ -912,11 +964,6 @@ class _NotesPane extends StatelessWidget {
               subtitle: activeSpeaker == null
                   ? 'Select a speaker'
                   : 'Active: ${activeSpeaker!.name}',
-              trailing: IconButton.filledTonal(
-                onPressed: onAiOutline,
-                icon: const Icon(Icons.auto_awesome),
-                tooltip: 'AI outline',
-              ),
             ),
             const SizedBox(height: 12),
             Wrap(
