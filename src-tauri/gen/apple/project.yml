@@ -54,11 +54,8 @@ targets:
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
         UIApplicationSceneManifest:
-          UIApplicationSupportsMultipleScenes: false
-          UISceneConfigurations:
-            UIWindowSceneSessionRoleApplication:
-              - UISceneConfigurationName: "Default Configuration"
-                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate"
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
     entitlements:
