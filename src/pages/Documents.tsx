@@ -70,7 +70,9 @@ export const Documents: React.FC = () => {
   // Editor states
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
-  const [editorMode, setEditorMode] = useState<"edit" | "read">("edit");
+  const [editorMode, setEditorMode] = useState<"edit" | "read">(() => {
+    return (localStorage.getItem("dialektik.editorMode") as "edit" | "read") || "edit";
+  });
   const [editorScrollTop, setEditorScrollTop] = useState(0);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const editorModeRef = useRef(editorMode);
@@ -98,6 +100,7 @@ export const Documents: React.FC = () => {
 
   useEffect(() => {
     editorModeRef.current = editorMode;
+    localStorage.setItem("dialektik.editorMode", editorMode);
   }, [editorMode]);
 
   useEffect(() => {
@@ -107,29 +110,29 @@ export const Documents: React.FC = () => {
       next: (allDocs) => {
         setDocs(allDocs);
         setSelectedDoc(current => {
-          if (!current) {
-            const firstDoc = allDocs[0];
-            if (firstDoc) {
-              setEditorName(firstDoc.name);
-              setEditorContent(firstDoc.content);
-              return firstDoc;
-            }
-            return null;
+          const activeDocId = localStorage.getItem("dialektik.activeDocId");
+          let targetDoc = current
+            ? allDocs.find(doc => doc.id === current.id)
+            : (activeDocId ? allDocs.find(doc => doc.id === activeDocId) : null);
+
+          if (!targetDoc && allDocs.length > 0) {
+            targetDoc = allDocs[0];
           }
 
-          const refreshed = allDocs.find(doc => doc.id === current.id);
-          if (!refreshed) {
+          if (!targetDoc) {
+            localStorage.removeItem("dialektik.activeDocId");
             setEditorName("");
             setEditorContent("");
             return null;
           }
 
-          setEditorName(refreshed.name);
+          localStorage.setItem("dialektik.activeDocId", targetDoc.id);
+          setEditorName(targetDoc.name);
           const isEditingCurrentDoc = editorModeRef.current === "edit" && document.activeElement === editorRef.current;
           if (!isEditingCurrentDoc) {
-            setEditorContent(refreshed.content);
+            setEditorContent(targetDoc.content);
           }
-          return refreshed;
+          return targetDoc;
         });
       },
       error: (err) => console.error("Failed to subscribe to documents:", err)
@@ -141,12 +144,20 @@ export const Documents: React.FC = () => {
   async function loadDocs() {
     const allDocs = await db.documents.toArray();
     setDocs(allDocs);
+    const activeDocId = localStorage.getItem("dialektik.activeDocId");
     if (selectedDoc) {
       const refreshed = allDocs.find(doc => doc.id === selectedDoc.id);
       if (refreshed) {
         setSelectedDoc(refreshed);
         setEditorName(refreshed.name);
         setEditorContent(refreshed.content);
+      }
+    } else if (activeDocId) {
+      const storedDoc = allDocs.find(doc => doc.id === activeDocId);
+      if (storedDoc) {
+        handleSelectDoc(storedDoc);
+      } else if (allDocs.length > 0) {
+        handleSelectDoc(allDocs[0]);
       }
     } else if (allDocs.length > 0) {
       handleSelectDoc(allDocs[0]);
@@ -314,6 +325,7 @@ export const Documents: React.FC = () => {
   }, [selectedDoc?.id, isPeerConnected]);
 
   const handleSelectDoc = (doc: DebateDocument) => {
+    localStorage.setItem("dialektik.activeDocId", doc.id);
     setSelectedDoc(doc);
     setEditorName(doc.name);
     setEditorContent(doc.content);
