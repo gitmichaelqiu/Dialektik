@@ -23,9 +23,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _aiEndpointController;
   late final TextEditingController _aiModelController;
   late final TextEditingController _aiKeyController;
-  late final TextEditingController _githubOwnerController;
-  late final TextEditingController _githubRepoController;
-  late final TextEditingController _githubTokenController;
   bool _saved = false;
 
   @override
@@ -36,9 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController = TextEditingController(text: settings.aiEndpoint);
     _aiModelController = TextEditingController(text: settings.aiModel);
     _aiKeyController = TextEditingController();
-    _githubOwnerController = TextEditingController(text: settings.githubOwner);
-    _githubRepoController = TextEditingController(text: settings.githubRepo);
-    _githubTokenController = TextEditingController();
   }
 
   @override
@@ -54,12 +48,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (oldWidget.snapshot.settings.aiModel != settings.aiModel) {
       _aiModelController.text = settings.aiModel;
     }
-    if (oldWidget.snapshot.settings.githubOwner != settings.githubOwner) {
-      _githubOwnerController.text = settings.githubOwner;
-    }
-    if (oldWidget.snapshot.settings.githubRepo != settings.githubRepo) {
-      _githubRepoController.text = settings.githubRepo;
-    }
   }
 
   @override
@@ -68,9 +56,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController.dispose();
     _aiModelController.dispose();
     _aiKeyController.dispose();
-    _githubOwnerController.dispose();
-    _githubRepoController.dispose();
-    _githubTokenController.dispose();
     super.dispose();
   }
 
@@ -132,39 +117,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SectionHeader(
-                  title: 'GitHub sync',
-                  subtitle: widget.snapshot.settings.hasGithubToken
-                      ? 'Token saved'
-                      : 'Token not configured',
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _githubOwnerController,
-                  decoration: const InputDecoration(labelText: 'Owner'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _githubRepoController,
-                  decoration: const InputDecoration(labelText: 'Repository'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _githubTokenController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Token'),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -212,9 +164,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'aiEndpoint': _aiEndpointController.text.trim(),
       'aiModel': _aiModelController.text.trim(),
       'aiApiKey': _aiKeyController.text.trim(),
-      'githubOwner': _githubOwnerController.text.trim(),
-      'githubRepo': _githubRepoController.text.trim(),
-      'githubToken': _githubTokenController.text.trim(),
     }));
     setState(() => _saved = true);
     Future<void>.delayed(const Duration(seconds: 2), () {
