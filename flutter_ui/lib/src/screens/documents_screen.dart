@@ -53,7 +53,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     _selectedId = _cachedSelectedId;
     _readMode = _cachedReadMode;
   }
-  final TextEditingController _contentController = TextEditingController();
+  final HighlightingTextController _contentController = HighlightingTextController();
   final TextEditingController _newTitleController = TextEditingController();
   final TextEditingController _cardTitleController = TextEditingController();
   final TextEditingController _cardSourceController = TextEditingController();
@@ -92,13 +92,25 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final selected = _selectedDocument;
     final compact = MediaQuery.sizeOf(context).width < 840;
 
+    final isOwner = selected == null ||
+        selected.ownerName == null ||
+        selected.ownerName!.isEmpty ||
+        selected.ownerName == widget.snapshot.settings.userName;
+
     final filesPane = _FilesPane(
       documents: widget.snapshot.documents,
       selectedId: selected?.id,
       newTitleController: _newTitleController,
       newFolder: _newFolder,
       newMode: _newMode,
-      onFolderChanged: (value) => setState(() => _newFolder = value),
+      onFolderChanged: (value) {
+        setState(() {
+          _newFolder = value;
+          if (value == 'private') {
+            _newMode = 'write';
+          }
+        });
+      },
       onModeChanged: (value) => setState(() => _newMode = value),
       onCreate: _createDocument,
       onSelect: (doc) {
@@ -120,6 +132,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           widget.bridge.dispatch(action('document.delete', {'id': doc.id}));
         }
       },
+      onDuplicate: (doc) {
+        widget.bridge.dispatch(action('document.duplicate', {'id': doc.id}));
+      },
     );
 
     final editorPane = _EditorPane(
@@ -129,6 +144,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       readMode: _readMode,
       documents: widget.snapshot.documents,
       cards: widget.snapshot.cards,
+      isOwner: isOwner,
       onToggleReadMode: (value) => setState(() {
         _readMode = value;
         _cachedReadMode = value;
@@ -156,11 +172,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         if (selected == null) return;
         widget.bridge.dispatch(
             action('document.setMode', {'id': selected.id, 'mode': mode}));
-      },
-      onDuplicate: () {
-        if (selected == null) return;
-        widget.bridge
-            .dispatch(action('document.duplicate', {'id': selected.id}));
       },
       onInsertCitation: (citation) {
         final selection = _contentController.selection;
@@ -220,14 +231,22 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           widget.bridge.dispatch(action('card.delete', {'id': card.id}));
         }
       },
-      onInsert: (card) {
+      onInsert: _readMode ? null : (card) {
         final selectedDoc = _selectedDocument;
         if (selectedDoc == null) return;
-        final text = '${_contentController.text}\n\n[[${card.id}]]';
-        _contentController.text = text;
+        final selection = _contentController.selection;
+        final insertAt = selection.isValid
+            ? selection.baseOffset
+            : _contentController.text.length;
+        final nextText = _contentController.text.replaceRange(
+          insertAt,
+          selection.isValid ? selection.extentOffset : insertAt,
+          '[[${card.id}]]',
+        );
+        _contentController.text = nextText;
         widget.bridge.dispatch(action('document.updateContent', {
           'id': selectedDoc.id,
-          'content': text,
+          'content': nextText,
         }));
         if (compact) _scaffoldKey.currentState?.closeEndDrawer();
       },
@@ -252,6 +271,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
+  int? _getLineFromCaret(String text, int? caret) {
+    if (caret == null || caret < 0 || caret > text.length) return null;
+    return text.substring(0, caret).split('\n').length - 1;
+  }
+
   void _syncControllers() {
     final doc = _selectedDocument;
     if (doc == null) return;
@@ -263,6 +287,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (_contentController.text != doc.content && documentHasFocus == false) {
       _contentController.text = doc.content;
     }
+    _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
+    _contentController.highlightedLine = _getLineFromCaret(doc.content, doc.partnerCaret);
   }
 
   bool get documentHasFocus {
@@ -293,6 +319,7 @@ class _FilesPane extends StatelessWidget {
     required this.onCreate,
     required this.onSelect,
     required this.onDelete,
+    required this.onDuplicate,
   });
 
   final List<DebateDocument> documents;
@@ -305,6 +332,7 @@ class _FilesPane extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<DebateDocument> onSelect;
   final ValueChanged<DebateDocument> onDelete;
+  final ValueChanged<DebateDocument> onDuplicate;
 
   @override
   Widget build(BuildContext context) {
@@ -334,8 +362,9 @@ class _FilesPane extends StatelessWidget {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    initialValue: newFolder,
+                    value: newFolder,
                     decoration: const InputDecoration(labelText: 'Folder'),
+                    isExpanded: true,
                     items: const [
                       DropdownMenuItem(
                           value: 'private', child: Text('Private')),
@@ -350,15 +379,18 @@ class _FilesPane extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    initialValue: newMode,
+                    value: newFolder == 'private' ? 'write' : newMode,
                     decoration: const InputDecoration(labelText: 'Mode'),
+                    isExpanded: true,
                     items: const [
                       DropdownMenuItem(value: 'write', child: Text('Writable')),
                       DropdownMenuItem(value: 'read', child: Text('Read-only')),
                     ],
-                    onChanged: (value) {
-                      if (value != null) onModeChanged(value);
-                    },
+                    onChanged: newFolder == 'private'
+                        ? null
+                        : (value) {
+                            if (value != null) onModeChanged(value);
+                          },
                   ),
                 ),
               ],
@@ -391,6 +423,7 @@ class _FilesPane extends StatelessWidget {
                             selectedId: selectedId,
                             onSelect: onSelect,
                             onDelete: onDelete,
+                            onDuplicate: onDuplicate,
                           ),
                       ],
                     ),
@@ -409,6 +442,7 @@ class _FolderGroup extends StatelessWidget {
     required this.selectedId,
     required this.onSelect,
     required this.onDelete,
+    required this.onDuplicate,
   });
 
   final String title;
@@ -416,6 +450,7 @@ class _FolderGroup extends StatelessWidget {
   final String? selectedId;
   final ValueChanged<DebateDocument> onSelect;
   final ValueChanged<DebateDocument> onDelete;
+  final ValueChanged<DebateDocument> onDuplicate;
 
   @override
   Widget build(BuildContext context) {
@@ -430,10 +465,20 @@ class _FolderGroup extends StatelessWidget {
                 leading: Icon(doc.isShared ? Icons.public : Icons.lock_outline),
                 title: Text(doc.title, overflow: TextOverflow.ellipsis),
                 subtitle: Text(doc.isWritable ? 'Writable' : 'Read-only'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Delete',
-                  onPressed: () => onDelete(doc),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.copy),
+                      tooltip: 'Duplicate',
+                      onPressed: () => onDuplicate(doc),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Delete',
+                      onPressed: () => onDelete(doc),
+                    ),
+                  ],
                 ),
                 onTap: () => onSelect(doc),
               );
@@ -450,12 +495,12 @@ class _EditorPane extends StatelessWidget {
     required this.readMode,
     required this.documents,
     required this.cards,
+    required this.isOwner,
     required this.onToggleReadMode,
     required this.onRename,
     required this.onChanged,
     required this.onMove,
     required this.onModeChanged,
-    required this.onDuplicate,
     required this.onInsertCitation,
     required this.onNavigateDoc,
     this.isMobile = false,
@@ -469,12 +514,12 @@ class _EditorPane extends StatelessWidget {
   final bool readMode;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
+  final bool isOwner;
   final ValueChanged<bool> onToggleReadMode;
   final VoidCallback onRename;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onMove;
   final ValueChanged<String> onModeChanged;
-  final VoidCallback onDuplicate;
   final ValueChanged<String> onInsertCitation;
   final ValueChanged<DebateDocument> onNavigateDoc;
   final bool isMobile;
@@ -508,6 +553,7 @@ class _EditorPane extends StatelessWidget {
                   width: 240,
                   child: TextField(
                     controller: nameController,
+                    enabled: isOwner,
                     decoration: const InputDecoration(labelText: 'File name'),
                     onSubmitted: (_) => onRename(),
                     onEditingComplete: onRename,
@@ -520,9 +566,11 @@ class _EditorPane extends StatelessWidget {
                     DropdownMenuItem(value: 'team', child: Text('Team')),
                     DropdownMenuItem(value: 'public', child: Text('Public')),
                   ],
-                  onChanged: (value) {
-                    if (value != null) onMove(value);
-                  },
+                  onChanged: isOwner
+                      ? (value) {
+                          if (value != null) onMove(value);
+                        }
+                      : null,
                 ),
                 DropdownButton<String>(
                   value: doc.mode,
@@ -530,16 +578,11 @@ class _EditorPane extends StatelessWidget {
                     DropdownMenuItem(value: 'write', child: Text('Writable')),
                     DropdownMenuItem(value: 'read', child: Text('Read-only')),
                   ],
-                  onChanged: doc.folder == 'private'
-                      ? null
-                      : (value) {
+                  onChanged: isOwner && doc.folder != 'private'
+                      ? (value) {
                           if (value != null) onModeChanged(value);
-                        },
-                ),
-                IconButton.outlined(
-                  onPressed: onDuplicate,
-                  icon: const Icon(Icons.copy),
-                  tooltip: 'Duplicate',
+                        }
+                      : null,
                 ),
                 SegmentedButton<bool>(
                   segments: const [
@@ -932,7 +975,7 @@ class _EvidencePane extends StatelessWidget {
   final TextEditingController textController;
   final VoidCallback onCreate;
   final ValueChanged<EvidenceCard> onDelete;
-  final ValueChanged<EvidenceCard> onInsert;
+  final ValueChanged<EvidenceCard>? onInsert;
 
   @override
   Widget build(BuildContext context) {
@@ -998,7 +1041,7 @@ class _EvidencePane extends StatelessWidget {
                               IconButton(
                                 icon: const Icon(Icons.add_link),
                                 tooltip: 'Insert citation',
-                                onPressed: () => onInsert(card),
+                                onPressed: onInsert == null ? null : () => onInsert!(card),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline),
@@ -1056,4 +1099,43 @@ String _stripInlineMarkdown(String text) {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class HighlightingTextController extends TextEditingController {
+  HighlightingTextController({super.text});
+
+  int? _highlightedLine;
+  int? get highlightedLine => _highlightedLine;
+  set highlightedLine(int? value) {
+    if (_highlightedLine != value) {
+      _highlightedLine = value;
+      notifyListeners();
+    }
+  }
+
+  Color? highlightColor;
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final lines = text.split('\n');
+    if (highlightedLine == null || highlightedLine! < 0 || highlightedLine! >= lines.length) {
+      return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    }
+
+    final List<TextSpan> children = [];
+    for (int i = 0; i < lines.length; i++) {
+      final lineText = lines[i] + (i == lines.length - 1 ? '' : '\n');
+      if (i == highlightedLine) {
+        children.add(TextSpan(
+          text: lineText,
+          style: (style ?? const TextStyle()).copyWith(
+            backgroundColor: highlightColor ?? Colors.teal.shade50.withAlpha(76),
+          ),
+        ));
+      } else {
+        children.add(TextSpan(text: lineText, style: style));
+      }
+    }
+    return TextSpan(children: children, style: style);
+  }
 }
