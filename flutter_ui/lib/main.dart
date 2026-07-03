@@ -3,21 +3,16 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dialektik_flutter_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final savedStateStr = prefs.getString('dialektik_preview_state');
-  Map<String, Object?> state = _initialPreviewState;
-  if (savedStateStr != null) {
-    try {
-      state = (jsonDecode(savedStateStr) as Map).cast<String, Object?>();
-    } catch (_) {}
-  }
-  runApp(DialektikFlutterApp(bridge: PreviewEngineBridge(initialState: state, prefs: prefs)));
+  // Required initialisation for flutter_inappwebview on macOS/iOS/Android
+  await InAppWebViewController.setWebContentsDebuggingEnabled(true);
+  runApp(DialektikFlutterApp(bridge: JsEngineBridge()));
 }
 
 class PreviewEngineBridge implements EngineBridge {
