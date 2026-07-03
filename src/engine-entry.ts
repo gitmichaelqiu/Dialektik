@@ -84,6 +84,7 @@ let yjsProviders: Map<string, PeerJSYjsProvider> = new Map();
 let yjsDocs: Map<string, Y.Doc> = new Map();
 let userId = "";
 let userName = "";
+let activePage = "inround";
 let aiEndpoint = "https://api.openai.com/v1";
 let aiModel = "gpt-4o";
 let aiApiKey = "";
@@ -132,7 +133,7 @@ async function buildSnapshot() {
   }
 
   return {
-    activePage: "inround",
+    activePage,
     documents: docs.map(d => ({
       id: d.id, name: d.name, content: d.content,
       partnerAccess: d.partnerAccess ?? "private",
@@ -447,7 +448,7 @@ async function dispatch(actionJson: string) {
 
   // ── Navigation ────────────────────────────
   if (type === "app.setActivePage") {
-    // page navigation is handled by Flutter UI; just emit so snapshot reflects
+    if (payload.page) activePage = payload.page;
     await emitSnapshot();
     return;
   }
