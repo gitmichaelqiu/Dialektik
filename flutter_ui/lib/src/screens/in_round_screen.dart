@@ -251,7 +251,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
     final activeSpeakerId = _activeSpeakerId(session);
     final activeSpeaker = session.debaters
         .where((debater) => debater.id == activeSpeakerId)
-        .firstOrNull;
+        .firstOrNull ?? (activeSpeakerId == 'general' ? const Debater(id: 'general', name: 'General Notes', status: 'approved') : null);
     final active = session.status == 'active';
 
     final handoutPane = active
@@ -374,7 +374,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
   String? _activeSpeakerId(SessionState session) {
     return _localActiveSpeakerId ??
         session.currentSpeakerId ??
-        (session.debaters.isEmpty ? null : session.debaters.first.id);
+        (session.debaters.isEmpty ? 'general' : session.debaters.first.id);
   }
 
   void _updateHandout() {
@@ -970,7 +970,7 @@ class _NotesPane extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final debater in session.debaters)
+                for (final debater in session.debaters.isEmpty ? [const Debater(id: 'general', name: 'General Notes', status: 'approved')] : session.debaters)
                   ChoiceChip(
                     label: Text(debater.name),
                     selected: activeSpeaker?.id == debater.id,

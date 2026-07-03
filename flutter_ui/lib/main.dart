@@ -63,6 +63,18 @@ class PreviewEngineBridge implements EngineBridge {
             if (key == 'session' && newVal is Map && currentVal is Map) {
               final mergedSession = Map<String, Object?>.from(newVal);
               mergedSession['isHost'] = currentVal['isHost'];
+
+              // If we are waiting for host approval, check if the host has approved us
+              final currentStatus = currentVal['status'];
+              if (currentStatus == 'pending_approval') {
+                final settings = _rawState['settings'] as Map?;
+                final cleanUserName = (settings?['userName'] as String? ?? 'Debater').trim();
+                final approvedList = _list(newVal['debaters']);
+                final isApproved = approvedList.any((d) => d['name'] == cleanUserName);
+                if (isApproved) {
+                  mergedSession['status'] = 'lobby';
+                }
+              }
               _rawState['session'] = mergedSession;
             } else {
               _rawState[key] = newVal;
@@ -282,25 +294,6 @@ class PreviewEngineBridge implements EngineBridge {
       });
 
       _startSyncSimulation();
-
-      Timer(const Duration(seconds: 4), () {
-        if (_rawState['session'] != null && _sessionJson['status'] == 'lobby') {
-          final reqs = _list(_sessionJson['pendingRequests']);
-          final debaters = _list(_sessionJson['debaters']);
-          // Only add Sarah if no real client has requested to join and only host is present
-          if (reqs.isEmpty && debaters.length <= 1) {
-            _patchSession({
-              'pendingRequests': [
-                ...reqs,
-                {
-                  'id': 'debater-guest-sarah',
-                  'name': 'Sarah (Guest)',
-                }
-              ]
-            });
-          }
-        }
-      });
       return;
     }
 
@@ -309,50 +302,66 @@ class PreviewEngineBridge implements EngineBridge {
       final settings = _rawState['settings'] as Map?;
       final userName = (settings?['userName'] as String? ?? 'Debater').trim();
       final cleanUserName = userName.isNotEmpty ? userName : 'Debater';
-      _patch({
-        'activePage': 'inround',
-        'session': {
-          'roomCode': code,
-          'matchName': 'Practice Round',
-          'groupName': 'Joined Group',
-          'status': 'pending_approval',
-          'handout': {'title': '', 'problem': '', 'details': ''},
-          'speechRemainingMs': 240000,
-          'speechRunning': false,
-          'prepRemainingMs': 180000,
-          'prepRunning': false,
-          'debaters': [
+
+      final currentSession = _rawState['session'] as Map?;
+      if (currentSession != null && currentSession['roomCode'] == code) {
+        final reqs = _list(currentSession['pendingRequests']);
+        final alreadyRequested = reqs.any((r) => r['name'] == cleanUserName);
+
+        if (!alreadyRequested) {
+          final updatedSession = Map<String, Object?>.from(currentSession);
+          final clientId = 'debater-${DateTime.now().microsecondsSinceEpoch}';
+          updatedSession['pendingRequests'] = [
+            ...reqs,
             {
-              'id': 'debater-host',
-              'name': 'Host User',
-              'status': 'approved',
-              'team': 'affirmative',
-              'position': 1,
-            },
-            {
-              'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
+              'id': clientId,
               'name': cleanUserName,
-              'status': 'approved',
-              'team': 'negative',
-              'position': 1,
             }
-          ],
-          'customTimers': <Map<String, Object?>>[],
-          'speakerNotes': <String, Object?>{},
-          'pendingRequests': <Map<String, Object?>>[],
-          'isHost': false,
+          ];
+          _rawState['session'] = updatedSession;
+          _patch({
+            'activePage': 'inround',
+            'session': updatedSession,
+          });
+        } else {
+          _patch({'activePage': 'inround'});
         }
-      });
+      } else {
+        _patch({
+          'activePage': 'inround',
+          'session': {
+            'roomCode': code,
+            'matchName': 'Practice Round',
+            'groupName': 'Joined Group',
+            'status': 'pending_approval',
+            'handout': {'title': '', 'problem': '', 'details': ''},
+            'speechRemainingMs': 240000,
+            'speechRunning': false,
+            'prepRemainingMs': 180000,
+            'prepRunning': false,
+            'debaters': [
+              {
+                'id': 'debater-host',
+                'name': 'Host User',
+                'status': 'approved',
+                'team': 'affirmative',
+                'position': 1,
+              },
+            ],
+            'customTimers': <Map<String, Object?>>[],
+            'speakerNotes': <String, Object?>{},
+            'pendingRequests': [
+              {
+                'id': 'debater-local',
+                'name': cleanUserName,
+              }
+            ],
+            'isHost': false,
+          }
+        });
+      }
 
       _startSyncSimulation();
-
-      Timer(const Duration(seconds: 5), () {
-        if (_rawState['session'] != null && _sessionJson['status'] == 'pending_approval') {
-          _patchSession({
-            'status': 'lobby',
-          });
-        }
-      });
       return;
     }
 
@@ -726,42 +735,6 @@ class PreviewEngineBridge implements EngineBridge {
 
   void _startSyncSimulation() {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_rawState['session'] == null) {
-        timer.cancel();
-        return;
-      }
-      final session = _sessionJson;
-      if (session['status'] != 'active') return;
-
-      final docs = _list(_rawState['documents']);
-      if (docs.isEmpty) return;
-
-      // Find the first shared writable doc to update caret position only (no text changes!)
-      final sharedDocIndex = docs.indexWhere(
-        (d) => d['partnerAccess'] != 'private' && d['encryptedHash'] != 'read',
-      );
-      if (sharedDocIndex == -1) return;
-      final sharedDoc = docs[sharedDocIndex];
-
-      final docId = sharedDoc['id'] as String;
-      final currentContent = sharedDoc['content'] as String? ?? '';
-      if (currentContent.isNotEmpty) {
-        final randomCaret = Random().nextInt(currentContent.length);
-        final updatedDocs = docs.map((d) {
-          if (d['id'] != docId) return d;
-          return {
-            ...d,
-            'partnerCaret': randomCaret,
-            'partnerName': 'Teammate',
-          };
-        }).toList();
-
-        _patch({
-          'documents': updatedDocs,
-        });
-      }
-    });
   }
 
   List<Map<String, Object?>> get _documentsJson {
@@ -918,45 +891,9 @@ extension _FirstOrNull<T> on Iterable<T> {
 
 final Map<String, Object?> _initialPreviewState = {
   'activePage': 'inround',
-  'documents': <Map<String, Object?>>[
-    {
-      'id': 'doc-aff-case',
-      'name': 'Affirmative Case.md',
-      'content':
-          '# Opening Claim\n\nPublic education should prioritize civic reasoning.\n\n[[public/Impact Overview]]',
-      'partnerAccess': 'private',
-      'encryptedHash': 'write',
-      'lastModified': 0,
-    },
-    {
-      'id': 'doc-impact',
-      'name': 'Impact Overview.md',
-      'content': 'A compact overview of solvency, impact, and weighing.',
-      'partnerAccess': 'public',
-      'encryptedHash': 'write',
-      'lastModified': 0,
-    },
-  ],
-  'cards': <Map<String, Object?>>[
-    {
-      'id': 'card-demo',
-      'title': 'Civic learning evidence',
-      'text':
-          'Students perform better when debate work is tied to civic reasoning and source evaluation.',
-      'sourceUrl': '',
-      'docId': 'doc-aff-case',
-    },
-  ],
-  'history': <Map<String, Object?>>[
-    {
-      'id': 'history-demo',
-      'matchName': 'Practice Round',
-      'opponentName': 'Dialektik Preview',
-      'sides': 'affirmative',
-      'winLoss': 'pending',
-      'timestamp': 1793648700000,
-    }
-  ],
+  'documents': <Map<String, Object?>>[],
+  'cards': <Map<String, Object?>>[],
+  'history': <Map<String, Object?>>[],
   'session': null,
   'ai': <String, Object?>{
     'activeChatId': 'chat-1',
@@ -964,7 +901,7 @@ final Map<String, Object?> _initialPreviewState = {
     'chats': <Map<String, Object?>>[
       {
         'id': 'chat-1',
-        'title': 'Round prep',
+        'title': 'New Chat',
         'messages': <Map<String, Object?>>[
           {
             'role': 'assistant',
