@@ -11,7 +11,8 @@ import {
   Globe,
   Database,
   Copy,
-  FolderOpen
+  FolderOpen,
+  MousePointer2
 } from "lucide-react";
 import { 
   Button, 
@@ -46,6 +47,13 @@ async function computeSHA256(text: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+interface RemoteCursor {
+  docId: string;
+  name: string;
+  caret: number;
+  updatedAt: number;
+}
+
 export const Documents: React.FC = () => {
   const { isPeerConnected, mesh, session, userId, userName } = useApp();
   const isMobile = useMediaQuery("(max-width: 48em)");
@@ -72,6 +80,7 @@ export const Documents: React.FC = () => {
   });
   const [pendingDelete, setPendingDelete] = useState<{ type: "document" | "card"; id: string; label: string } | null>(null);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
 
   // Evidence card form
   const [cardTitle, setCardTitle] = useState("");
@@ -177,6 +186,16 @@ export const Documents: React.FC = () => {
             await loadDocs();
           }
         })();
+      } else if (msg.type === "doc-cursor" && msg.payload?.docId) {
+        setRemoteCursors(prev => ({
+          ...prev,
+          [_senderId]: {
+            docId: msg.payload.docId,
+            name: msg.payload.name || "Partner",
+            caret: Number(msg.payload.caret || 0),
+            updatedAt: Date.now()
+          }
+        }));
       }
     };
 
@@ -314,6 +333,16 @@ export const Documents: React.FC = () => {
     const textarea = editorRef.current;
     if (!textarea) return;
     updateLinkMenu(textarea.value, textarea.selectionStart);
+    if (!selectedDoc || selectedDoc.partnerAccess === "private" || !isPeerConnected) return;
+    mesh.broadcast({
+      type: "doc-cursor",
+      senderId: mesh.peerId,
+      payload: {
+        docId: selectedDoc.id,
+        name: userName || "Partner",
+        caret: textarea.selectionStart
+      }
+    });
   };
 
   const insertWikiLink = (doc: DebateDocument) => {
@@ -654,11 +683,18 @@ export const Documents: React.FC = () => {
     })
     .slice(0, 6);
   const canEditSelectedDoc = isSelectedDocWritable();
+  const visibleRemoteCursors = selectedDoc
+    ? Object.values(remoteCursors).filter(cursor => cursor.docId === selectedDoc.id && Date.now() - cursor.updatedAt < 15000)
+    : [];
 
   return (
     <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {toastNotification && (
-        <Notification color="teal" onClose={() => setToastNotification(null)}>
+        <Notification
+          color="teal"
+          onClose={() => setToastNotification(null)}
+          style={{ position: "fixed", top: 72, right: 20, zIndex: 1000, width: "min(360px, calc(100vw - 32px))", boxShadow: "var(--mantine-shadow-md)" }}
+        >
           {toastNotification}
         </Notification>
       )}
@@ -938,6 +974,17 @@ export const Documents: React.FC = () => {
                     Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}
                   </Text>
                   <Group gap="xs">
+                    {visibleRemoteCursors.map(cursor => (
+                      <Badge
+                        key={`${cursor.name}-${cursor.caret}`}
+                        color="teal"
+                        variant="light"
+                        size="xs"
+                        leftSection={<MousePointer2 size={10} />}
+                      >
+                        {cursor.name} editing near {cursor.caret}
+                      </Badge>
+                    ))}
                     {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
                       <>
                         <Globe size={13} color="var(--mantine-color-teal-6)" />
