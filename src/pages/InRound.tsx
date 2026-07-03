@@ -41,6 +41,7 @@ import {
   Alert,
   SimpleGrid
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 export const InRound: React.FC = () => {
   const { 
@@ -60,6 +61,7 @@ export const InRound: React.FC = () => {
     startSession,
     endSession
   } = useApp();
+  const isMobile = useMediaQuery("(max-width: 48em)");
 
   const isRoundStarted = !!roomCode;
 
@@ -571,7 +573,7 @@ export const InRound: React.FC = () => {
   const myDebaterInfo = session?.debaters.find(d => d.id === userId);
 
   return (
-    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {toastNotification && (
         <Notification color="teal" onClose={() => setToastNotification(null)}>
           {toastNotification}
@@ -631,13 +633,13 @@ export const InRound: React.FC = () => {
           <Card withBorder p="sm" radius="md">
             <Group justify="space-between" align="center">
               <Stack gap={2}>
-                <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Room Code: {session.roomCode}</Text>
+                <Text size="xs" fw={700} c="dimmed">Room code: {session.roomCode}</Text>
                 <Title order={4}>{session.matchName}</Title>
                 <Group gap="xs">
                   <Text size="xs" c="dimmed">Group: {session.groupName} • Debaters: {session.debaters.length}</Text>
                   {myDebaterInfo?.team && (
                     <Badge color="teal" variant="light" size="xs">
-                      My Side: {myDebaterInfo.team.toUpperCase()} (Pos: {myDebaterInfo.position})
+                      My side: {myDebaterInfo.team} (Pos: {myDebaterInfo.position})
                     </Badge>
                   )}
                 </Group>
@@ -687,9 +689,14 @@ export const InRound: React.FC = () => {
 
           {session.status === "lobby" ? (
             /* ------------------ LOBBY PREP SCREEN ------------------ */
-            <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
+            <Grid
+              style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+              styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+              align="stretch"
+              gutter="md"
+            >
               {/* Handouts panel */}
-              <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -738,7 +745,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Teams & Positions assignments */}
-              <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -747,7 +754,7 @@ export const InRound: React.FC = () => {
                     </Group>
                     <Text size="xs" c="dimmed">Set sides and speaker positions. Total approved debaters: {session.debaters.length}</Text>
                     
-                    <ScrollArea style={{ flex: 1 }}>
+                    <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                       <Stack gap="xs">
                         {session.debaters.length === 0 ? (
                           <Text size="xs" c="dimmed" style={{ textAlign: "center", padding: "40px 0" }}>
@@ -784,7 +791,7 @@ export const InRound: React.FC = () => {
                                   </Group>
                                 ) : (
                                   <Badge color="teal" variant="light" size="xs">
-                                    {d.team ? `${d.team.toUpperCase()} (Pos: ${d.position})` : "Unassigned"}
+                                    {d.team ? `${d.team} (Pos: ${d.position})` : "Unassigned"}
                                   </Badge>
                                 )}
                               </Group>
@@ -799,9 +806,14 @@ export const InRound: React.FC = () => {
             </Grid>
           ) : (
             /* ------------------ ACTIVE DEBATE SCREEN ------------------ */
-            <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
+            <Grid
+              style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+              styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+              align="stretch"
+              gutter="md"
+            >
               {/* Handout & Info */}
-              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -809,12 +821,12 @@ export const InRound: React.FC = () => {
                       <Award size={18} color="var(--mantine-color-teal-6)" />
                     </Group>
 
-                    <ScrollArea style={{ flex: 1 }}>
+                    <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                       <Stack gap="md">
                         <Title order={5}>{session.handout.title}</Title>
                         
                         <Stack gap={4}>
-                          <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Debate Resolution</Text>
+                          <Text size="xs" fw={700} c="dimmed">Debate resolution</Text>
                           <Paper withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
                             <Text size="xs" style={{ lineHeight: 1.5 }}>{session.handout.problem}</Text>
                           </Paper>
@@ -822,7 +834,7 @@ export const InRound: React.FC = () => {
 
                         {session.handout.details && (
                           <Stack gap={4}>
-                            <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Problem Context</Text>
+                            <Text size="xs" fw={700} c="dimmed">Problem context</Text>
                             <Text size="xs" c="dimmed" style={{ whiteSpace: "pre-line", lineHeight: 1.4 }}>
                               {session.handout.details}
                             </Text>
@@ -830,7 +842,7 @@ export const InRound: React.FC = () => {
                         )}
 
                         <Stack gap="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-xs)" }}>
-                          <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Debater Positions</Text>
+                          <Text size="xs" fw={700} c="dimmed">Debater positions</Text>
                           {session.debaters.map(d => (
                             <Paper key={d.id} withBorder p="xs" radius="md">
                               <Group justify="space-between" align="center">
@@ -847,7 +859,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Speech & Prep count down timers */}
-              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -932,7 +944,7 @@ export const InRound: React.FC = () => {
                     {/* Select Active Speaker */}
                     <Stack gap="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: "var(--mantine-spacing-sm)" }}>
                       <Group justify="space-between" align="center">
-                        <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Select Active Speaker</Text>
+                        <Text size="xs" fw={700} c="dimmed">Select active speaker</Text>
                         <Button 
                           size="xs" 
                           variant="light" 
@@ -976,7 +988,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Speaker Notes */}
-              <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -993,8 +1005,8 @@ export const InRound: React.FC = () => {
                     </Group>
 
                     <Stack gap="xs" style={{ flex: 1 }}>
-                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
-                        Active Speaker: {currentSpeaker ? currentSpeaker.name : "None selected"}
+                      <Text size="xs" fw={700} c="dimmed">
+                        Active speaker: {currentSpeaker ? currentSpeaker.name : "None selected"}
                       </Text>
                       <Textarea
                         value={currentSpeakerNotes}
@@ -1019,9 +1031,14 @@ export const InRound: React.FC = () => {
         </Stack>
       ) : (
         /* ------------------ STARTING DEBATE PIPELINE SELECTION ------------------ */
-        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
+        <Grid
+          style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+          styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+          align="stretch"
+          gutter="md"
+        >
           {/* Main Welcome Hero */}
-          <Grid.Col span={8} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
             <Card withBorder p="xl" radius="md" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Stack align="center" gap="md" style={{ maxWidth: 440, textAlign: "center" }}>
                 <Award size={48} color="var(--mantine-color-teal-6)" />
@@ -1097,15 +1114,15 @@ export const InRound: React.FC = () => {
           </Grid.Col>
 
           {/* Right side: Session History lists */}
-          <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: "var(--mantine-spacing-xs)" }}>
-                  <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Recent Sessions</Text>
+                  <Text size="xs" fw={700} c="dimmed">Recent sessions</Text>
                   <History size={16} color="var(--mantine-color-teal-6)" />
                 </Group>
 
-                <ScrollArea style={{ flex: 1 }}>
+                <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                   <Stack gap="xs">
                     {historyList.map((rec) => (
                       <Paper key={rec.id} withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
