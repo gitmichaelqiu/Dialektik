@@ -189,6 +189,7 @@ class PreviewEngineBridge implements EngineBridge {
       final userName = (settings?['userName'] as String? ?? 'Host').trim();
       final hostName = userName.isNotEmpty ? userName : 'Host';
       final randomCode = _generateRoomCode();
+      final participate = payload['participate'] != false;
       _patch({
         'activePage': 'inround',
         'session': {
@@ -207,15 +208,17 @@ class PreviewEngineBridge implements EngineBridge {
           'speechRunning': false,
           'prepRemainingMs': 180000,
           'prepRunning': false,
-          'debaters': [
-            {
-              'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
-              'name': hostName,
-              'status': 'approved',
-              'team': 'affirmative',
-              'position': 1,
-            }
-          ],
+          'debaters': participate
+              ? [
+                  {
+                    'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
+                    'name': hostName,
+                    'status': 'approved',
+                    'team': 'affirmative',
+                    'position': 1,
+                  }
+                ]
+              : <Map<String, Object?>>[],
           'customTimers': <Map<String, Object?>>[],
           'speakerNotes': <String, Object?>{},
         },
@@ -328,7 +331,39 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.saveRound') {
-      _patch({'session': null, 'activePage': 'history'});
+      final winner = payload['winner'] as String? ?? 'affirmative';
+      final mySide = 'affirmative';
+      final isWin = winner == mySide;
+
+      final session = _sessionJson;
+      final debaters = _list(session['debaters']);
+      final flows = <Map<String, Object?>>[];
+      final notes = (session['speakerNotes'] as Map?)?.cast<String, Object?>() ?? const {};
+
+      for (final debater in debaters) {
+        final id = debater['id'] as String? ?? '';
+        final name = debater['name'] as String? ?? 'Debater';
+        flows.add({
+          'speechId': name,
+          'notes': notes[id] as String? ?? '',
+        });
+      }
+
+      final newRecord = {
+        'id': 'history-${DateTime.now().microsecondsSinceEpoch}',
+        'matchName': session['matchName'] ?? 'Practice Round',
+        'opponentName': session['groupName'] ?? 'Dialektik Team',
+        'sides': mySide,
+        'winLoss': isWin ? 'win' : 'loss',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'flows': flows,
+      };
+
+      _patch({
+        'session': null,
+        'activePage': 'history',
+        'history': [..._historyJson, newRecord],
+      });
       return;
     }
 
@@ -684,7 +719,7 @@ extension _FirstOrNull<T> on Iterable<T> {
 }
 
 final Map<String, Object?> _initialPreviewState = {
-  'activePage': 'documents',
+  'activePage': 'inround',
   'documents': <Map<String, Object?>>[
     {
       'id': 'doc-aff-case',
