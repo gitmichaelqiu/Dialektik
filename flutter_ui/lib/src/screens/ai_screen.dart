@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
@@ -30,6 +31,47 @@ class _AiScreenState extends State<AiScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasAi = widget.snapshot.settings.hasAiKey;
+    if (!hasAi) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 48, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    Text(
+                      'AI Coach Not Configured',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'To use the AI prep coach, please configure your OpenAI-compatible API key and endpoint in the Settings screen.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () {
+                        widget.bridge.dispatch(action('app.setActivePage', {'page': 'settings'}));
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: const Text('Go to Settings'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final activeChat = widget.snapshot.ai.chats.firstWhere(
       (chat) => chat.id == widget.snapshot.ai.activeChatId,
       orElse: () => widget.snapshot.ai.chats.isEmpty
@@ -317,13 +359,30 @@ class _ChatPane extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: controller,
-                    minLines: 1,
-                    maxLines: 5,
-                    decoration:
-                        const InputDecoration(hintText: 'Message AI Coach'),
-                    onSubmitted: (_) => onSend(),
+                  child: Shortcuts(
+                    shortcuts: {
+                      const SingleActivator(LogicalKeyboardKey.enter): const SendIntent(),
+                    },
+                    child: Actions(
+                      actions: {
+                        SendIntent: CallbackAction<SendIntent>(
+                          onInvoke: (intent) {
+                            if (controller.text.trim().isNotEmpty) {
+                              onSend();
+                            }
+                            return null;
+                          },
+                        ),
+                      },
+                      child: TextField(
+                        controller: controller,
+                        minLines: 1,
+                        maxLines: 5,
+                        textInputAction: TextInputAction.newline,
+                        decoration:
+                            const InputDecoration(hintText: 'Message AI Coach'),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -388,4 +447,8 @@ class _CitedFilesPane extends StatelessWidget {
       ),
     );
   }
+}
+
+class SendIntent extends Intent {
+  const SendIntent();
 }
