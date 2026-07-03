@@ -35,6 +35,8 @@ import {
   NavLink
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 async function computeSHA256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -456,139 +458,127 @@ export const Documents: React.FC = () => {
   }
 
   const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards, docs, onNavigateDoc }) => {
-    const parts = content.split(/(\[\[[^\]]+\]\])/g);
+    const markdownContent = content.replace(/\[\[([^\]]+)\]\]/g, (_match, rawCitation: string) => {
+      const citation = rawCitation.trim();
+      return `[${citation}](dialektik://${encodeURIComponent(citation)})`;
+    });
 
-    const renderInlineStyle = (text: string) => {
-      let escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+    const renderCitation = (rawCitation: string) => {
+      if (rawCitation.startsWith("card-")) {
+        const referencedCard = cards.find(c => c.id === rawCitation);
+        if (!referencedCard) {
+          return <Badge color="red" variant="light" size="xs" component="span">Missing Link: {rawCitation}</Badge>;
+        }
 
-      escaped = escaped.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-      escaped = escaped.replace(/__(.*?)__/g, "<strong>$1</strong>");
-      escaped = escaped.replace(/\*(.*?)\*/g, "<em>$1</em>");
-      escaped = escaped.replace(/_(.*?)_/g, "<em>$1</em>");
-      escaped = escaped.replace(/`(.*?)`/g, "<code style='background-color: var(--mantine-color-gray-1); padding: 2px 4px; border-radius: var(--mantine-radius-sm); font-family: monospace; font-size: 10px;'>$1</code>");
+        return (
+          <HoverCard width={320} shadow="md">
+            <HoverCard.Target>
+              <Badge color="teal" variant="light" style={{ cursor: "help" }} size="xs" component="span">
+                Cite: {referencedCard.title}
+              </Badge>
+            </HoverCard.Target>
+            <HoverCard.Dropdown>
+              <Stack gap="xs">
+                <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
+                  <Text fw={700} size="xs">{referencedCard.title}</Text>
+                  <Badge color="teal" variant="light" size="xs" leftSection={<ShieldCheck size={11} />}>Verified</Badge>
+                </Group>
+                <Text size="xs" fs="italic">"{referencedCard.text}"</Text>
+                <Group justify="space-between">
+                  <Text size="xs" c="dimmed">SHA-256: {referencedCard.hash.substring(0, 12)}...</Text>
+                  {referencedCard.sourceUrl && <Text size="xs" c="teal">Link</Text>}
+                </Group>
+              </Stack>
+            </HoverCard.Dropdown>
+          </HoverCard>
+        );
+      }
 
-      return <span dangerouslySetInnerHTML={{ __html: escaped }} />;
+      const pathParts = rawCitation.split("/");
+      if (pathParts.length === 2) {
+        const folder = pathParts[0];
+        const title = pathParts[1];
+        const targetDoc = docs.find(d => (d.partnerAccess || "private") === folder && d.name.replace(".md", "") === title);
+
+        if (targetDoc) {
+          return (
+            <HoverCard width={320} shadow="md">
+              <HoverCard.Target>
+                <Button
+                  variant="light"
+                  color="teal"
+                  size="compact-xs"
+                  onClick={() => onNavigateDoc(targetDoc)}
+                  styles={{ root: { verticalAlign: "baseline" } }}
+                >
+                  {title}
+                </Button>
+              </HoverCard.Target>
+              <HoverCard.Dropdown>
+                <Stack gap="xs">
+                  <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
+                    <Text fw={700} size="xs">{targetDoc.name}</Text>
+                    <Badge color="gray" variant="light" size="xs">{targetDoc.partnerAccess || "private"}</Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" lineClamp={4}>
+                    {targetDoc.content || "Empty document"}
+                  </Text>
+                </Stack>
+              </HoverCard.Dropdown>
+            </HoverCard>
+          );
+        }
+      }
+
+      return <Badge color="red" variant="light" size="xs" component="span">Missing Link: {rawCitation}</Badge>;
     };
 
     return (
-      <Stack gap="xs" style={{ display: "block", lineHeight: 1.7 }}>
-        {parts.map((part, index) => {
-          const match = part.match(/\[\[([^\]]+)\]\]/);
-          if (match) {
-            const rawCitation = match[1].trim();
-
-            if (rawCitation.startsWith("card-")) {
-              const referencedCard = cards.find(c => c.id === rawCitation);
-              if (referencedCard) {
-                return (
-                  <HoverCard key={index} width={320} shadow="md">
-                    <HoverCard.Target>
-                      <Badge color="emerald" variant="light" style={{ cursor: "help" }} size="xs">
-                        Cite: {referencedCard.title}
-                      </Badge>
-                    </HoverCard.Target>
-                    <HoverCard.Dropdown>
-                      <Stack gap="xs">
-                        <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
-                          <Text fw={700} size="xs">{referencedCard.title}</Text>
-                          <Badge color="teal" variant="light" size="xs" leftSection={<ShieldCheck size={11} />}>VERIFIED</Badge>
-                        </Group>
-                        <Text size="xs" style={{ fontStyle: "italic" }}>"{referencedCard.text}"</Text>
-                        <Group justify="space-between">
-                          <Text size="xs" c="dimmed">SHA-256: {referencedCard.hash.substring(0, 12)}...</Text>
-                          {referencedCard.sourceUrl && (
-                            <Text size="xs" c="teal">Link</Text>
-                          )}
-                        </Group>
-                      </Stack>
-                    </HoverCard.Dropdown>
-                  </HoverCard>
-                );
+      <div className="markdown-body">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children }) => {
+              if (href?.startsWith("dialektik://")) {
+                return renderCitation(decodeURIComponent(href.replace("dialektik://", "")));
               }
-            }
-
-            const pathParts = rawCitation.split("/");
-            if (pathParts.length === 2) {
-              const folder = pathParts[0];
-              const title = pathParts[1];
-              const targetDoc = docs.find(d => (d.partnerAccess || "private") === folder && d.name.replace(".md", "") === title);
-
-              if (targetDoc) {
-                return (
-                  <HoverCard key={index} width={320} shadow="md">
-                    <HoverCard.Target>
-                      <Button 
-                        variant="light" 
-                        color="teal" 
-                        size="xs" 
-                        onClick={() => onNavigateDoc(targetDoc)}
-                        styles={{ root: { height: "auto", padding: "2px 6px" } }}
-                      >
-                        {title}
-                      </Button>
-                    </HoverCard.Target>
-                    <HoverCard.Dropdown>
-                      <Stack gap="xs">
-                        <Group justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 4 }}>
-                          <Text fw={700} size="xs">{targetDoc.name}</Text>
-                          <Badge color="gray" variant="light" size="xs">{targetDoc.partnerAccess || "private"}</Badge>
-                        </Group>
-                        <Text size="xs" c="dimmed" style={{ maxHeight: 100, overflowY: "hidden" }}>
-                          {targetDoc.content.substring(0, 240)}...
-                        </Text>
-                      </Stack>
-                    </HoverCard.Dropdown>
-                  </HoverCard>
-                );
-              }
-            }
-
-            return (
-              <Badge key={index} color="red" variant="light" size="xs" component="span">
-                Missing Link: {rawCitation}
-              </Badge>
-            );
-          }
-
-          const lines = part.split("\n");
-          return (
-            <span key={index}>
-              {lines.map((line, lineIdx) => {
-                if (line.startsWith("### ")) {
-                  return <Title key={lineIdx} order={6} mt="xs" mb="xs">{renderInlineStyle(line.substring(4))}</Title>;
-                }
-                if (line.startsWith("## ")) {
-                  return <Title key={lineIdx} order={5} mt="sm" mb="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: 2 }}>{renderInlineStyle(line.substring(3))}</Title>;
-                }
-                if (line.startsWith("# ")) {
-                  return <Title key={lineIdx} order={4} mt="md" mb="sm">{renderInlineStyle(line.substring(2))}</Title>;
-                }
-                if (line.startsWith("- ") || line.startsWith("* ")) {
-                  return (
-                    <Text key={lineIdx} size="xs" pl="sm" my={2}>
-                      • {renderInlineStyle(line.substring(2))}
-                    </Text>
-                  );
-                }
-                if (line.startsWith("> ")) {
-                  return (
-                    <blockquote key={lineIdx} style={{ borderLeft: "2px solid var(--mantine-color-gray-3)", paddingLeft: "var(--mantine-spacing-sm)", fontStyle: "italic", margin: "var(--mantine-spacing-xs) 0" }}>
-                      {renderInlineStyle(line.substring(2))}
-                    </blockquote>
-                  );
-                }
-                if (!line.trim()) {
-                  return <div key={lineIdx} style={{ height: 4 }} />;
-                }
-                return <Text key={lineIdx} size="xs" my={2}>{renderInlineStyle(line)}</Text>;
-              })}
-            </span>
-          );
-        })}
-      </Stack>
+              return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
+            },
+            h1: ({ children }) => <Title order={3} mt="md" mb="xs">{children}</Title>,
+            h2: ({ children }) => <Title order={4} mt="md" mb="xs">{children}</Title>,
+            h3: ({ children }) => <Title order={5} mt="sm" mb="xs">{children}</Title>,
+            p: ({ children }) => <Text size="sm" my="xs" style={{ lineHeight: 1.7 }}>{children}</Text>,
+            li: ({ children }) => <li style={{ marginBottom: 4 }}>{children}</li>,
+            blockquote: ({ children }) => (
+              <blockquote style={{ borderLeft: "3px solid var(--mantine-color-gray-3)", margin: "var(--mantine-spacing-sm) 0", paddingLeft: "var(--mantine-spacing-md)", color: "var(--mantine-color-gray-7)" }}>
+                {children}
+              </blockquote>
+            ),
+            code: ({ children, className }) => {
+              const inline = !className;
+              return inline ? (
+                <code style={{ backgroundColor: "var(--mantine-color-gray-1)", padding: "2px 5px", borderRadius: "var(--mantine-radius-sm)" }}>{children}</code>
+              ) : (
+                <code className={className}>{children}</code>
+              );
+            },
+            pre: ({ children }) => (
+              <pre style={{ overflowX: "auto", backgroundColor: "var(--mantine-color-gray-1)", padding: "var(--mantine-spacing-sm)", borderRadius: "var(--mantine-radius-md)" }}>
+                {children}
+              </pre>
+            ),
+            table: ({ children }) => (
+              <ScrollArea type="auto">
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--mantine-font-size-sm)" }}>{children}</table>
+              </ScrollArea>
+            ),
+            th: ({ children }) => <th style={{ border: "1px solid var(--mantine-color-gray-3)", padding: 6, textAlign: "left" }}>{children}</th>,
+            td: ({ children }) => <td style={{ border: "1px solid var(--mantine-color-gray-3)", padding: 6 }}>{children}</td>
+          }}
+        >
+          {markdownContent}
+        </ReactMarkdown>
+      </div>
     );
   };
 
