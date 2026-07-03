@@ -435,6 +435,13 @@ select {
   padding: 0 0.75rem;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  min-height: auto;
+  padding: 0;
+}
+
 textarea {
   padding: 0.75rem;
 }

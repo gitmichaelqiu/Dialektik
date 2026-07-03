@@ -34,6 +34,7 @@ import {
   HoverCard,
   NavLink
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 async function computeSHA256(text: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -45,6 +46,7 @@ async function computeSHA256(text: string): Promise<string> {
 
 export const Documents: React.FC = () => {
   const { isPeerConnected, mesh, session } = useApp();
+  const isMobile = useMediaQuery("(max-width: 48em)");
 
   const [docs, setDocs] = useState<DebateDocument[]>([]);
   const [cards, setCards] = useState<EvidenceCard[]>([]);
@@ -581,7 +583,7 @@ export const Documents: React.FC = () => {
   );
 
   return (
-    <Stack gap="md" style={{ height: "calc(100dvh - 56px - (var(--mantine-spacing-md) * 2))", minHeight: 0 }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {toastNotification && (
         <Notification color="teal" onClose={() => setToastNotification(null)}>
           {toastNotification}
@@ -609,8 +611,13 @@ export const Documents: React.FC = () => {
         </Stack>
       </Modal>
 
-      <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
-        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <Grid
+        style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+        styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+        align="stretch"
+        gutter="md"
+      >
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">
@@ -655,8 +662,8 @@ export const Documents: React.FC = () => {
                 </Stack>
               </form>
 
-              <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
-                <Stack gap="md">
+              <ScrollArea.Autosize mah="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
+                <Stack gap="md" pr="xs">
                   {(["private", "team", "public"] as const).map(folder => (
                     <Stack gap="xs" key={folder}>
                       <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>{folder}</Text>
@@ -691,24 +698,12 @@ export const Documents: React.FC = () => {
                     </Stack>
                   ))}
                 </Stack>
-              </ScrollArea>
-
-              <Paper withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
-                <Stack gap={2}>
-                  <Group gap="xs">
-                    <ShieldCheck size={14} color="var(--mantine-color-teal-6)" />
-                    <Text size="xs" fw={700}>Local Workspace</Text>
-                  </Group>
-                  <Text size="xs" c="dimmed" style={{ lineHeight: 1.4 }}>
-                    Files are saved locally and synced automatically through peers when team/public.
-                  </Text>
-                </Stack>
-              </Paper>
+              </ScrollArea.Autosize>
             </Stack>
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
           <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
             {selectedDoc ? (
               <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
@@ -831,7 +826,7 @@ export const Documents: React.FC = () => {
                       )}
                     </div>
                   ) : (
-                    <ScrollArea style={{ flex: 1 }} p="md">
+                    <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
                       <MarkdownRenderer 
                         content={editorContent} 
                         cards={cards} 
@@ -872,7 +867,7 @@ export const Documents: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">
@@ -911,8 +906,8 @@ export const Documents: React.FC = () => {
                 </Stack>
               </form>
 
-              <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
-                <Stack gap={0}>
+              <ScrollArea.Autosize mah="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
+                <Stack gap={0} pr="xs">
                   {cards.map((card) => (
                     <Paper key={card.id} p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", borderRadius: 0 }}>
                       <Stack gap={4}>
@@ -944,7 +939,7 @@ export const Documents: React.FC = () => {
                     </Paper>
                   ))}
                 </Stack>
-              </ScrollArea>
+              </ScrollArea.Autosize>
             </Stack>
           </Card>
         </Grid.Col>

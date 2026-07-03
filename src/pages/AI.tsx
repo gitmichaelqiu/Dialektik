@@ -33,6 +33,7 @@ import {
   Alert,
   NavLink
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -69,6 +70,7 @@ export const AI: React.FC = () => {
     aiModel,
     setActivePage
   } = useApp();
+  const isMobile = useMediaQuery("(max-width: 48em)");
 
   const [viewMode, setViewMode] = useState<"chat" | "sparring">("chat");
 
@@ -434,7 +436,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
   }
 
   return (
-    <Stack gap="md" style={{ height: "calc(100dvh - 56px - (var(--mantine-spacing-md) * 2))", minHeight: 0 }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {/* View Switcher Header */}
       <Card withBorder p="sm" radius="md">
         <Group justify="space-between" align="center">
@@ -456,15 +458,20 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
 
       {viewMode === "chat" ? (
         /* ------------------ AI CHAT CONSULTATION LAYOUT ------------------ */
-        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
-          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <Grid
+          style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+          styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+          align="stretch"
+          gutter="md"
+        >
+          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Button onClick={handleNewConversation} color="teal" size="xs" fullWidth>
                   New Chat
                 </Button>
-                <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
-                  <Stack gap="xs">
+                <ScrollArea.Autosize mah="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
+                  <Stack gap="xs" pr="xs">
                     {conversations.map(conv => (
                       <NavLink
                         key={conv.id}
@@ -482,15 +489,15 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                       />
                     ))}
                   </Stack>
-                </ScrollArea>
+                </ScrollArea.Autosize>
               </Stack>
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
             <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
               <Stack gap="xs" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                <ScrollArea style={{ flex: 1 }} p="md" type="auto" offsetScrollbars>
+                <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
                   <Stack gap="md">
                     {chatMessages.map((msg, idx) => {
                       const isSystem = msg.role === "assistant";
@@ -607,7 +614,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center">
@@ -616,8 +623,8 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 </Group>
                 <Text size="xs" c="dimmed">AI consults only checked files.</Text>
                 
-                <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
-                  <Stack gap="xs">
+                <ScrollArea.Autosize mah="100%" style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
+                  <Stack gap="xs" pr="xs">
                     {documents.map(d => (
                       <Checkbox
                         key={d.id}
@@ -631,15 +638,20 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                       <Text size="xs" c="dimmed" style={{ italic: "true" }}>No case files created yet.</Text>
                     )}
                   </Stack>
-                </ScrollArea>
+                </ScrollArea.Autosize>
               </Stack>
             </Card>
           </Grid.Col>
         </Grid>
       ) : (
         /* ------------------ AI SPARRING MODE LAYOUT ------------------ */
-        <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
-          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+        <Grid
+          style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+          styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+          align="stretch"
+          gutter="md"
+        >
+          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
             <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
               {!isSparringActive ? (
                 <Stack align="center" justify="center" style={{ flex: 1, padding: "var(--mantine-spacing-xl)" }} gap="md">
@@ -663,7 +675,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                     {pastSparSessions.length > 0 && (
                       <Stack gap="xs">
                         <Text size="xs" fw={700} c="dimmed">Past Topics</Text>
-                        <ScrollArea style={{ maxHeight: 110 }}>
+                        <ScrollArea style={{ maxHeight: 110 }} type="auto" offsetScrollbars>
                           <Stack gap="xs">
                             {pastSparSessions.map(session => (
                               <NavLink
@@ -717,7 +729,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                     </Button>
                   </Group>
 
-                  <ScrollArea style={{ flex: 1 }} p="md" type="auto" offsetScrollbars>
+                  <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
                     <Stack gap="md">
                       {sparMessages.map((msg, idx) => {
                         const isAI = msg.role === "ai";
@@ -774,7 +786,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center">
@@ -783,7 +795,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
                 </Group>
                 
                 {activeSparSession?.scorecard ? (
-                  <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
+                  <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                     <Stack gap="md">
                       <Card withBorder p="md" radius="md" bg="var(--mantine-color-gray-0)" style={{ textAlign: "center" }}>
                         <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Performance Score</Text>
