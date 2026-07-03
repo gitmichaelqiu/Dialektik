@@ -175,8 +175,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: Text(_saved ? 'Saved' : 'Save settings'),
             ),
             OutlinedButton.icon(
-              onPressed: () =>
-                  widget.bridge.dispatch(action('workspace.reset')),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Reset Workspace'),
+                    content: const Text('Are you sure you want to reset the local workspace? All local documents, custom settings, and history logs will be permanently deleted.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Reset'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true && mounted) {
+                  widget.bridge.dispatch(action('workspace.reset'));
+                }
+              },
               icon: const Icon(Icons.warning_amber_outlined),
               label: const Text('Reset local workspace'),
             ),
