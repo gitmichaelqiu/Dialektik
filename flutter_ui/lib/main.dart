@@ -27,6 +27,7 @@ class PreviewEngineBridge implements EngineBridge {
     );
   }
 
+  static Timer? _syncTimer;
   final ValueNotifier<AppSnapshot> _state;
   late final StreamController<AppSnapshot> _controller;
   late DateTime _lastTick;
@@ -221,7 +222,26 @@ class PreviewEngineBridge implements EngineBridge {
               : <Map<String, Object?>>[],
           'customTimers': <Map<String, Object?>>[],
           'speakerNotes': <String, Object?>{},
+          'pendingRequests': <Map<String, Object?>>[],
+          'isHost': true,
         },
+      });
+
+      _startSyncSimulation();
+
+      Timer(const Duration(seconds: 4), () {
+        if (_rawState['session'] != null && _sessionJson['status'] == 'lobby') {
+          final reqs = _list(_sessionJson['pendingRequests']);
+          _patchSession({
+            'pendingRequests': [
+              ...reqs,
+              {
+                'id': 'debater-guest-${DateTime.now().millisecondsSinceEpoch}',
+                'name': 'Sarah (Guest)',
+              }
+            ]
+          });
+        }
       });
       return;
     }
@@ -237,7 +257,7 @@ class PreviewEngineBridge implements EngineBridge {
           'roomCode': code,
           'matchName': 'Practice Round',
           'groupName': 'Joined Group',
-          'status': 'lobby',
+          'status': 'pending_approval',
           'handout': {'title': '', 'problem': '', 'details': ''},
           'speechRemainingMs': 240000,
           'speechRunning': false,
@@ -261,13 +281,70 @@ class PreviewEngineBridge implements EngineBridge {
           ],
           'customTimers': <Map<String, Object?>>[],
           'speakerNotes': <String, Object?>{},
+          'pendingRequests': <Map<String, Object?>>[],
+          'isHost': false,
+        }
+      });
+
+      _startSyncSimulation();
+
+      Timer(const Duration(seconds: 5), () {
+        if (_rawState['session'] != null && _sessionJson['status'] == 'pending_approval') {
+          _patchSession({
+            'status': 'lobby',
+          });
         }
       });
       return;
     }
 
     if (type == 'session.exit') {
+      _syncTimer?.cancel();
       _patch({'session': null});
+      return;
+    }
+
+    if (type == 'session.approveJoin') {
+      final id = payload['id'] as String?;
+      if (id == null) return;
+      final session = _sessionJson;
+      final reqs = _list(session['pendingRequests']);
+      Map<String, Object?>? req;
+      for (final r in reqs) {
+        if (r['id'] == id) {
+          req = r;
+          break;
+        }
+      }
+      if (req == null) return;
+
+      final debaters = _list(session['debaters']);
+      final nextDebaters = [
+        ...debaters,
+        {
+          'id': req['id'],
+          'name': req['name'],
+          'status': 'approved',
+          'team': 'negative',
+          'position': 1,
+        }
+      ];
+
+      _patchSession({
+        'pendingRequests': reqs.where((r) => r['id'] != id).toList(),
+        'debaters': nextDebaters,
+      });
+      return;
+    }
+
+    if (type == 'session.rejectJoin') {
+      final id = payload['id'] as String?;
+      if (id == null) return;
+      final session = _sessionJson;
+      final reqs = _list(session['pendingRequests']);
+      _patchSession({
+        'pendingRequests': reqs.where((r) => r['id'] != id).toList(),
+      });
       return;
     }
 
@@ -566,6 +643,7 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'workspace.reset') {
+      _syncTimer?.cancel();
       final currentPage = _rawState['activePage'];
       _rawState
         ..clear()
@@ -576,6 +654,58 @@ class PreviewEngineBridge implements EngineBridge {
       _state.value = AppSnapshot.fromJson(_rawState);
       return;
     }
+  }
+
+  void _startSyncSimulation() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_rawState['session'] == null) {
+        timer.cancel();
+        return;
+      }
+      final session = _sessionJson;
+      if (session['status'] != 'active') return;
+
+      final docs = _list(_rawState['documents']);
+      if (docs.isEmpty) return;
+
+      final sharedDocIndex = docs.indexWhere(
+        (d) => d['partnerAccess'] != 'private' && d['encryptedHash'] != 'read',
+      );
+      if (sharedDocIndex == -1) return;
+      final sharedDoc = docs[sharedDocIndex];
+
+      final docId = sharedDoc['id'] as String;
+      final currentContent = sharedDoc['content'] as String? ?? '';
+      
+      final teammateLines = [
+        'Teammate note: Civic reasoning is core to modern education.',
+        'Teammate citation: According to Dewey (1916), democracy requires active civic participation.',
+        'Teammate warning: Make sure to check the counter-evidence on vocational training.',
+        'Teammate outline: 1. Civic awareness 2. Critical analysis 3. Active engagement.',
+      ];
+      final randomLine = teammateLines[DateTime.now().second % teammateLines.length];
+      
+      if (!currentContent.contains(randomLine)) {
+        final nextContent = '$currentContent\n$randomLine';
+        final caretPosition = nextContent.length;
+        
+        final updatedDocs = docs.map((d) {
+          if (d['id'] != docId) return d;
+          return {
+            ...d,
+            'content': nextContent,
+            'lastModified': DateTime.now().millisecondsSinceEpoch,
+            'partnerCaret': caretPosition,
+            'partnerName': 'Teammate',
+          };
+        }).toList();
+
+        _patch({
+          'documents': updatedDocs,
+        });
+      }
+    });
   }
 
   List<Map<String, Object?>> get _documentsJson {
