@@ -150,6 +150,23 @@ class EvidenceCard {
   final String? docId;
 }
 
+class HistoryFlow {
+  const HistoryFlow({
+    required this.speechId,
+    required this.notes,
+  });
+
+  factory HistoryFlow.fromJson(Map<String, Object?> json) {
+    return HistoryFlow(
+      speechId: _string(json['speechId'], fallback: _string(json['speech'])),
+      notes: _string(json['notes']),
+    );
+  }
+
+  final String speechId;
+  final String notes;
+}
+
 class HistoryRecord {
   const HistoryRecord({
     required this.id,
@@ -158,6 +175,7 @@ class HistoryRecord {
     required this.side,
     required this.result,
     required this.timestamp,
+    required this.flows,
   });
 
   factory HistoryRecord.fromJson(Map<String, Object?> json) {
@@ -168,6 +186,9 @@ class HistoryRecord {
       side: _string(json['sides'], fallback: _string(json['side'])),
       result: _string(json['winLoss'], fallback: _string(json['result'])),
       timestamp: _number(json['timestamp'], fallback: 0),
+      flows: AppSnapshot._list(json['flows'])
+          .map(HistoryFlow.fromJson)
+          .toList(),
     );
   }
 
@@ -177,6 +198,7 @@ class HistoryRecord {
   final String side;
   final String result;
   final int timestamp;
+  final List<HistoryFlow> flows;
 }
 
 class SessionState {
