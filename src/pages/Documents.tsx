@@ -12,8 +12,7 @@ import {
   Globe,
   Database,
   Copy,
-  FolderOpen,
-  MousePointer2
+  FolderOpen
 } from "lucide-react";
 import { 
   Button, 
@@ -72,6 +71,7 @@ export const Documents: React.FC = () => {
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [editorMode, setEditorMode] = useState<"edit" | "read">("edit");
+  const [editorScrollTop, setEditorScrollTop] = useState(0);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const [linkMenu, setLinkMenu] = useState<{ visible: boolean; query: string; start: number; end: number }>({
     visible: false,
@@ -395,6 +395,10 @@ export const Documents: React.FC = () => {
     });
   };
 
+  const getLineFromCaret = (caret: number) => {
+    return editorContent.slice(0, Math.max(0, caret)).split("\n").length - 1;
+  };
+
   const insertWikiLink = (doc: DebateDocument) => {
     const title = doc.name.replace(/\.md$/i, "");
     const mention = `[[${doc.partnerAccess || "private"}/${title}]]`;
@@ -602,12 +606,25 @@ export const Documents: React.FC = () => {
           return <Badge color="red" variant="light" size="xs" component="span">Missing Link: {rawCitation}</Badge>;
         }
 
+        const linkedDoc = referencedCard.docId ? docs.find(doc => doc.id === referencedCard.docId) : null;
+
         return (
           <HoverCard width={320} shadow="md">
             <HoverCard.Target>
-              <Badge color="teal" variant="light" style={{ cursor: "help" }} size="xs" component="span">
-                Cite: {referencedCard.title}
-              </Badge>
+              <Text
+                component="button"
+                type="button"
+                size="sm"
+                c="teal"
+                td="underline"
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (linkedDoc) onNavigateDoc(linkedDoc);
+                }}
+                style={{ border: 0, padding: 0, background: "transparent", cursor: linkedDoc ? "pointer" : "help", verticalAlign: "baseline" }}
+              >
+                {referencedCard.title}
+              </Text>
             </HoverCard.Target>
             <HoverCard.Dropdown>
               <Stack gap="xs">
@@ -620,6 +637,7 @@ export const Documents: React.FC = () => {
                   <Text size="xs" c="dimmed">SHA-256: {referencedCard.hash.substring(0, 12)}...</Text>
                   {referencedCard.sourceUrl && <Text size="xs" c="teal">Link</Text>}
                 </Group>
+                {linkedDoc && <Text size="xs" c="dimmed">Click to open {linkedDoc.name.replace(/\.md$/i, "")}.</Text>}
               </Stack>
             </HoverCard.Dropdown>
           </HoverCard>
@@ -636,15 +654,20 @@ export const Documents: React.FC = () => {
           return (
             <HoverCard width={320} shadow="md">
               <HoverCard.Target>
-                <Button
-                  variant="light"
-                  color="teal"
-                  size="compact-xs"
-                  onClick={() => onNavigateDoc(targetDoc)}
-                  styles={{ root: { verticalAlign: "baseline" } }}
+                <Text
+                  component="button"
+                  type="button"
+                  size="sm"
+                  c="teal"
+                  td="underline"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavigateDoc(targetDoc);
+                  }}
+                  style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", verticalAlign: "baseline" }}
                 >
-                  {title}
-                </Button>
+                  {targetDoc.name.replace(/\.md$/i, "")}
+                </Text>
               </HoverCard.Target>
               <HoverCard.Dropdown>
                 <Stack gap="xs">
@@ -742,6 +765,7 @@ export const Documents: React.FC = () => {
   const visibleRemoteCursors = selectedDoc
     ? Object.values(remoteCursors).filter(cursor => cursor.docId === selectedDoc.id && Date.now() - cursor.updatedAt < 15000)
     : [];
+  const remoteCursorLines = Array.from(new Set(visibleRemoteCursors.map(cursor => getLineFromCaret(cursor.caret))));
 
   return (
     <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
@@ -938,12 +962,43 @@ export const Documents: React.FC = () => {
                 <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
                   {editorMode === "edit" ? (
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+                      <div
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          overflow: "hidden",
+                          pointerEvents: "none",
+                          background: "var(--mantine-color-white)"
+                        }}
+                      >
+                        {remoteCursorLines.map(line => {
+                          const lineHeight = 19.2;
+                          const top = 16 + line * lineHeight - editorScrollTop;
+                          if (top < -lineHeight || top > 10000) return null;
+                          return (
+                            <div
+                              key={line}
+                              style={{
+                                position: "absolute",
+                                top,
+                                left: 0,
+                                right: 0,
+                                height: lineHeight,
+                                background: "var(--mantine-color-teal-0)",
+                                borderLeft: "3px solid var(--mantine-color-teal-5)"
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
                       <textarea
                         ref={editorRef}
                         value={editorContent}
                         onChange={handleContentChange}
                         onSelect={handleEditorSelect}
                         onKeyUp={handleEditorSelect}
+                        onScroll={(event) => setEditorScrollTop(event.currentTarget.scrollTop)}
                         onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
                         placeholder="Type markdown. Cite evidence cards with [[card-id]] or files with [[folder/title]]."
                         readOnly={!canEditSelectedDoc}
@@ -953,13 +1008,15 @@ export const Documents: React.FC = () => {
                           padding: "var(--mantine-spacing-md)",
                           border: 0,
                           borderRadius: 0,
-                          background: "var(--mantine-color-white)",
+                          background: "transparent",
                           outline: 0,
                           resize: "none",
                           cursor: canEditSelectedDoc ? "text" : "not-allowed",
                           fontFamily: "monospace",
                           fontSize: "12px",
-                          lineHeight: 1.6
+                          lineHeight: 1.6,
+                          position: "relative",
+                          zIndex: 1
                         }}
                       />
                       
@@ -1030,17 +1087,6 @@ export const Documents: React.FC = () => {
                     Path: {selectedDoc.partnerAccess || "private"}/{selectedDoc.name.replace(".md", "")}
                   </Text>
                   <Group gap="xs">
-                    {visibleRemoteCursors.map(cursor => (
-                      <Badge
-                        key={`${cursor.name}-${cursor.caret}`}
-                        color="teal"
-                        variant="light"
-                        size="xs"
-                        leftSection={<MousePointer2 size={10} />}
-                      >
-                        {cursor.name} editing near {cursor.caret}
-                      </Badge>
-                    ))}
                     {isPeerConnected && selectedDoc.partnerAccess !== "private" ? (
                       <>
                         <Globe size={13} color="var(--mantine-color-teal-6)" />
