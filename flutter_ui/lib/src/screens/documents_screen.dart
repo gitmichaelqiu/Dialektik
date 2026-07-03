@@ -27,6 +27,26 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   bool _readMode = false;
   final TextEditingController _nameController = TextEditingController();
 
+  Future<bool> _confirmAction(BuildContext context, {required String title, required String content}) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -90,8 +110,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         });
         if (compact) _scaffoldKey.currentState?.closeDrawer();
       },
-      onDelete: (doc) =>
-          widget.bridge.dispatch(action('document.delete', {'id': doc.id})),
+      onDelete: (doc) async {
+        final confirm = await _confirmAction(
+          context,
+          title: 'Delete Document',
+          content: 'Are you sure you want to delete "${doc.title}"? This cannot be undone.',
+        );
+        if (confirm) {
+          widget.bridge.dispatch(action('document.delete', {'id': doc.id}));
+        }
+      },
     );
 
     final editorPane = _EditorPane(
@@ -182,8 +210,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _cardTextController.clear();
         if (compact) _scaffoldKey.currentState?.closeEndDrawer();
       },
-      onDelete: (card) =>
-          widget.bridge.dispatch(action('card.delete', {'id': card.id})),
+      onDelete: (card) async {
+        final confirm = await _confirmAction(
+          context,
+          title: 'Delete Card',
+          content: 'Are you sure you want to delete card "${card.title}"?',
+        );
+        if (confirm) {
+          widget.bridge.dispatch(action('card.delete', {'id': card.id}));
+        }
+      },
       onInsert: (card) {
         final selectedDoc = _selectedDocument;
         if (selectedDoc == null) return;
@@ -925,7 +961,10 @@ class _EvidencePane extends StatelessWidget {
               controller: textController,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Evidence text'),
+              decoration: const InputDecoration(
+                labelText: 'Evidence text',
+                alignLabelWithHint: true,
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(
