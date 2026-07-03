@@ -236,6 +236,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () async {
+                      final nav = Navigator.of(context);
                       final confirm = await _confirmAction(
                         context,
                         title: 'Delete Log',
@@ -248,7 +249,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             _selectedRecordId = null;
                           }
                         });
-                        if (insideDialog) Navigator.pop(context);
+                        if (insideDialog) nav.pop();
                       }
                     },
                     style: OutlinedButton.styleFrom(
