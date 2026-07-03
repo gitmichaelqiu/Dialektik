@@ -152,7 +152,10 @@ class SessionState {
     required this.matchName,
     required this.groupName,
     required this.status,
+    required this.handout,
     required this.debaters,
+    required this.currentSpeakerId,
+    required this.speakerNotes,
     required this.speechRemainingMs,
     required this.prepRemainingMs,
     required this.customTimers,
@@ -164,8 +167,15 @@ class SessionState {
       matchName: _string(json['matchName'], fallback: 'Debate session'),
       groupName: _string(json['groupName']),
       status: _string(json['status'], fallback: 'lobby'),
+      handout: HandoutState.fromJson(
+          (json['handout'] as Map?)?.cast<String, Object?>()),
       debaters:
           AppSnapshot._list(json['debaters']).map(Debater.fromJson).toList(),
+      currentSpeakerId: json['currentSpeakerId'] as String?,
+      speakerNotes: (json['speakerNotes'] as Map?)?.cast<String, Object?>().map(
+                (key, value) => MapEntry(key, value is String ? value : ''),
+              ) ??
+          const {},
       speechRemainingMs: _number(json['speechRemainingMs'], fallback: 240000),
       prepRemainingMs: _number(json['prepRemainingMs'], fallback: 180000),
       customTimers: AppSnapshot._list(json['customTimers'])
@@ -178,10 +188,39 @@ class SessionState {
   final String matchName;
   final String groupName;
   final String status;
+  final HandoutState handout;
   final List<Debater> debaters;
+  final String? currentSpeakerId;
+  final Map<String, String> speakerNotes;
   final int speechRemainingMs;
   final int prepRemainingMs;
   final List<RoundTimer> customTimers;
+}
+
+class HandoutState {
+  const HandoutState({
+    required this.title,
+    required this.problem,
+    required this.details,
+  });
+
+  const HandoutState.empty()
+      : title = '',
+        problem = '',
+        details = '';
+
+  factory HandoutState.fromJson(Map<String, Object?>? json) {
+    if (json == null) return const HandoutState.empty();
+    return HandoutState(
+      title: _string(json['title']),
+      problem: _string(json['problem']),
+      details: _string(json['details']),
+    );
+  }
+
+  final String title;
+  final String problem;
+  final String details;
 }
 
 class Debater {

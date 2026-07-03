@@ -177,6 +177,169 @@ class PreviewEngineBridge implements EngineBridge {
       });
       return;
     }
+
+    if (type == 'session.host') {
+      _patch({
+        'activePage': 'inround',
+        'session': {
+          'roomCode': 'DEMO',
+          'matchName': payload['matchName'] is String &&
+                  (payload['matchName']! as String).trim().isNotEmpty
+              ? (payload['matchName']! as String).trim()
+              : 'Practice Round',
+          'groupName': payload['groupName'] is String &&
+                  (payload['groupName']! as String).trim().isNotEmpty
+              ? (payload['groupName']! as String).trim()
+              : 'Dialektik Team',
+          'status': 'lobby',
+          'handout': {'title': '', 'problem': '', 'details': ''},
+          'speechRemainingMs': 240000,
+          'prepRemainingMs': 180000,
+          'debaters': [
+            {
+              'id': 'debater-preview',
+              'name': 'Preview User',
+              'status': 'approved',
+              'team': 'affirmative',
+              'position': 1,
+            }
+          ],
+          'customTimers': <Map<String, Object?>>[],
+          'speakerNotes': <String, Object?>{},
+        },
+      });
+      return;
+    }
+
+    if (type == 'session.join') {
+      _patch({'activePage': 'inround'});
+      return;
+    }
+
+    if (type == 'session.exit') {
+      _patch({'session': null});
+      return;
+    }
+
+    if (type == 'session.startDebate') {
+      _patchSession({'status': 'active'});
+      return;
+    }
+
+    if (type == 'session.updateHandout') {
+      _patchSession({
+        'handout': {
+          'title': payload['title'] ?? '',
+          'problem': payload['problem'] ?? '',
+          'details': payload['details'] ?? '',
+        }
+      });
+      return;
+    }
+
+    if (type == 'session.assignDebater') {
+      final id = payload['id'];
+      if (id is! String) return;
+      final session = _sessionJson;
+      final debaters = _list(session['debaters']).map((debater) {
+        if (debater['id'] != id) return debater;
+        return {
+          ...debater,
+          'team': payload['team'],
+          'position': payload['position'],
+        };
+      }).toList();
+      _patchSession({'debaters': debaters});
+      return;
+    }
+
+    if (type == 'session.selectSpeaker') {
+      _patchSession({'currentSpeakerId': payload['id']});
+      return;
+    }
+
+    if (type == 'session.updateNotes') {
+      final speakerId = payload['speakerId'];
+      final text = payload['text'];
+      if (speakerId is! String || text is! String) return;
+      final notes = Map<String, Object?>.from(
+          (_sessionJson['speakerNotes'] as Map?) ?? const {});
+      notes[speakerId] = text;
+      _patchSession({'speakerNotes': notes});
+      return;
+    }
+
+    if (type == 'session.aiOutline') {
+      final speakerId =
+          _sessionJson['currentSpeakerId'] as String? ?? 'debater-preview';
+      final notes = Map<String, Object?>.from(
+          (_sessionJson['speakerNotes'] as Map?) ?? const {});
+      notes[speakerId] =
+          '${notes[speakerId] ?? ''}\n\nAI outline:\n- Claim\n- Warrant\n- Impact';
+      _patchSession({'speakerNotes': notes});
+      return;
+    }
+
+    if (type == 'session.saveRound') {
+      _patch({'session': null, 'activePage': 'history'});
+      return;
+    }
+
+    if (type == 'timer.action') {
+      final timerType = payload['timerType'];
+      final actionName = payload['action'];
+      if (timerType == 'speech' && actionName == 'reset') {
+        _patchSession({'speechRemainingMs': 240000});
+      }
+      if (timerType == 'prep' && actionName == 'reset') {
+        _patchSession({'prepRemainingMs': 180000});
+      }
+      return;
+    }
+
+    if (type == 'customTimer.create') {
+      final name = payload['name'];
+      if (name is! String || name.trim().isEmpty) return;
+      _patchSession({
+        'customTimers': [
+          ..._customTimersJson,
+          {
+            'id': 'timer-${DateTime.now().microsecondsSinceEpoch}',
+            'name': name.trim(),
+            'remainingMs': _parseDuration(payload['duration']),
+            'running': false,
+          },
+        ],
+      });
+      return;
+    }
+
+    if (type == 'customTimer.delete') {
+      final id = payload['id'];
+      _patchSession({
+        'customTimers':
+            _customTimersJson.where((timer) => timer['id'] != id).toList(),
+      });
+      return;
+    }
+
+    if (type == 'customTimer.action') {
+      final id = payload['id'];
+      final actionName = payload['action'];
+      _patchSession({
+        'customTimers': _customTimersJson.map((timer) {
+          if (timer['id'] != id) return timer;
+          return {
+            ...timer,
+            if (actionName == 'reset') 'remainingMs': 60000,
+            if (actionName == 'start') 'running': true,
+            if (actionName == 'pause' || actionName == 'reset')
+              'running': false,
+          };
+        }).toList(),
+      });
+      return;
+    }
   }
 
   List<Map<String, Object?>> get _documentsJson {
@@ -185,6 +348,24 @@ class PreviewEngineBridge implements EngineBridge {
 
   List<Map<String, Object?>> get _cardsJson {
     return _rawState['cards']! as List<Map<String, Object?>>;
+  }
+
+  Map<String, Object?> get _sessionJson {
+    return (_rawState['session'] as Map?)?.cast<String, Object?>() ??
+        <String, Object?>{};
+  }
+
+  List<Map<String, Object?>> get _customTimersJson {
+    return _list(_sessionJson['customTimers']);
+  }
+
+  void _patchSession(Map<String, Object?> patch) {
+    _patch({
+      'session': {
+        ..._sessionJson,
+        ...patch,
+      }
+    });
   }
 
   String _availableDocumentName(String requestedName, {String? currentId}) {
@@ -218,6 +399,23 @@ class PreviewEngineBridge implements EngineBridge {
       _controller.add(_state.value);
     }
   }
+}
+
+List<Map<String, Object?>> _list(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map((item) => item.cast<String, Object?>())
+      .toList();
+}
+
+int _parseDuration(Object? value) {
+  if (value is! String) return 60000;
+  final parts = value.split(':');
+  if (parts.length != 2) return 60000;
+  final minutes = int.tryParse(parts[0]) ?? 1;
+  final seconds = int.tryParse(parts[1]) ?? 0;
+  return ((minutes * 60) + seconds) * 1000;
 }
 
 extension _FirstOrNull<T> on Iterable<T> {
@@ -260,6 +458,17 @@ final Map<String, Object?> _initialPreviewState = {
     'matchName': 'Practice Round',
     'groupName': 'Dialektik Preview',
     'status': 'lobby',
+    'handout': <String, Object?>{
+      'title': 'Civic reasoning resolution',
+      'problem':
+          'Resolved: Public education should prioritize civic reasoning.',
+      'details':
+          'Prepare solvency, impact, and weighing for a practice debate.',
+    },
+    'currentSpeakerId': 'debater-1',
+    'speakerNotes': <String, Object?>{
+      'debater-1': 'Opening roadmap and first contention.',
+    },
     'speechRemainingMs': 240000,
     'prepRemainingMs': 180000,
     'debaters': <Map<String, Object?>>[
