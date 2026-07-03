@@ -87,7 +87,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                behavior: SnackBarBehavior.floating,
+                behavior: SnackBarBehavior.fixed,
                 backgroundColor: Colors.black87,
                 content: Row(
                   children: [
