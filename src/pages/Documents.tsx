@@ -306,11 +306,33 @@ export const Documents: React.FC = () => {
 
   const handleTitleBlur = () => {
     if (!selectedDoc || !editorName.trim()) return;
-    const nextDoc = { ...selectedDoc, name: editorName };
+    const cleanTitle = editorName.trim().replace(/[\[\]#?/\\]/g, "");
+    const requestedName = cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`;
+    const nextName = getAvailableFilename(requestedName, selectedDoc.id);
+    const nextDoc = { ...selectedDoc, name: nextName };
     setSelectedDoc(nextDoc);
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
-    db.documents.update(selectedDoc.id, { name: editorName });
+    setEditorName(nextName);
+    db.documents.update(selectedDoc.id, { name: nextName });
     loadDocs();
+  };
+
+  const getAvailableFilename = (requestedName: string, currentDocId?: string) => {
+    const extension = requestedName.toLowerCase().endsWith(".md") ? ".md" : "";
+    const baseName = (extension ? requestedName.slice(0, -3) : requestedName).trim() || "Untitled";
+    const existing = new Set(
+      docs
+        .filter(doc => doc.id !== currentDocId)
+        .map(doc => doc.name.toLowerCase())
+    );
+
+    let candidate = `${baseName}.md`;
+    let index = 2;
+    while (existing.has(candidate.toLowerCase())) {
+      candidate = `${baseName}_${index}.md`;
+      index += 1;
+    }
+    return candidate;
   };
 
   const handleCreateDoc = async (e: React.FormEvent) => {
@@ -318,13 +340,13 @@ export const Documents: React.FC = () => {
     if (!newDocTitle.trim()) return;
 
     const cleanTitle = newDocTitle.trim().replace(/[\[\]#?/\\]/g, "");
-    const filename = cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`;
+    const filename = getAvailableFilename(cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`);
 
     const newDoc: DebateDocument = {
       id: `doc-${Math.random().toString(36).substring(2, 11)}`,
       name: filename,
       type: "case",
-      content: "Type markdown content here...",
+      content: "",
       lastModified: Date.now(),
       partnerAccess: newDocFolder as any,
       encryptedHash: newDocMode
@@ -414,7 +436,6 @@ export const Documents: React.FC = () => {
     setCardSource("");
     setCardText("");
     loadCards();
-    triggerToast("Evidence card added.");
   };
 
   const handleDeleteCard = async (id: string) => {
@@ -453,7 +474,7 @@ export const Documents: React.FC = () => {
     };
 
     return (
-      <Stack gap="xs">
+      <Stack gap="xs" style={{ display: "block", lineHeight: 1.7 }}>
         {parts.map((part, index) => {
           const match = part.match(/\[\[([^\]]+)\]\]/);
           if (match) {
@@ -526,7 +547,7 @@ export const Documents: React.FC = () => {
             }
 
             return (
-              <Badge key={index} color="red" variant="light" size="xs">
+              <Badge key={index} color="red" variant="light" size="xs" component="span">
                 Missing Link: {rawCitation}
               </Badge>
             );
@@ -666,7 +687,9 @@ export const Documents: React.FC = () => {
                 <Stack gap="md" pr="xs">
                   {(["private", "team", "public"] as const).map(folder => (
                     <Stack gap="xs" key={folder}>
-                      <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>{folder}</Text>
+                      <Text size="xs" fw={700} c="dimmed">
+                        {folder.charAt(0).toUpperCase() + folder.slice(1)}
+                      </Text>
                       {groupedDocs[folder].length === 0 && (
                         <Text size="xs" style={{ italic: "true" }} c="dimmed" pl="xs">Empty</Text>
                       )}
@@ -776,12 +799,14 @@ export const Documents: React.FC = () => {
                         onSelect={handleEditorSelect}
                         onKeyUp={handleEditorSelect}
                         onBlur={() => setTimeout(() => setLinkMenu(menu => ({ ...menu, visible: false })), 140)}
-                        placeholder="Type markdown contents... Cite evidence cards using [[card-sha256-id]] or wiki links [[folder/title]]."
+                        placeholder="Type markdown. Cite evidence cards with [[card-id]] or files with [[folder/title]]."
                         style={{
                           width: "100%",
                           flex: 1,
                           padding: "var(--mantine-spacing-md)",
                           border: 0,
+                          borderRadius: 0,
+                          background: "var(--mantine-color-white)",
                           outline: 0,
                           resize: "none",
                           fontFamily: "monospace",
@@ -881,14 +906,14 @@ export const Documents: React.FC = () => {
                     required
                     value={cardTitle}
                     onChange={(e) => setCardTitle(e.target.value)}
-                    placeholder="Citation (e.g. Smith 2024)"
+                    placeholder="Citation"
                     size="xs"
                   />
                   <TextInput
                     type="url"
                     value={cardSource}
                     onChange={(e) => setCardSource(e.target.value)}
-                    placeholder="Source URL (Optional)"
+                    placeholder="Source URL"
                     size="xs"
                   />
                   <Textarea
