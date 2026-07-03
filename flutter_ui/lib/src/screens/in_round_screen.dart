@@ -19,8 +19,8 @@ class InRoundScreen extends StatefulWidget {
 }
 
 class _InRoundScreenState extends State<InRoundScreen> {
-  final _matchController = TextEditingController(text: 'Practice Round');
-  final _groupController = TextEditingController(text: 'Dialektik Team');
+  final _matchController = TextEditingController();
+  final _groupController = TextEditingController();
   final _joinCodeController = TextEditingController();
   final _handoutTitleController = TextEditingController();
   final _handoutProblemController = TextEditingController();
