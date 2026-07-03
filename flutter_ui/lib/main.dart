@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -184,10 +185,14 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.host') {
+      final settings = _rawState['settings'] as Map?;
+      final userName = (settings?['userName'] as String? ?? 'Host').trim();
+      final hostName = userName.isNotEmpty ? userName : 'Host';
+      final randomCode = _generateRoomCode();
       _patch({
         'activePage': 'inround',
         'session': {
-          'roomCode': 'DEMO',
+          'roomCode': randomCode,
           'matchName': payload['matchName'] is String &&
                   (payload['matchName']! as String).trim().isNotEmpty
               ? (payload['matchName']! as String).trim()
@@ -204,8 +209,8 @@ class PreviewEngineBridge implements EngineBridge {
           'prepRunning': false,
           'debaters': [
             {
-              'id': 'debater-preview',
-              'name': 'Preview User',
+              'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
+              'name': hostName,
               'status': 'approved',
               'team': 'affirmative',
               'position': 1,
@@ -219,7 +224,42 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.join') {
-      _patch({'activePage': 'inround'});
+      final code = (payload['roomCode'] as String? ?? 'ROOM').trim().toUpperCase();
+      final settings = _rawState['settings'] as Map?;
+      final userName = (settings?['userName'] as String? ?? 'Debater').trim();
+      final cleanUserName = userName.isNotEmpty ? userName : 'Debater';
+      _patch({
+        'activePage': 'inround',
+        'session': {
+          'roomCode': code,
+          'matchName': 'Practice Round',
+          'groupName': 'Joined Group',
+          'status': 'lobby',
+          'handout': {'title': '', 'problem': '', 'details': ''},
+          'speechRemainingMs': 240000,
+          'speechRunning': false,
+          'prepRemainingMs': 180000,
+          'prepRunning': false,
+          'debaters': [
+            {
+              'id': 'debater-host',
+              'name': 'Host User',
+              'status': 'approved',
+              'team': 'affirmative',
+              'position': 1,
+            },
+            {
+              'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
+              'name': cleanUserName,
+              'status': 'approved',
+              'team': 'negative',
+              'position': 1,
+            }
+          ],
+          'customTimers': <Map<String, Object?>>[],
+          'speakerNotes': <String, Object?>{},
+        }
+      });
       return;
     }
 
@@ -597,6 +637,13 @@ class PreviewEngineBridge implements EngineBridge {
   final Map<String, Object?> _rawState =
       Map<String, Object?>.from(_initialPreviewState);
 
+  String _generateRoomCode() {
+    final random = Random();
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return String.fromCharCodes(Iterable.generate(
+        4, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
+
   void _patch(Map<String, Object?> patch) {
     _rawState.addAll(patch);
     _state.value = AppSnapshot.fromJson(_rawState);
@@ -677,45 +724,7 @@ final Map<String, Object?> _initialPreviewState = {
       'timestamp': 1793648700000,
     }
   ],
-  'session': <String, Object?>{
-    'roomCode': 'DEMO',
-    'matchName': 'Practice Round',
-    'groupName': 'Dialektik Preview',
-    'status': 'lobby',
-    'handout': <String, Object?>{
-      'title': 'Civic reasoning resolution',
-      'problem':
-          'Resolved: Public education should prioritize civic reasoning.',
-      'details':
-          'Prepare solvency, impact, and weighing for a practice debate.',
-    },
-    'currentSpeakerId': 'debater-1',
-    'speakerNotes': <String, Object?>{
-      'debater-1': 'Opening roadmap and first contention.',
-    },
-    'speechRemainingMs': 240000,
-    'speechRunning': false,
-    'prepRemainingMs': 180000,
-    'prepRunning': false,
-    'debaters': <Map<String, Object?>>[
-      {
-        'id': 'debater-1',
-        'name': 'Alex',
-        'status': 'approved',
-        'team': 'affirmative',
-        'position': 1,
-      },
-    ],
-    'customTimers': <Map<String, Object?>>[
-      {
-        'id': 'timer-cross-ex',
-        'name': 'Cross-ex',
-        'durationMs': 180000,
-        'remainingMs': 180000,
-        'running': false,
-      },
-    ],
-  },
+  'session': null,
   'ai': <String, Object?>{
     'activeChatId': 'chat-1',
     'loading': false,
@@ -733,7 +742,7 @@ final Map<String, Object?> _initialPreviewState = {
     ],
   },
   'settings': <String, Object?>{
-    'userName': 'Preview User',
+    'userName': '',
     'aiEndpoint': 'https://api.openai.com/v1',
     'aiModel': 'gpt-4o',
     'hasAiKey': false,
