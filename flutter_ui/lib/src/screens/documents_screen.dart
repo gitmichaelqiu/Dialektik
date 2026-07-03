@@ -72,6 +72,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   @override
   void didUpdateWidget(covariant DocumentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Switch selection to new document and go to Edit mode upon creation
+    final oldIds = oldWidget.snapshot.documents.map((d) => d.id).toSet();
+    final currentDocs = widget.snapshot.documents;
+    String? newDocId;
+    for (final doc in currentDocs) {
+      if (!oldIds.contains(doc.id)) {
+        newDocId = doc.id;
+        break;
+      }
+    }
+    if (newDocId != null) {
+      _selectedId = newDocId;
+      _cachedSelectedId = newDocId;
+      _readMode = false;
+      _cachedReadMode = false;
+      final newDoc = currentDocs.firstWhere((d) => d.id == newDocId);
+      _nameController.text = newDoc.title;
+      _contentController.text = newDoc.content;
+    }
+
     _syncControllers();
   }
 
@@ -911,14 +932,15 @@ class _CitationLink extends StatelessWidget {
         ? cards.where((item) => item.id == citation).firstOrNull
         : null;
     final doc = _resolveDocument();
-    final title = card?.title ?? doc?.title ?? citation;
+    final exists = card != null || doc != null;
+    final title = card?.title ?? doc?.title ?? 'File does not exist: $citation';
 
     return Tooltip(
       richMessage: TextSpan(
         text: title,
         children: [
           TextSpan(
-              text: '\n${card?.text ?? doc?.content ?? 'Missing citation'}'),
+              text: exists ? '\n${card?.text ?? doc?.content}' : '\nMissing citation'),
         ],
       ),
       child: InkWell(
@@ -928,15 +950,19 @@ class _CitationLink extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            color: exists
+                ? Theme.of(context).colorScheme.primaryContainer
+                : Theme.of(context).colorScheme.error,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
             title,
             style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              decoration: TextDecoration.underline,
-              decorationColor: Theme.of(context).colorScheme.primary,
+              color: exists
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onError,
+              decoration: exists ? TextDecoration.underline : TextDecoration.none,
+              decorationColor: exists ? Theme.of(context).colorScheme.primary : null,
             ),
           ),
         ),
