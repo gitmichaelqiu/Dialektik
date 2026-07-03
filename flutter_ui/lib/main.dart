@@ -57,13 +57,40 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'document.create') {
+      final requestedName = payload['name'];
+      final folder = payload['folder'];
+      final mode = payload['mode'];
+      final name = requestedName is String && requestedName.trim().isNotEmpty
+          ? requestedName.trim()
+          : 'Untitled.md';
+      final nextName =
+          _availableDocumentName(name.endsWith('.md') ? name : '$name.md');
+      final docs = [
+        ..._documentsJson,
+        {
+          'id': 'doc-${DateTime.now().microsecondsSinceEpoch}',
+          'name': nextName,
+          'content': '',
+          'partnerAccess': folder is String ? folder : 'private',
+          'encryptedHash': mode is String ? mode : 'write',
+          'lastModified': DateTime.now().millisecondsSinceEpoch,
+        },
+      ];
+      _patch({'documents': docs});
+      return;
+    }
+
     if (type == 'document.rename') {
       final id = payload['id'];
       final name = payload['name'];
       if (id is! String || name is! String || name.trim().isEmpty) return;
       final docs = _documentsJson.map((doc) {
         if (doc['id'] == id) {
-          final nextName = name.endsWith('.md') ? name : '$name.md';
+          final nextName = _availableDocumentName(
+            name.endsWith('.md') ? name : '$name.md',
+            currentId: id,
+          );
           return {...doc, 'name': nextName};
         }
         return doc;
@@ -71,10 +98,111 @@ class PreviewEngineBridge implements EngineBridge {
       _patch({'documents': docs});
       return;
     }
+
+    if (type == 'document.move' || type == 'document.setMode') {
+      final id = payload['id'];
+      if (id is! String) return;
+      final docs = _documentsJson.map((doc) {
+        if (doc['id'] != id) return doc;
+        return {
+          ...doc,
+          if (type == 'document.move') 'partnerAccess': payload['folder'],
+          if (type == 'document.setMode') 'encryptedHash': payload['mode'],
+          'lastModified': DateTime.now().millisecondsSinceEpoch,
+        };
+      }).toList();
+      _patch({'documents': docs});
+      return;
+    }
+
+    if (type == 'document.duplicate') {
+      final id = payload['id'];
+      final source = _documentsJson.where((doc) => doc['id'] == id).firstOrNull;
+      if (source == null) return;
+      final baseName = (source['name'] as String? ?? 'Untitled.md')
+          .replaceFirst('.md', '_copy.md');
+      _patch({
+        'documents': [
+          ..._documentsJson,
+          {
+            ...source,
+            'id': 'doc-${DateTime.now().microsecondsSinceEpoch}',
+            'name': _availableDocumentName(baseName),
+            'lastModified': DateTime.now().millisecondsSinceEpoch,
+          },
+        ],
+      });
+      return;
+    }
+
+    if (type == 'document.delete') {
+      final id = payload['id'];
+      if (id is! String) return;
+      _patch({
+        'documents': _documentsJson.where((doc) => doc['id'] != id).toList(),
+      });
+      return;
+    }
+
+    if (type == 'card.create') {
+      final title = payload['title'];
+      final text = payload['text'];
+      if (title is! String ||
+          title.trim().isEmpty ||
+          text is! String ||
+          text.trim().isEmpty) {
+        return;
+      }
+      _patch({
+        'cards': [
+          ..._cardsJson,
+          {
+            'id': 'card-${DateTime.now().microsecondsSinceEpoch}',
+            'title': title.trim(),
+            'sourceUrl':
+                payload['sourceUrl'] is String ? payload['sourceUrl'] : '',
+            'text': text.trim(),
+            'docId': payload['docId'],
+          },
+        ],
+      });
+      return;
+    }
+
+    if (type == 'card.delete') {
+      final id = payload['id'];
+      if (id is! String) return;
+      _patch({
+        'cards': _cardsJson.where((card) => card['id'] != id).toList(),
+      });
+      return;
+    }
   }
 
   List<Map<String, Object?>> get _documentsJson {
     return _rawState['documents']! as List<Map<String, Object?>>;
+  }
+
+  List<Map<String, Object?>> get _cardsJson {
+    return _rawState['cards']! as List<Map<String, Object?>>;
+  }
+
+  String _availableDocumentName(String requestedName, {String? currentId}) {
+    final existing = _documentsJson
+        .where((doc) => currentId == null || doc['id'] != currentId)
+        .map((doc) => (doc['name'] as String? ?? '').toLowerCase())
+        .toSet();
+    final extension = requestedName.toLowerCase().endsWith('.md') ? '.md' : '';
+    final base = extension.isEmpty
+        ? requestedName
+        : requestedName.substring(0, requestedName.length - 3);
+    var candidate = extension.isEmpty ? '$base.md' : requestedName;
+    var index = 2;
+    while (existing.contains(candidate.toLowerCase())) {
+      candidate = '${base}_$index.md';
+      index += 1;
+    }
+    return candidate;
   }
 
   final Map<String, Object?> _rawState =
@@ -90,6 +218,10 @@ class PreviewEngineBridge implements EngineBridge {
       _controller.add(_state.value);
     }
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
 
 final Map<String, Object?> _initialPreviewState = {
