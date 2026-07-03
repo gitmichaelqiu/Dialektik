@@ -41,7 +41,15 @@ class _AiScreenState extends State<AiScreen> {
     final chatListPane = _ChatListPane(
       chats: widget.snapshot.ai.chats,
       activeChatId: activeChat.id,
-      onNewChat: () => widget.bridge.dispatch(action('ai.newChat')),
+      onNewChat: () {
+        if (activeChat.messages.isEmpty && widget.snapshot.ai.chats.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are already in a new chat.')),
+          );
+        } else {
+          widget.bridge.dispatch(action('ai.newChat'));
+        }
+      },
       onSelect: (chat) {
         widget.bridge.dispatch(action('ai.selectChat', {'id': chat.id}));
         if (compact) _scaffoldKey.currentState?.closeDrawer();
