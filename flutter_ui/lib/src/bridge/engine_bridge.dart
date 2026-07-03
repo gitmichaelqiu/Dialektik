@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/app_snapshot.dart';
 
@@ -10,6 +11,12 @@ abstract class EngineBridge {
   Stream<AppSnapshot> get snapshots;
 
   Future<void> dispatch(JsonMap action);
+
+  /// On platforms that need a hidden WebView in the widget tree (e.g. native
+  /// platforms where a WebView process keeps WebRTC alive), override this to
+  /// return the WebView widget. Returns null by default (used on web where
+  /// JS interop is direct and no WebView is needed).
+  Widget? buildWebView() => null;
 }
 
 class ValueNotifierEngineBridge implements EngineBridge {
@@ -38,6 +45,9 @@ class ValueNotifierEngineBridge implements EngineBridge {
   Future<void> dispatch(JsonMap action) async {
     await _onDispatch(action);
   }
+
+  @override
+  Widget? buildWebView() => null;
 
   void dispose() {
     _listenable.removeListener(_emit);

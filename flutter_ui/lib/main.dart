@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dialektik_flutter_ui.dart';
+import 'src/bridge/js_engine_bridge_io.dart'
+  if (dart.library.html) 'src/bridge/js_engine_bridge_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -92,6 +94,9 @@ class PreviewEngineBridge implements EngineBridge {
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
+
+  @override
+  Widget? buildWebView() => null;
 
   @override
   Future<void> dispatch(JsonMap action) async {

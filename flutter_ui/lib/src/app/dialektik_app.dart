@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../bridge/engine_bridge.dart';
-import '../bridge/js_engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../screens/ai_screen.dart';
 import '../screens/documents_screen.dart';
@@ -53,9 +52,7 @@ class _AppRoot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jsWebView = bridge is JsEngineBridge
-        ? (bridge as JsEngineBridge).buildWebView()
-        : null;
+    final jsWebView = bridge.buildWebView();
 
     final shell = StreamBuilder<AppSnapshot>(
       stream: bridge.snapshots,
