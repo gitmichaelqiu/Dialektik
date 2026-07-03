@@ -17,7 +17,10 @@ import {
   UserX,
   FileText,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  Trash2,
+  Wifi
 } from "lucide-react";
 import { 
   Button, 
@@ -42,6 +45,15 @@ import {
   SimpleGrid
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+
+interface CustomTimer {
+  id: string;
+  name: string;
+  durationSeconds: number;
+  remainingMs: number;
+  running: boolean;
+  targetTime?: number;
+}
 
 export const InRound: React.FC = () => {
   const { 
@@ -85,6 +97,10 @@ export const InRound: React.FC = () => {
   const [isPrepRunning, setIsPrepRunning] = useState(false);
   const [speechInput, setSpeechInput] = useState("04:00");
   const [prepInput, setPrepInput] = useState("03:00");
+  const [customTimers, setCustomTimers] = useState<CustomTimer[]>([]);
+  const [customTimerName, setCustomTimerName] = useState("");
+  const [customTimerDuration, setCustomTimerDuration] = useState("01:00");
+  const [savedRoom, setSavedRoom] = useState<{ code: string; host: boolean } | null>(null);
 
   // History state for welcome page
   const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
@@ -126,6 +142,21 @@ export const InRound: React.FC = () => {
     }
     if (!isRoundStarted) {
       loadHistory();
+    }
+  }, [isRoundStarted]);
+
+  useEffect(() => {
+    if (isRoundStarted) return;
+    const storedRoom = localStorage.getItem("dialektik.activeRoom");
+    if (!storedRoom) {
+      setSavedRoom(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedRoom) as { code: string; host: boolean };
+      setSavedRoom(parsed?.code ? parsed : null);
+    } catch {
+      setSavedRoom(null);
     }
   }, [isRoundStarted]);
 
@@ -404,6 +435,62 @@ export const InRound: React.FC = () => {
     return 240;
   };
 
+  useEffect(() => {
+    if (!customTimers.some(timer => timer.running)) return;
+    const interval = window.setInterval(() => {
+      setCustomTimers(prev => prev.map(timer => {
+        if (!timer.running || !timer.targetTime) return timer;
+        const remainingMs = Math.max(0, timer.targetTime - Date.now());
+        if (remainingMs === 0) {
+          triggerToast(`${timer.name} timer ended.`);
+          return { ...timer, remainingMs, running: false, targetTime: undefined };
+        }
+        return { ...timer, remainingMs };
+      }));
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [customTimers]);
+
+  const handleAddCustomTimer = () => {
+    const name = customTimerName.trim();
+    const durationSeconds = parseMMSS(customTimerDuration);
+    if (!name || durationSeconds <= 0) return;
+    setCustomTimers(prev => [
+      ...prev,
+      {
+        id: `timer-${Math.random().toString(36).slice(2, 10)}`,
+        name,
+        durationSeconds,
+        remainingMs: durationSeconds * 1000,
+        running: false
+      }
+    ]);
+    setCustomTimerName("");
+    setCustomTimerDuration("01:00");
+  };
+
+  const handleCustomTimerAction = (id: string, action: "start" | "pause" | "reset" | "remove") => {
+    setCustomTimers(prev => {
+      if (action === "remove") return prev.filter(timer => timer.id !== id);
+      return prev.map(timer => {
+        if (timer.id !== id) return timer;
+        if (action === "start") {
+          return { ...timer, running: true, targetTime: Date.now() + timer.remainingMs };
+        }
+        if (action === "pause") {
+          return { ...timer, running: false, targetTime: undefined };
+        }
+        return { ...timer, running: false, remainingMs: timer.durationSeconds * 1000, targetTime: undefined };
+      });
+    });
+  };
+
+  const handleQuickRejoin = async () => {
+    if (!savedRoom?.code) return;
+    await startSession(savedRoom.code, savedRoom.host);
+    triggerToast(`Rejoining room ${savedRoom.code}...`);
+  };
+
   const handleTimerDurationChange = (timerType: "speech" | "prep", val: string) => {
     if (!session) return;
     const seconds = parseMMSS(val);
@@ -575,7 +662,11 @@ export const InRound: React.FC = () => {
   return (
     <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       {toastNotification && (
-        <Notification color="teal" onClose={() => setToastNotification(null)}>
+        <Notification
+          color="teal"
+          onClose={() => setToastNotification(null)}
+          style={{ position: "fixed", top: 72, right: 20, zIndex: 1000, width: "min(360px, calc(100vw - 32px))", boxShadow: "var(--mantine-shadow-md)" }}
+        >
           {toastNotification}
         </Notification>
       )}
@@ -939,6 +1030,68 @@ export const InRound: React.FC = () => {
                           )}
                         </Group>
                       </Paper>
+
+                      <Stack gap="xs">
+                        <Group justify="space-between" align="center">
+                          <Text size="xs" fw={700} c="dimmed">Custom timers</Text>
+                        </Group>
+
+                        {isHost && (
+                          <Group gap="xs" wrap="nowrap">
+                            <TextInput
+                              value={customTimerName}
+                              onChange={(e) => setCustomTimerName(e.target.value)}
+                              placeholder="Name"
+                              size="xs"
+                              style={{ flex: 1 }}
+                            />
+                            <TextInput
+                              value={customTimerDuration}
+                              onChange={(e) => setCustomTimerDuration(e.target.value)}
+                              placeholder="01:00"
+                              size="xs"
+                              style={{ width: 72 }}
+                            />
+                            <ActionIcon
+                              color="teal"
+                              size="sm"
+                              onClick={handleAddCustomTimer}
+                              disabled={!customTimerName.trim()}
+                            >
+                              <Plus size={13} />
+                            </ActionIcon>
+                          </Group>
+                        )}
+
+                        <ScrollArea.Autosize mah={160} type="auto" offsetScrollbars>
+                          <Stack gap="xs" pr="xs">
+                            {customTimers.map(timer => (
+                              <Paper key={timer.id} withBorder p="xs" radius="md">
+                                <Group justify="space-between" align="center" wrap="nowrap">
+                                  <Stack gap={1} style={{ minWidth: 0 }}>
+                                    <Text size="xs" fw={700} truncate>{timer.name}</Text>
+                                    <Text size="xs" c="dimmed" style={{ fontFamily: "monospace" }}>{formatCountdown(timer.remainingMs)}</Text>
+                                  </Stack>
+                                  <Group gap={4} wrap="nowrap">
+                                    <ActionIcon size="sm" color="teal" onClick={() => handleCustomTimerAction(timer.id, timer.running ? "pause" : "start")}>
+                                      {timer.running ? <Pause size={13} /> : <Play size={13} />}
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="outline" color="teal" onClick={() => handleCustomTimerAction(timer.id, "reset")}>
+                                      <RotateCcw size={13} />
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleCustomTimerAction(timer.id, "remove")}>
+                                      <Trash2 size={13} />
+                                    </ActionIcon>
+                                  </Group>
+                                </Group>
+                              </Paper>
+                            ))}
+                            {customTimers.length === 0 && (
+                              <Text size="xs" c="dimmed" ta="center" py="sm">No custom timers yet.</Text>
+                            )}
+                          </Stack>
+                        </ScrollArea.Autosize>
+                      </Stack>
                     </Stack>
 
                     {/* Select Active Speaker */}
@@ -1124,6 +1277,23 @@ export const InRound: React.FC = () => {
 
                 <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto" offsetScrollbars>
                   <Stack gap="xs">
+                    {savedRoom && (
+                      <Paper withBorder p="xs" radius="md" bg="var(--mantine-color-teal-0)">
+                        <Group justify="space-between" align="center" wrap="nowrap">
+                          <Stack gap={2}>
+                            <Group gap={4}>
+                              <Wifi size={12} color="var(--mantine-color-teal-6)" />
+                              <Text size="xs" fw={700}>Quick rejoin</Text>
+                            </Group>
+                            <Text size="xs" c="dimmed">Room {savedRoom.code}</Text>
+                          </Stack>
+                          <Button size="xs" color="teal" variant="light" onClick={handleQuickRejoin}>
+                            Rejoin
+                          </Button>
+                        </Group>
+                      </Paper>
+                    )}
+
                     {historyList.map((rec) => (
                       <Paper key={rec.id} withBorder p="xs" radius="md" bg="var(--mantine-color-gray-0)">
                         <Stack gap={4}>
