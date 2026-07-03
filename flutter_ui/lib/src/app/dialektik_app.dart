@@ -78,13 +78,13 @@ class _AppShell extends StatelessWidget {
           onDestinationSelected: (index) => _selectPage(_pageForIndex(index)),
           destinations: const [
             NavigationDestination(
-                icon: Icon(Icons.article_outlined),
-                selectedIcon: Icon(Icons.article),
-                label: 'Docs'),
-            NavigationDestination(
                 icon: Icon(Icons.timer_outlined),
                 selectedIcon: Icon(Icons.timer),
                 label: 'Round'),
+            NavigationDestination(
+                icon: Icon(Icons.article_outlined),
+                selectedIcon: Icon(Icons.article),
+                label: 'Docs'),
             NavigationDestination(
                 icon: Icon(Icons.auto_awesome_outlined),
                 selectedIcon: Icon(Icons.auto_awesome),
@@ -113,13 +113,13 @@ class _AppShell extends StatelessWidget {
               labelType: NavigationRailLabelType.all,
               destinations: const [
                 NavigationRailDestination(
-                    icon: Icon(Icons.article_outlined),
-                    selectedIcon: Icon(Icons.article),
-                    label: Text('Documents')),
-                NavigationRailDestination(
                     icon: Icon(Icons.timer_outlined),
                     selectedIcon: Icon(Icons.timer),
                     label: Text('In Round')),
+                NavigationRailDestination(
+                    icon: Icon(Icons.article_outlined),
+                    selectedIcon: Icon(Icons.article),
+                    label: Text('Documents')),
                 NavigationRailDestination(
                     icon: Icon(Icons.auto_awesome_outlined),
                     selectedIcon: Icon(Icons.auto_awesome),
@@ -170,8 +170,8 @@ class _PageBody extends StatelessWidget {
 
 int _indexForPage(AppPage page) {
   return switch (page) {
-    AppPage.documents => 0,
-    AppPage.inRound => 1,
+    AppPage.inRound => 0,
+    AppPage.documents => 1,
     AppPage.ai => 2,
     AppPage.history => 3,
     AppPage.settings => 4,
@@ -180,8 +180,8 @@ int _indexForPage(AppPage page) {
 
 AppPage _pageForIndex(int index) {
   return switch (index) {
-    0 => AppPage.documents,
-    1 => AppPage.inRound,
+    0 => AppPage.inRound,
+    1 => AppPage.documents,
     2 => AppPage.ai,
     3 => AppPage.history,
     _ => AppPage.settings,
