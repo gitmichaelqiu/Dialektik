@@ -19,6 +19,7 @@ class AiScreen extends StatefulWidget {
 }
 
 class _AiScreenState extends State<AiScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _messageController = TextEditingController();
 
   @override
@@ -35,43 +36,64 @@ class _AiScreenState extends State<AiScreen> {
           ? const AiChat(id: '', title: 'New chat', messages: [])
           : widget.snapshot.ai.chats.first,
     );
+    final compact = MediaQuery.sizeOf(context).width < 840;
+
+    final chatListPane = _ChatListPane(
+      chats: widget.snapshot.ai.chats,
+      activeChatId: activeChat.id,
+      onNewChat: () => widget.bridge.dispatch(action('ai.newChat')),
+      onSelect: (chat) {
+        widget.bridge.dispatch(action('ai.selectChat', {'id': chat.id}));
+        if (compact) _scaffoldKey.currentState?.closeDrawer();
+      },
+      onRename: (chat, title) =>
+          widget.bridge.dispatch(action('ai.renameChat', {
+        'id': chat.id,
+        'title': title,
+      })),
+      onDelete: (chat) =>
+          widget.bridge.dispatch(action('ai.deleteChat', {'id': chat.id})),
+    );
+
+    final chatPane = _ChatPane(
+      chat: activeChat,
+      loading: widget.snapshot.ai.loading,
+      controller: _messageController,
+      onSend: () {
+        final text = _messageController.text.trim();
+        if (text.isEmpty) return;
+        _messageController.clear();
+        widget.bridge.dispatch(action('ai.sendMessage', {'text': text}));
+      },
+      isMobile: compact,
+      onOpenChats: () => _scaffoldKey.currentState?.openDrawer(),
+      onOpenCitedFiles: () => _scaffoldKey.currentState?.openEndDrawer(),
+    );
+
+    final citedFilesPane = _CitedFilesPane(
+      documents: widget.snapshot.documents,
+      onToggle: (doc, value) =>
+          widget.bridge.dispatch(action('ai.toggleCitation', {
+        'id': doc.id,
+        'selected': value,
+      })),
+    );
+
+    if (compact) {
+      return Scaffold(
+        key: _scaffoldKey,
+        drawer: Drawer(child: SafeArea(child: chatListPane)),
+        endDrawer: Drawer(child: SafeArea(child: citedFilesPane)),
+        body: chatPane,
+      );
+    }
 
     return ResponsivePane(
       cacheKey: 'ai',
       children: [
-        _ChatListPane(
-          chats: widget.snapshot.ai.chats,
-          activeChatId: activeChat.id,
-          onNewChat: () => widget.bridge.dispatch(action('ai.newChat')),
-          onSelect: (chat) =>
-              widget.bridge.dispatch(action('ai.selectChat', {'id': chat.id})),
-          onRename: (chat, title) =>
-              widget.bridge.dispatch(action('ai.renameChat', {
-            'id': chat.id,
-            'title': title,
-          })),
-          onDelete: (chat) =>
-              widget.bridge.dispatch(action('ai.deleteChat', {'id': chat.id})),
-        ),
-        _ChatPane(
-          chat: activeChat,
-          loading: widget.snapshot.ai.loading,
-          controller: _messageController,
-          onSend: () {
-            final text = _messageController.text.trim();
-            if (text.isEmpty) return;
-            _messageController.clear();
-            widget.bridge.dispatch(action('ai.sendMessage', {'text': text}));
-          },
-        ),
-        _CitedFilesPane(
-          documents: widget.snapshot.documents,
-          onToggle: (doc, value) =>
-              widget.bridge.dispatch(action('ai.toggleCitation', {
-            'id': doc.id,
-            'selected': value,
-          })),
-        ),
+        chatListPane,
+        chatPane,
+        citedFilesPane,
       ],
     );
   }
@@ -192,12 +214,18 @@ class _ChatPane extends StatelessWidget {
     required this.loading,
     required this.controller,
     required this.onSend,
+    this.isMobile = false,
+    this.onOpenChats,
+    this.onOpenCitedFiles,
   });
 
   final AiChat chat;
   final bool loading;
   final TextEditingController controller;
   final VoidCallback onSend;
+  final bool isMobile;
+  final VoidCallback? onOpenChats;
+  final VoidCallback? onOpenCitedFiles;
 
   @override
   Widget build(BuildContext context) {
@@ -209,12 +237,31 @@ class _ChatPane extends StatelessWidget {
             SectionHeader(
               title: chat.title,
               subtitle: loading ? 'Thinking' : 'Ready',
-              trailing: loading
-                  ? const SizedBox(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isMobile) ...[
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      onPressed: onOpenChats,
+                      tooltip: 'Chats',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.folder_outlined),
+                      onPressed: onOpenCitedFiles,
+                      tooltip: 'Cited Files',
+                    ),
+                  ],
+                  if (loading) ...[
+                    const SizedBox(width: 8),
+                    const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : null,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             Expanded(
