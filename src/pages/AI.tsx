@@ -488,7 +488,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
           align="stretch"
           gutter="md"
         >
-          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Button onClick={handleNewConversation} color="teal" size="xs" fullWidth>
@@ -549,7 +549,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
               <Stack gap="xs" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                 <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
@@ -669,7 +669,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center">
@@ -706,7 +706,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
           align="stretch"
           gutter="md"
         >
-          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
               {!isSparringActive ? (
                 <Stack align="center" justify="center" style={{ flex: 1, padding: "var(--mantine-spacing-xl)" }} gap="md">
@@ -841,7 +841,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center">

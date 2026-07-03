@@ -819,7 +819,7 @@ export const InRound: React.FC = () => {
               gutter="md"
             >
               {/* Handouts panel */}
-              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -868,7 +868,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Teams & Positions assignments */}
-              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+              <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -936,7 +936,7 @@ export const InRound: React.FC = () => {
               gutter="md"
             >
               {/* Handout & Info */}
-              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -982,7 +982,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Speech & Prep count down timers */}
-              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -1173,7 +1173,7 @@ export const InRound: React.FC = () => {
               </Grid.Col>
 
               {/* Speaker Notes */}
-              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 150px)" : "100%", minHeight: 0 }}>
+              <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
                 <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                     <Group justify="space-between" align="center">
@@ -1223,7 +1223,7 @@ export const InRound: React.FC = () => {
           gutter="md"
         >
           {/* Main Welcome Hero */}
-          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p="xl" radius="md" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Stack align="center" gap="md" style={{ maxWidth: 440, textAlign: "center" }}>
                 <Award size={48} color="var(--mantine-color-teal-6)" />
@@ -1299,7 +1299,7 @@ export const InRound: React.FC = () => {
           </Grid.Col>
 
           {/* Right side: Session History lists */}
-          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
+          <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
             <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
               <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
                 <Group justify="space-between" align="center" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", paddingBottom: "var(--mantine-spacing-xs)" }}>

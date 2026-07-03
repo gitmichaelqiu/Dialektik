@@ -140,7 +140,7 @@ function AppContent() {
         </Stack>
       </AppShell.Navbar>
 
-      <AppShell.Main style={{ height: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <AppShell.Main style={{ height: "calc(100dvh - var(--app-shell-header-height, 0px))", overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {activePage === "inround" && <InRound />}
         {activePage === "documents" && <Documents />}
         {activePage === "ai" && <AI />}

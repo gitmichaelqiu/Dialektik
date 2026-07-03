@@ -849,7 +849,7 @@ export const Documents: React.FC = () => {
         align="stretch"
         gutter="md"
       >
-        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">
@@ -937,7 +937,7 @@ export const Documents: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
+        <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
           <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
             {selectedDoc ? (
               <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
@@ -1154,7 +1154,7 @@ export const Documents: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "calc(100dvh - 88px)" : "100%", minHeight: 0 }}>
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">

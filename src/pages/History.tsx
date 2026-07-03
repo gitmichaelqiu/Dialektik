@@ -16,8 +16,10 @@ import {
   SimpleGrid,
   NavLink
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 export const History: React.FC = () => {
+  const isMobile = useMediaQuery("(max-width: 48em)");
   const [records, setRecords] = useState<TournamentRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TournamentRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,7 +76,7 @@ export const History: React.FC = () => {
   );
 
   return (
-    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+    <Stack gap="md" style={{ flex: 1, height: "100%", minHeight: 0, overflow: isMobile ? "auto" : "hidden" }}>
       <Modal 
         opened={!!pendingDelete} 
         onClose={() => setPendingDelete(null)} 
@@ -96,8 +98,13 @@ export const History: React.FC = () => {
         </Stack>
       </Modal>
 
-      <Grid style={{ height: "100%", minHeight: 0 }} align="stretch" gutter="md">
-        <Grid.Col span={4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Grid
+        style={{ flex: 1, height: isMobile ? "auto" : "100%", minHeight: 0, overflow: isMobile ? "visible" : "hidden" }}
+        styles={{ inner: { height: isMobile ? "auto" : "100%" } }}
+        align="stretch"
+        gutter="md"
+      >
+        <Grid.Col span={{ base: 12, md: 4 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
           <Card withBorder p="md" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between">
@@ -153,7 +160,7 @@ export const History: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={8} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Grid.Col span={{ base: 12, md: 8 }} style={{ display: "flex", flexDirection: "column", height: isMobile ? "auto" : "100%", minHeight: 0 }}>
           <Stack gap="md" style={{ flex: 1, overflowY: "auto" }}>
             <Card withBorder p="md" radius="md">
               <Group justify="space-between" align="center">
