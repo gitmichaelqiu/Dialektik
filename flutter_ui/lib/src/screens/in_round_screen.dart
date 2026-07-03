@@ -156,6 +156,43 @@ class _InRoundScreenState extends State<InRoundScreen> {
       );
     }
 
+    if (session.status == 'pending_approval') {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Waiting for Host Approval',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'You have requested to join room ${session.roomCode}. The host must approve your request before you can enter the debate session.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 24),
+                  OutlinedButton.icon(
+                    onPressed: () => widget.bridge.dispatch(action('session.exit')),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancel Request'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final activeSpeakerId = _activeSpeakerId(session);
     final activeSpeaker = session.debaters
         .where((debater) => debater.id == activeSpeakerId)
@@ -236,51 +273,100 @@ class _InRoundScreenState extends State<InRoundScreen> {
             session: session,
           );
 
-    if (compact) {
-      return DefaultTabController(
-        length: 3,
-        child: Scaffold(
-          appBar: AppBar(
-            toolbarHeight: 0,
-            bottom: TabBar(
-              tabs: [
-                const Tab(icon: Icon(Icons.description), text: 'Handout'),
-                const Tab(icon: Icon(Icons.timer), text: 'Timers'),
-                Tab(
-                  icon: Icon(active ? Icons.edit_note : Icons.group),
-                  text: active ? 'Notes' : 'Debaters',
+    final mainLayout = compact
+        ? DefaultTabController(
+            length: 3,
+            child: Scaffold(
+              appBar: AppBar(
+                toolbarHeight: 0,
+                bottom: TabBar(
+                  tabs: [
+                    const Tab(icon: Icon(Icons.description), text: 'Handout'),
+                    const Tab(icon: Icon(Icons.timer), text: 'Timers'),
+                    Tab(
+                      icon: Icon(active ? Icons.edit_note : Icons.group),
+                      text: active ? 'Notes' : 'Debaters',
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              body: TabBarView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: handoutPane,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: timersPane,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: debatersOrNotesPane,
+                  ),
+                ],
+              ),
             ),
-          ),
-          body: TabBarView(
+          )
+        : ResponsivePane(
+            cacheKey: 'in_round_active',
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: handoutPane,
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: timersPane,
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: debatersOrNotesPane,
-              ),
+              handoutPane,
+              timersPane,
+              debatersOrNotesPane,
             ],
-          ),
-        ),
+          );
+
+    if (session.isHost && session.pendingRequests.isNotEmpty) {
+      return Column(
+        children: [
+          for (final req in session.pendingRequests)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Card(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Join request from ${req.name}',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => widget.bridge.dispatch(
+                          action('session.rejectJoin', {'id': req.id}),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                        ),
+                        child: const Text('Reject'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => widget.bridge.dispatch(
+                          action('session.approveJoin', {'id': req.id}),
+                        ),
+                        child: const Text('Approve'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Expanded(child: mainLayout),
+        ],
       );
     }
 
-    return ResponsivePane(
-      cacheKey: 'in_round_active',
-      children: [
-        handoutPane,
-        timersPane,
-        debatersOrNotesPane,
-      ],
-    );
+    return mainLayout;
   }
 
   String? _activeSpeakerId(SessionState session) {
@@ -454,12 +540,14 @@ class _LobbyHandoutPane extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: titleController,
+              enabled: session.isHost,
               decoration: const InputDecoration(labelText: 'Title'),
               onChanged: (_) => onChanged(),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: problemController,
+              enabled: session.isHost,
               minLines: 4,
               maxLines: 7,
               decoration: const InputDecoration(
@@ -471,6 +559,7 @@ class _LobbyHandoutPane extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: detailsController,
+              enabled: session.isHost,
               minLines: 3,
               maxLines: 6,
               decoration: const InputDecoration(
@@ -483,9 +572,9 @@ class _LobbyHandoutPane extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: onStart,
+                onPressed: session.isHost ? onStart : null,
                 icon: const Icon(Icons.play_arrow),
-                label: const Text('Start debate'),
+                label: Text(session.isHost ? 'Start debate' : 'Waiting for host to start...'),
               ),
             ),
             const SizedBox(height: 8),
@@ -494,7 +583,7 @@ class _LobbyHandoutPane extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onCancel,
                 icon: const Icon(Icons.cancel_outlined),
-                label: const Text('Cancel session'),
+                label: Text(session.isHost ? 'Cancel session' : 'Exit session'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
@@ -575,16 +664,19 @@ class _TimersPane extends StatelessWidget {
             SectionHeader(
               title: 'Round timers',
               subtitle: 'Speech, prep, and custom timers',
-              trailing: IconButton(
-                onPressed: () => bridge.dispatch(action('timer.resetAll')),
-                icon: const Icon(Icons.restart_alt),
-              ),
+              trailing: session.isHost
+                  ? IconButton(
+                      onPressed: () => bridge.dispatch(action('timer.resetAll')),
+                      icon: const Icon(Icons.restart_alt),
+                    )
+                  : null,
             ),
             const SizedBox(height: 12),
             _TimerTile(
               name: 'Speech',
               remainingMs: session.speechRemainingMs,
               running: session.speechRunning,
+              enabled: session.isHost,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'speech',
@@ -595,6 +687,7 @@ class _TimersPane extends StatelessWidget {
               name: 'Prep',
               remainingMs: session.prepRemainingMs,
               running: session.prepRunning,
+              enabled: session.isHost,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'prep',
@@ -602,37 +695,39 @@ class _TimersPane extends StatelessWidget {
               })),
             ),
             const Divider(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: customNameController,
-                    decoration:
-                        const InputDecoration(labelText: 'Custom timer'),
+            if (session.isHost) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: customNameController,
+                      decoration:
+                          const InputDecoration(labelText: 'Custom timer'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 96,
-                  child: TextField(
-                    controller: customDurationController,
-                    decoration: const InputDecoration(labelText: 'MM:SS'),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 96,
+                    child: TextField(
+                      controller: customDurationController,
+                      decoration: const InputDecoration(labelText: 'MM:SS'),
+                    ),
                   ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: () {
-                    if (customNameController.text.trim().isEmpty) return;
-                    bridge.dispatch(action('customTimer.create', {
-                      'name': customNameController.text.trim(),
-                      'duration': customDurationController.text.trim(),
-                    }));
-                    customNameController.clear();
-                  },
-                  icon: const Icon(Icons.add),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+                  IconButton.filledTonal(
+                    onPressed: () {
+                      if (customNameController.text.trim().isEmpty) return;
+                      bridge.dispatch(action('customTimer.create', {
+                        'name': customNameController.text.trim(),
+                        'duration': customDurationController.text.trim(),
+                      }));
+                      customNameController.clear();
+                    },
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Expanded(
               child: session.customTimers.isEmpty
                   ? const EmptyState(
@@ -646,6 +741,7 @@ class _TimersPane extends StatelessWidget {
                           remainingMs: timer.remainingMs,
                           running: timer.running,
                           removable: true,
+                          enabled: session.isHost,
                           onRemove: () => bridge.dispatch(
                               action('customTimer.delete', {'id': timer.id})),
                           onAction: (timerAction) =>
@@ -672,6 +768,7 @@ class _TimerTile extends StatelessWidget {
     this.running = false,
     this.removable = false,
     this.onRemove,
+    this.enabled = true,
   });
 
   final String name;
@@ -680,6 +777,7 @@ class _TimerTile extends StatelessWidget {
   final bool removable;
   final VoidCallback? onRemove;
   final ValueChanged<String> onAction;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -692,16 +790,16 @@ class _TimerTile extends StatelessWidget {
         spacing: 4,
         children: [
           IconButton.filledTonal(
-            onPressed: () => onAction(running ? 'pause' : 'start'),
+            onPressed: enabled ? () => onAction(running ? 'pause' : 'start') : null,
             icon: Icon(running ? Icons.pause : Icons.play_arrow),
           ),
           IconButton(
-            onPressed: () => onAction('reset'),
+            onPressed: enabled ? () => onAction('reset') : null,
             icon: const Icon(Icons.restart_alt),
           ),
           if (removable)
             IconButton(
-              onPressed: onRemove,
+              onPressed: enabled ? onRemove : null,
               icon: const Icon(Icons.delete_outline),
             ),
         ],
