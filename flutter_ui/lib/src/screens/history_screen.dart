@@ -241,7 +241,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         title: 'Delete Log',
                         content: 'Are you sure you want to delete this round log from history? This action cannot be undone.',
                       );
-                      if (confirm) {
+                      if (confirm && mounted) {
                         widget.bridge.dispatch(action('history.delete', {'id': record.id}));
                         setState(() {
                           if (_selectedRecordId == record.id) {
