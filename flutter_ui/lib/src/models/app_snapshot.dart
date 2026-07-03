@@ -234,6 +234,7 @@ class SessionState {
     required this.prepRunning,
     required this.customTimers,
     required this.pendingRequests,
+    required this.isHost,
   });
 
   factory SessionState.fromJson(Map<String, Object?> json) {
@@ -261,6 +262,7 @@ class SessionState {
       pendingRequests: AppSnapshot._list(json['pendingRequests'])
           .map(JoinRequest.fromJson)
           .toList(),
+      isHost: json['isHost'] == true,
     );
   }
 
@@ -278,6 +280,7 @@ class SessionState {
   final bool prepRunning;
   final List<RoundTimer> customTimers;
   final List<JoinRequest> pendingRequests;
+  final bool isHost;
 }
 
 class HandoutState {
