@@ -44,7 +44,7 @@ function AppContent() {
 
   return (
     <AppShell
-      header={{ height: 56 }}
+      header={{ height: { base: 56, sm: 0 } }}
       navbar={{
         width: 248,
         breakpoint: "sm",
@@ -52,7 +52,7 @@ function AppContent() {
       }}
       padding="md"
     >
-      <AppShell.Header>
+      <AppShell.Header hiddenFrom="sm">
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />

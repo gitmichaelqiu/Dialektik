@@ -11,7 +11,6 @@ import {
   Stack, 
   Group, 
   Modal, 
-  Notification 
 } from "@mantine/core";
 
 export const Settings: React.FC = () => {
@@ -27,7 +26,8 @@ export const Settings: React.FC = () => {
   const [aiKeyInput, setAiKeyInput] = useState(aiApiKey);
   const [aiEndInput, setAiEndInput] = useState(aiEndpoint);
   const [aiModelInput, setAiModelInput] = useState(aiModel);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [aiSaved, setAiSaved] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   useEffect(() => setNameInput(userName), [userName]);
@@ -35,15 +35,11 @@ export const Settings: React.FC = () => {
   useEffect(() => setAiEndInput(aiEndpoint), [aiEndpoint]);
   useEffect(() => setAiModelInput(aiModel), [aiModel]);
 
-  const showNotice = (message: string) => {
-    setNotice(message);
-    setTimeout(() => setNotice(null), 2500);
-  };
-
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await saveSettings({ userName: nameInput });
-    showNotice("User profile saved.");
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 1600);
   };
 
   const handleAISubmit = async (e: React.FormEvent) => {
@@ -53,7 +49,8 @@ export const Settings: React.FC = () => {
       aiEndpoint: aiEndInput,
       aiModel: aiModelInput
     });
-    showNotice("AI settings saved.");
+    setAiSaved(true);
+    setTimeout(() => setAiSaved(false), 1600);
   };
 
   const resetLocalWorkspace = async () => {
@@ -68,12 +65,6 @@ export const Settings: React.FC = () => {
 
   return (
     <Stack gap="md">
-      {notice && (
-        <Notification color="teal" icon={<Save size={16} />} onClose={() => setNotice(null)}>
-          {notice}
-        </Notification>
-      )}
-
       <Modal 
         opened={resetConfirmOpen} 
         onClose={() => setResetConfirmOpen(false)} 
@@ -119,7 +110,7 @@ export const Settings: React.FC = () => {
                   required
                 />
                 <Button type="submit" leftSection={<Save size={16} />} color="teal" fullWidth>
-                  Save Profile
+                  {profileSaved ? "Saved" : "Save Profile"}
                 </Button>
               </Stack>
             </form>
@@ -177,7 +168,7 @@ export const Settings: React.FC = () => {
                   placeholder="sk-..."
                 />
                 <Button type="submit" leftSection={<Save size={16} />} color="teal" fullWidth>
-                  Save AI Settings
+                  {aiSaved ? "Saved" : "Save AI Settings"}
                 </Button>
               </Stack>
             </form>
