@@ -73,11 +73,13 @@ export const Documents: React.FC = () => {
   const [editorMode, setEditorMode] = useState<"edit" | "read">("edit");
   const [editorScrollTop, setEditorScrollTop] = useState(0);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
-  const [linkMenu, setLinkMenu] = useState<{ visible: boolean; query: string; start: number; end: number }>({
+  const editorModeRef = useRef(editorMode);
+  const [linkMenu, setLinkMenu] = useState<{ visible: boolean; query: string; start: number; end: number; top: number }>({
     visible: false,
     query: "",
     start: 0,
-    end: 0
+    end: 0,
+    top: 40
   });
   const [pendingDelete, setPendingDelete] = useState<{ type: "document" | "card"; id: string; label: string } | null>(null);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
@@ -93,6 +95,10 @@ export const Documents: React.FC = () => {
   const yproviderRef = useRef<PeerJSYjsProvider | null>(null);
   const isSyncingRef = useRef<boolean>(false);
   const syncSnapshotTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    editorModeRef.current = editorMode;
+  }, [editorMode]);
 
   useEffect(() => {
     loadCards();
@@ -119,7 +125,10 @@ export const Documents: React.FC = () => {
           }
 
           setEditorName(refreshed.name);
-          setEditorContent(refreshed.content);
+          const isEditingCurrentDoc = editorModeRef.current === "edit" && document.activeElement === editorRef.current;
+          if (!isEditingCurrentDoc) {
+            setEditorContent(refreshed.content);
+          }
           return refreshed;
         });
       },
@@ -230,7 +239,7 @@ export const Documents: React.FC = () => {
             setDocs(await db.documents.toArray());
           }
         })();
-      } else if (msg.type === "doc-cursor" && msg.payload?.docId) {
+      } else if (msg.type === "doc-cursor" && msg.payload?.docId && _senderId !== mesh.peerId) {
         setRemoteCursors(prev => ({
           ...prev,
           [_senderId]: {
@@ -362,7 +371,19 @@ export const Documents: React.FC = () => {
       setLinkMenu(menu => ({ ...menu, visible: false }));
       return;
     }
-    setLinkMenu({ visible: true, query: trigger.query, start: trigger.start, end: trigger.end });
+    const textarea = editorRef.current;
+    const lineHeight = 19.2;
+    const paddingTop = 16;
+    const menuHeight = 220;
+    let top = 40;
+    if (textarea) {
+      const currentLine = value.slice(0, caret).split("\n").length - 1;
+      const lineTop = paddingTop + currentLine * lineHeight - textarea.scrollTop;
+      const belowTop = lineTop + lineHeight + 8;
+      const aboveTop = lineTop - menuHeight - 8;
+      top = belowTop + menuHeight < textarea.clientHeight ? belowTop : Math.max(8, aboveTop);
+    }
+    setLinkMenu({ visible: true, query: trigger.query, start: trigger.start, end: trigger.end, top });
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -596,7 +617,13 @@ export const Documents: React.FC = () => {
   const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cards, docs, onNavigateDoc }) => {
     const markdownContent = content.replace(/\[\[([^\]]+)\]\]/g, (_match, rawCitation: string) => {
       const citation = rawCitation.trim();
-      return `[${citation}](dialektik://${encodeURIComponent(citation)})`;
+      const label = citation.startsWith("card-")
+        ? cards.find(card => card.id === citation)?.title || citation
+        : docs.find(doc => {
+          const [folder, title] = citation.split("/");
+          return (doc.partnerAccess || "private") === folder && doc.name.replace(/\.md$/i, "") === title;
+        })?.name.replace(/\.md$/i, "") || citation;
+      return `[${label}](dialektik-citation:${encodeURIComponent(citation)})`;
     });
 
     const renderCitation = (rawCitation: string) => {
@@ -621,7 +648,7 @@ export const Documents: React.FC = () => {
                   event.preventDefault();
                   if (linkedDoc) onNavigateDoc(linkedDoc);
                 }}
-                style={{ border: 0, padding: 0, background: "transparent", cursor: linkedDoc ? "pointer" : "help", verticalAlign: "baseline" }}
+                style={{ border: 0, padding: "1px 4px", background: "var(--mantine-color-teal-0)", borderRadius: "var(--mantine-radius-xs)", cursor: linkedDoc ? "pointer" : "help", verticalAlign: "baseline" }}
               >
                 {referencedCard.title}
               </Text>
@@ -664,7 +691,7 @@ export const Documents: React.FC = () => {
                     event.preventDefault();
                     onNavigateDoc(targetDoc);
                   }}
-                  style={{ border: 0, padding: 0, background: "transparent", cursor: "pointer", verticalAlign: "baseline" }}
+                  style={{ border: 0, padding: "1px 4px", background: "var(--mantine-color-teal-0)", borderRadius: "var(--mantine-radius-xs)", cursor: "pointer", verticalAlign: "baseline" }}
                 >
                   {targetDoc.name.replace(/\.md$/i, "")}
                 </Text>
@@ -692,10 +719,11 @@ export const Documents: React.FC = () => {
       <div className="markdown-body">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
+          urlTransform={(url) => url}
           components={{
             a: ({ href, children }) => {
-              if (href?.startsWith("dialektik://")) {
-                return renderCitation(decodeURIComponent(href.replace("dialektik://", "")));
+              if (href?.startsWith("dialektik-citation:")) {
+                return renderCitation(decodeURIComponent(href.replace("dialektik-citation:", "")));
               }
               return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
             },
@@ -763,7 +791,10 @@ export const Documents: React.FC = () => {
     .slice(0, 6);
   const canEditSelectedDoc = isSelectedDocWritable();
   const visibleRemoteCursors = selectedDoc
-    ? Object.values(remoteCursors).filter(cursor => cursor.docId === selectedDoc.id && Date.now() - cursor.updatedAt < 15000)
+    ? Object.entries(remoteCursors)
+      .filter(([senderId]) => senderId !== mesh.peerId)
+      .map(([, cursor]) => cursor)
+      .filter(cursor => cursor.docId === selectedDoc.id && Date.now() - cursor.updatedAt < 15000)
     : [];
   const remoteCursorLines = Array.from(new Set(visibleRemoteCursors.map(cursor => getLineFromCaret(cursor.caret))));
 
@@ -1025,7 +1056,7 @@ export const Documents: React.FC = () => {
                           withBorder 
                           p={4} 
                           radius="md" 
-                          style={{ position: "absolute", bottom: "16px", left: "20px", zIndex: 60, width: 320, maxHeight: 220, overflowY: "auto" }}
+                          style={{ position: "absolute", top: linkMenu.top, left: "20px", zIndex: 60, width: 320, maxHeight: 220, overflowY: "auto" }}
                         >
                           <Stack gap={4}>
                             {matchingDocs.length > 0 && <Text size="10px" fw={700} c="dimmed" px="xs">Documents</Text>}
