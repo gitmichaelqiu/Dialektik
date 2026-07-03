@@ -22,6 +22,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   static String? _cachedSelectedId;
   static bool _cachedReadMode = false;
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _selectedId;
   bool _readMode = false;
   final TextEditingController _nameController = TextEditingController();
@@ -69,126 +70,148 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Widget build(BuildContext context) {
     _syncControllers();
     final selected = _selectedDocument;
+    final compact = MediaQuery.sizeOf(context).width < 840;
+
+    final filesPane = _FilesPane(
+      documents: widget.snapshot.documents,
+      selectedId: selected?.id,
+      newTitleController: _newTitleController,
+      newFolder: _newFolder,
+      newMode: _newMode,
+      onFolderChanged: (value) => setState(() => _newFolder = value),
+      onModeChanged: (value) => setState(() => _newMode = value),
+      onCreate: _createDocument,
+      onSelect: (doc) {
+        setState(() {
+          _selectedId = doc.id;
+          _cachedSelectedId = doc.id;
+          _nameController.text = doc.title;
+          _contentController.text = doc.content;
+        });
+        if (compact) _scaffoldKey.currentState?.closeDrawer();
+      },
+      onDelete: (doc) =>
+          widget.bridge.dispatch(action('document.delete', {'id': doc.id})),
+    );
+
+    final editorPane = _EditorPane(
+      document: selected,
+      nameController: _nameController,
+      contentController: _contentController,
+      readMode: _readMode,
+      documents: widget.snapshot.documents,
+      cards: widget.snapshot.cards,
+      onToggleReadMode: (value) => setState(() {
+        _readMode = value;
+        _cachedReadMode = value;
+      }),
+      onRename: () {
+        if (selected == null) return;
+        widget.bridge.dispatch(action('document.rename', {
+          'id': selected.id,
+          'name': _nameController.text.trim(),
+        }));
+      },
+      onChanged: (content) {
+        if (selected == null) return;
+        widget.bridge.dispatch(action('document.updateContent', {
+          'id': selected.id,
+          'content': content,
+        }));
+      },
+      onMove: (folder) {
+        if (selected == null) return;
+        widget.bridge.dispatch(
+            action('document.move', {'id': selected.id, 'folder': folder}));
+      },
+      onModeChanged: (mode) {
+        if (selected == null) return;
+        widget.bridge.dispatch(
+            action('document.setMode', {'id': selected.id, 'mode': mode}));
+      },
+      onDuplicate: () {
+        if (selected == null) return;
+        widget.bridge
+            .dispatch(action('document.duplicate', {'id': selected.id}));
+      },
+      onInsertCitation: (citation) {
+        final selection = _contentController.selection;
+        final insertAt = selection.isValid
+            ? selection.baseOffset
+            : _contentController.text.length;
+        final nextText = _contentController.text.replaceRange(
+          insertAt,
+          selection.isValid ? selection.extentOffset : insertAt,
+          '[[$citation]]',
+        );
+        _contentController.text = nextText;
+        if (selected != null) {
+          widget.bridge.dispatch(action('document.updateContent', {
+            'id': selected.id,
+            'content': nextText,
+          }));
+        }
+      },
+      onNavigateDoc: (doc) => setState(() {
+        _selectedId = doc.id;
+        _cachedSelectedId = doc.id;
+      }),
+      isMobile: compact,
+      onOpenFiles: () => _scaffoldKey.currentState?.openDrawer(),
+      onOpenEvidence: () => _scaffoldKey.currentState?.openEndDrawer(),
+    );
+
+    final evidencePane = _EvidencePane(
+      cards: widget.snapshot.cards,
+      titleController: _cardTitleController,
+      sourceController: _cardSourceController,
+      textController: _cardTextController,
+      onCreate: () {
+        if (_cardTitleController.text.trim().isEmpty ||
+            _cardTextController.text.trim().isEmpty) {
+          return;
+        }
+        widget.bridge.dispatch(action('card.create', {
+          'title': _cardTitleController.text.trim(),
+          'sourceUrl': _cardSourceController.text.trim(),
+          'text': _cardTextController.text.trim(),
+          'docId': selected?.id,
+        }));
+        _cardTitleController.clear();
+        _cardSourceController.clear();
+        _cardTextController.clear();
+        if (compact) _scaffoldKey.currentState?.closeEndDrawer();
+      },
+      onDelete: (card) =>
+          widget.bridge.dispatch(action('card.delete', {'id': card.id})),
+      onInsert: (card) {
+        final selectedDoc = _selectedDocument;
+        if (selectedDoc == null) return;
+        final text = '${_contentController.text}\n\n[[${card.id}]]';
+        _contentController.text = text;
+        widget.bridge.dispatch(action('document.updateContent', {
+          'id': selectedDoc.id,
+          'content': text,
+        }));
+        if (compact) _scaffoldKey.currentState?.closeEndDrawer();
+      },
+    );
+
+    if (compact) {
+      return Scaffold(
+        key: _scaffoldKey,
+        drawer: Drawer(child: SafeArea(child: filesPane)),
+        endDrawer: Drawer(child: SafeArea(child: evidencePane)),
+        body: editorPane,
+      );
+    }
 
     return ResponsivePane(
       cacheKey: 'documents',
       children: [
-        _FilesPane(
-          documents: widget.snapshot.documents,
-          selectedId: selected?.id,
-          newTitleController: _newTitleController,
-          newFolder: _newFolder,
-          newMode: _newMode,
-          onFolderChanged: (value) => setState(() => _newFolder = value),
-          onModeChanged: (value) => setState(() => _newMode = value),
-          onCreate: _createDocument,
-          onSelect: (doc) {
-            setState(() {
-              _selectedId = doc.id;
-              _cachedSelectedId = doc.id;
-              _nameController.text = doc.title;
-              _contentController.text = doc.content;
-            });
-          },
-          onDelete: (doc) =>
-              widget.bridge.dispatch(action('document.delete', {'id': doc.id})),
-        ),
-        _EditorPane(
-          document: selected,
-          nameController: _nameController,
-          contentController: _contentController,
-          readMode: _readMode,
-          documents: widget.snapshot.documents,
-          cards: widget.snapshot.cards,
-          onToggleReadMode: (value) => setState(() {
-            _readMode = value;
-            _cachedReadMode = value;
-          }),
-          onRename: () {
-            if (selected == null) return;
-            widget.bridge.dispatch(action('document.rename', {
-              'id': selected.id,
-              'name': _nameController.text.trim(),
-            }));
-          },
-          onChanged: (content) {
-            if (selected == null) return;
-            widget.bridge.dispatch(action('document.updateContent', {
-              'id': selected.id,
-              'content': content,
-            }));
-          },
-          onMove: (folder) {
-            if (selected == null) return;
-            widget.bridge.dispatch(
-                action('document.move', {'id': selected.id, 'folder': folder}));
-          },
-          onModeChanged: (mode) {
-            if (selected == null) return;
-            widget.bridge.dispatch(
-                action('document.setMode', {'id': selected.id, 'mode': mode}));
-          },
-          onDuplicate: () {
-            if (selected == null) return;
-            widget.bridge
-                .dispatch(action('document.duplicate', {'id': selected.id}));
-          },
-          onInsertCitation: (citation) {
-            final selection = _contentController.selection;
-            final insertAt = selection.isValid
-                ? selection.baseOffset
-                : _contentController.text.length;
-            final nextText = _contentController.text.replaceRange(
-              insertAt,
-              selection.isValid ? selection.extentOffset : insertAt,
-              '[[$citation]]',
-            );
-            _contentController.text = nextText;
-            if (selected != null) {
-              widget.bridge.dispatch(action('document.updateContent', {
-                'id': selected.id,
-                'content': nextText,
-              }));
-            }
-          },
-          onNavigateDoc: (doc) => setState(() {
-            _selectedId = doc.id;
-            _cachedSelectedId = doc.id;
-          }),
-        ),
-        _EvidencePane(
-          cards: widget.snapshot.cards,
-          titleController: _cardTitleController,
-          sourceController: _cardSourceController,
-          textController: _cardTextController,
-          onCreate: () {
-            if (_cardTitleController.text.trim().isEmpty ||
-                _cardTextController.text.trim().isEmpty) {
-              return;
-            }
-            widget.bridge.dispatch(action('card.create', {
-              'title': _cardTitleController.text.trim(),
-              'sourceUrl': _cardSourceController.text.trim(),
-              'text': _cardTextController.text.trim(),
-              'docId': selected?.id,
-            }));
-            _cardTitleController.clear();
-            _cardSourceController.clear();
-            _cardTextController.clear();
-          },
-          onDelete: (card) =>
-              widget.bridge.dispatch(action('card.delete', {'id': card.id})),
-          onInsert: (card) {
-            final selectedDoc = _selectedDocument;
-            if (selectedDoc == null) return;
-            final text = '${_contentController.text}\n\n[[${card.id}]]';
-            _contentController.text = text;
-            widget.bridge.dispatch(action('document.updateContent', {
-              'id': selectedDoc.id,
-              'content': text,
-            }));
-          },
-        ),
+        filesPane,
+        editorPane,
+        evidencePane,
       ],
     );
   }
@@ -399,6 +422,9 @@ class _EditorPane extends StatelessWidget {
     required this.onDuplicate,
     required this.onInsertCitation,
     required this.onNavigateDoc,
+    this.isMobile = false,
+    this.onOpenFiles,
+    this.onOpenEvidence,
   });
 
   final DebateDocument? document;
@@ -415,6 +441,9 @@ class _EditorPane extends StatelessWidget {
   final VoidCallback onDuplicate;
   final ValueChanged<String> onInsertCitation;
   final ValueChanged<DebateDocument> onNavigateDoc;
+  final bool isMobile;
+  final VoidCallback? onOpenFiles;
+  final VoidCallback? onOpenEvidence;
 
   @override
   Widget build(BuildContext context) {
@@ -490,6 +519,18 @@ class _EditorPane extends StatelessWidget {
                   selected: {readMode},
                   onSelectionChanged: (value) => onToggleReadMode(value.first),
                 ),
+                if (isMobile) ...[
+                  IconButton.outlined(
+                    onPressed: onOpenFiles,
+                    icon: const Icon(Icons.folder_open),
+                    tooltip: 'Files',
+                  ),
+                  IconButton.outlined(
+                    onPressed: onOpenEvidence,
+                    icon: const Icon(Icons.style),
+                    tooltip: 'Evidence',
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 12),
