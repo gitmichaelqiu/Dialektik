@@ -216,7 +216,7 @@ export const SessionWizard: React.FC<SessionWizardProps> = ({ onClose }) => {
 
         {step === 3 && role === "host" && (
           <Stack align="center" gap="md" py="xl">
-            <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>Room Pairing Code</Text>
+            <Text size="xs" fw={700} c="dimmed">Room pairing code</Text>
             <Text size="xl" fw={900} c="teal" style={{ fontSize: "48px", fontFamily: "monospace", letterSpacing: "8px" }}>
               {generatedCode}
             </Text>

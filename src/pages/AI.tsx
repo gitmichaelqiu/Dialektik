@@ -343,7 +343,7 @@ Do not output placeholders. Provide complete markdown blocks inside the edit tag
       transcripts: [
         {
           role: "ai",
-          text: `Hello! I am your AI sparring partner. We are debating: "${topic}". You are representing the ${side.toUpperCase()} team side. Go ahead and start with your speech. I will counter-flow!`,
+          text: `Hello! I am your AI sparring partner. We are debating: "${topic}". You are representing the ${side} team side. Go ahead and start with your speech. I will counter-flow!`,
           timestamp: Date.now()
         }
       ],

@@ -602,7 +602,7 @@ export const InRound: React.FC = () => {
         centered
       >
         <Stack gap="md">
-          <Text size="sm">Record {pendingWinner?.toUpperCase()} as the winner and save this round to history.</Text>
+          <Text size="sm">Record {pendingWinner} as the winner and save this round to history.</Text>
           <Group justify="flex-end" gap="sm">
             <Button variant="outline" onClick={() => setPendingWinner(null)}>Cancel</Button>
             <Button color="teal" onClick={confirmEndRound}>Save Round</Button>

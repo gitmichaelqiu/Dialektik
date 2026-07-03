@@ -158,7 +158,7 @@ export const History: React.FC = () => {
             <Card withBorder p="md" radius="md">
               <Group justify="space-between" align="center">
                 <Stack gap="xs">
-                  <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
+                  <Text size="xs" fw={700} c="dimmed">
                     Win Performance
                   </Text>
                   <Text size="xl" fw={900} c="teal">
@@ -171,7 +171,7 @@ export const History: React.FC = () => {
 
                 <Stack gap="xs" style={{ width: "60%" }}>
                   <Group justify="space-between">
-                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: "uppercase" }}>
+                    <Text size="xs" fw={700} c="dimmed">
                       Win-rate by side
                     </Text>
                     <BarChart2 size={14} color="var(--mantine-color-gray-6)" />
@@ -222,8 +222,8 @@ export const History: React.FC = () => {
                   </Group>
 
                   <Stack gap="xs">
-                    <Text size="xs" fw={800} c="dimmed" style={{ textTransform: "uppercase" }}>
-                      Speech Note Logs
+                    <Text size="xs" fw={700} c="dimmed">
+                      Speech note logs
                     </Text>
                     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
                       {selectedRecord.flows.map((flow) => (
