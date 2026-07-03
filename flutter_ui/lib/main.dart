@@ -566,9 +566,13 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'workspace.reset') {
+      final currentPage = _rawState['activePage'];
       _rawState
         ..clear()
         ..addAll(_initialPreviewState);
+      if (currentPage != null) {
+        _rawState['activePage'] = currentPage;
+      }
       _state.value = AppSnapshot.fromJson(_rawState);
       return;
     }
