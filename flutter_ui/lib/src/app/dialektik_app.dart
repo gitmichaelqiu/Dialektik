@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../bridge/engine_bridge.dart';
+import '../bridge/js_engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../screens/ai_screen.dart';
 import '../screens/documents_screen.dart';
@@ -37,16 +38,48 @@ class DialektikFlutterApp extends StatelessWidget {
           isDense: true,
         ),
       ),
-      home: StreamBuilder<AppSnapshot>(
-        stream: bridge.snapshots,
-        initialData: initialSnapshot ?? AppSnapshot.initial(),
-        builder: (context, snapshot) {
-          return _AppShell(
-            bridge: bridge,
-            snapshot: snapshot.data ?? AppSnapshot.initial(),
-          );
-        },
-      ),
+      home: _AppRoot(bridge: bridge, initialSnapshot: initialSnapshot),
+    );
+  }
+}
+
+/// Root widget that mounts the hidden engine WebView (when using JsEngineBridge)
+/// and the real app shell on top of it.
+class _AppRoot extends StatelessWidget {
+  const _AppRoot({required this.bridge, this.initialSnapshot});
+
+  final EngineBridge bridge;
+  final AppSnapshot? initialSnapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final jsWebView = bridge is JsEngineBridge
+        ? (bridge as JsEngineBridge).buildWebView()
+        : null;
+
+    final shell = StreamBuilder<AppSnapshot>(
+      stream: bridge.snapshots,
+      initialData: initialSnapshot ?? AppSnapshot.initial(),
+      builder: (context, snapshot) {
+        return _AppShell(
+          bridge: bridge,
+          snapshot: snapshot.data ?? AppSnapshot.initial(),
+        );
+      },
+    );
+
+    if (jsWebView == null) return shell;
+
+    return Stack(
+      children: [
+        // Hidden 1×1 engine WebView – must be in the tree to keep WebRTC alive
+        Positioned(
+          left: 0, top: 0,
+          width: 1, height: 1,
+          child: Opacity(opacity: 0, child: jsWebView),
+        ),
+        shell,
+      ],
     );
   }
 }
