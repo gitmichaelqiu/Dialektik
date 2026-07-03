@@ -61,6 +61,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final selected = _selectedDocument;
 
     return ResponsivePane(
+      cacheKey: 'documents',
       children: [
         _FilesPane(
           documents: widget.snapshot.documents,

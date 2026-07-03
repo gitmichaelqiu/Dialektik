@@ -37,6 +37,7 @@ class _AiScreenState extends State<AiScreen> {
     );
 
     return ResponsivePane(
+      cacheKey: 'ai',
       children: [
         _ChatListPane(
           chats: widget.snapshot.ai.chats,

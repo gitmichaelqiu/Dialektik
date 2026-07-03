@@ -73,6 +73,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
     final session = widget.snapshot.session;
     if (session == null) {
       return ResponsivePane(
+        cacheKey: 'in_round_setup',
         children: [
           _StartSessionPane(
             matchController: _matchController,
@@ -102,6 +103,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
     final active = session.status == 'active';
 
     return ResponsivePane(
+      cacheKey: 'in_round_active',
       children: [
         active
             ? _HandoutReadPane(session: session)
