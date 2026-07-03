@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class SectionHeader extends StatelessWidget {
@@ -85,7 +87,39 @@ class ResponsivePane extends StatefulWidget {
 
 class _ResponsivePaneState extends State<ResponsivePane> {
   static final Map<String, List<double>> _fractionsCache = {};
+  static final File _cacheFile = File('${Directory.systemTemp.path}/dialektik_layout_cache.json');
+  static bool _cacheLoaded = false;
+
+  static void _loadCache() {
+    if (_cacheLoaded) return;
+    _cacheLoaded = true;
+    try {
+      if (_cacheFile.existsSync()) {
+        final content = _cacheFile.readAsStringSync();
+        final json = jsonDecode(content) as Map<String, dynamic>;
+        json.forEach((key, value) {
+          if (value is List) {
+            _fractionsCache[key] = value.map((e) => (e as num).toDouble()).toList();
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  static void _saveCache() {
+    try {
+      final json = _fractionsCache.map((key, value) => MapEntry(key, value));
+      _cacheFile.writeAsStringSync(jsonEncode(json));
+    } catch (_) {}
+  }
+
   List<double> _fractions = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCache();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +193,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     _fractions = List<double>.filled(count, 1 / count);
     if (key != null) {
       _fractionsCache[key] = _fractions;
+      _saveCache();
     }
   }
 
@@ -180,6 +215,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     final key = widget.cacheKey;
     if (key != null) {
       _fractionsCache[key] = next;
+      _saveCache();
     }
   }
 }
