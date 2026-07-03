@@ -1,21 +1,36 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dialektik_flutter_ui.dart';
 
-void main() {
-  runApp(DialektikFlutterApp(bridge: PreviewEngineBridge()));
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final savedStateStr = prefs.getString('dialektik_preview_state');
+  Map<String, Object?> state = _initialPreviewState;
+  if (savedStateStr != null) {
+    try {
+      state = (jsonDecode(savedStateStr) as Map).cast<String, Object?>();
+    } catch (_) {}
+  }
+  runApp(DialektikFlutterApp(bridge: PreviewEngineBridge(initialState: state, prefs: prefs)));
 }
 
 class PreviewEngineBridge implements EngineBridge {
-  PreviewEngineBridge()
-      : _state = ValueNotifier<AppSnapshot>(
-          AppSnapshot.fromJson(_initialPreviewState),
+  PreviewEngineBridge({
+    Map<String, Object?>? initialState,
+    SharedPreferences? prefs,
+  })  : _prefs = prefs,
+        _state = ValueNotifier<AppSnapshot>(
+          AppSnapshot.fromJson(initialState ?? _initialPreviewState),
         ) {
+    _rawState.addAll(initialState ?? _initialPreviewState);
     _lastTick = DateTime.now();
-    Timer.periodic(const Duration(milliseconds: 250), (_) {
+    _periodicTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       _tickTimers();
     });
     _controller = StreamController<AppSnapshot>.broadcast(
@@ -23,11 +38,16 @@ class PreviewEngineBridge implements EngineBridge {
         _controller.add(_state.value);
         _state.addListener(_emit);
       },
-      onCancel: () => _state.removeListener(_emit),
+      onCancel: () {
+        _state.removeListener(_emit);
+        _periodicTimer?.cancel();
+      },
     );
   }
 
+  final SharedPreferences? _prefs;
   static Timer? _syncTimer;
+  Timer? _periodicTimer;
   final ValueNotifier<AppSnapshot> _state;
   late final StreamController<AppSnapshot> _controller;
   late DateTime _lastTick;
@@ -212,7 +232,7 @@ class PreviewEngineBridge implements EngineBridge {
           'debaters': participate
               ? [
                   {
-                    'id': 'debater-${DateTime.now().microsecondsSinceEpoch}',
+                    'id': 'debater-local',
                     'name': hostName,
                     'status': 'approved',
                     'team': 'affirmative',
@@ -623,22 +643,32 @@ class PreviewEngineBridge implements EngineBridge {
     if (type == 'settings.save') {
       final current =
           (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
+      final newUserName = payload['userName'] as String? ?? current['userName'] as String? ?? '';
       _patch({
         'settings': {
           ...current,
-          'userName': payload['userName'] ?? current['userName'],
+          'userName': newUserName,
           'aiEndpoint': payload['aiEndpoint'] ?? current['aiEndpoint'],
           'aiModel': payload['aiModel'] ?? current['aiModel'],
           'hasAiKey': payload['aiApiKey'] is String &&
                   (payload['aiApiKey']! as String).isNotEmpty ||
               current['hasAiKey'] == true,
-          'githubOwner': payload['githubOwner'] ?? current['githubOwner'],
-          'githubRepo': payload['githubRepo'] ?? current['githubRepo'],
-          'hasGithubToken': payload['githubToken'] is String &&
-                  (payload['githubToken']! as String).isNotEmpty ||
-              current['hasGithubToken'] == true,
         }
       });
+
+      if (_rawState['session'] != null) {
+        final session = _sessionJson;
+        final debaters = _list(session['debaters']).map((d) {
+          if (d['id'] == 'debater-local') {
+            return {
+              ...d,
+              'name': newUserName.trim().isNotEmpty ? newUserName.trim() : 'Debater',
+            };
+          }
+          return d;
+        }).toList();
+        _patchSession({'debaters': debaters});
+      }
       return;
     }
 
@@ -803,8 +833,7 @@ class PreviewEngineBridge implements EngineBridge {
     return candidate;
   }
 
-  final Map<String, Object?> _rawState =
-      Map<String, Object?>.from(_initialPreviewState);
+  final Map<String, Object?> _rawState = {};
 
   String _generateRoomCode() {
     final random = Random();
@@ -816,6 +845,15 @@ class PreviewEngineBridge implements EngineBridge {
   void _patch(Map<String, Object?> patch) {
     _rawState.addAll(patch);
     _state.value = AppSnapshot.fromJson(_rawState);
+    _saveToPrefs();
+  }
+
+  void _saveToPrefs() {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    try {
+      prefs.setString('dialektik_preview_state', jsonEncode(_rawState));
+    } catch (_) {}
   }
 
   void _emit() {
@@ -915,8 +953,5 @@ final Map<String, Object?> _initialPreviewState = {
     'aiEndpoint': '',
     'aiModel': '',
     'hasAiKey': false,
-    'githubOwner': '',
-    'githubRepo': '',
-    'hasGithubToken': false,
   },
 };

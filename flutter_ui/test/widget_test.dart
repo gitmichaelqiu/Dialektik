@@ -9,6 +9,9 @@ void main() {
     await tester.pump();
 
     expect(find.text('Documents'), findsWidgets);
+    await tester.tap(find.text('Documents').first);
+    await tester.pumpAndSettle();
+
     expect(find.text('Affirmative Case'), findsOneWidget);
   });
 }
