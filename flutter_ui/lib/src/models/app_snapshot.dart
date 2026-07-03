@@ -201,6 +201,23 @@ class HistoryRecord {
   final List<HistoryFlow> flows;
 }
 
+class JoinRequest {
+  const JoinRequest({
+    required this.id,
+    required this.name,
+  });
+
+  factory JoinRequest.fromJson(Map<String, Object?> json) {
+    return JoinRequest(
+      id: _string(json['id']),
+      name: _string(json['name']),
+    );
+  }
+
+  final String id;
+  final String name;
+}
+
 class SessionState {
   const SessionState({
     required this.roomCode,
@@ -209,13 +226,14 @@ class SessionState {
     required this.status,
     required this.handout,
     required this.debaters,
-    required this.currentSpeakerId,
+    this.currentSpeakerId,
     required this.speakerNotes,
     required this.speechRemainingMs,
     required this.speechRunning,
     required this.prepRemainingMs,
     required this.prepRunning,
     required this.customTimers,
+    required this.pendingRequests,
   });
 
   factory SessionState.fromJson(Map<String, Object?> json) {
@@ -240,6 +258,9 @@ class SessionState {
       customTimers: AppSnapshot._list(json['customTimers'])
           .map(RoundTimer.fromJson)
           .toList(),
+      pendingRequests: AppSnapshot._list(json['pendingRequests'])
+          .map(JoinRequest.fromJson)
+          .toList(),
     );
   }
 
@@ -256,6 +277,7 @@ class SessionState {
   final int prepRemainingMs;
   final bool prepRunning;
   final List<RoundTimer> customTimers;
+  final List<JoinRequest> pendingRequests;
 }
 
 class HandoutState {
