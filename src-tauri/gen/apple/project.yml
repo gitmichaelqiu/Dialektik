@@ -59,6 +59,8 @@ targets:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: "Default Configuration"
                 UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).SceneDelegate"
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     entitlements:
       path: tauri-app_iOS/tauri-app_iOS.entitlements
     scheme:
