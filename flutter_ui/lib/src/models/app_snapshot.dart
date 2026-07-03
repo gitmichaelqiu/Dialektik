@@ -92,6 +92,8 @@ class DebateDocument {
     this.ownerId,
     this.ownerName,
     this.lastModified,
+    this.partnerCaret,
+    this.partnerName,
   });
 
   factory DebateDocument.fromJson(Map<String, Object?> json) {
@@ -106,6 +108,8 @@ class DebateDocument {
       lastModified: json['lastModified'] is num
           ? (json['lastModified']! as num).toInt()
           : null,
+      partnerCaret: json['partnerCaret'] as int?,
+      partnerName: json['partnerName'] as String?,
     );
   }
 
@@ -117,6 +121,8 @@ class DebateDocument {
   final String? ownerId;
   final String? ownerName;
   final int? lastModified;
+  final int? partnerCaret;
+  final String? partnerName;
 
   String get title =>
       name.replaceFirst(RegExp(r'\.md$', caseSensitive: false), '');
