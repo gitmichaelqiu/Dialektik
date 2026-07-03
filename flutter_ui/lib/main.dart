@@ -3,15 +3,12 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dialektik_flutter_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Required initialisation for flutter_inappwebview on macOS/iOS/Android
-  await InAppWebViewController.setWebContentsDebuggingEnabled(true);
   runApp(DialektikFlutterApp(bridge: JsEngineBridge()));
 }
 

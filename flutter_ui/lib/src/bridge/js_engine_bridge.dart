@@ -86,63 +86,52 @@ class _JsEngineWebView extends StatefulWidget {
 class _JsEngineWebViewState extends State<_JsEngineWebView> {
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 1,
-      height: 1,
-      child: InAppWebView(
-        initialData: InAppWebViewInitialData(
-          data: _engineHtml,
-          mimeType: 'text/html',
-          baseUrl: WebUri('https://localhost'),
-        ),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-          mediaPlaybackRequiresUserGesture: false,
-          // Disable visual chrome
-          transparentBackground: true,
-          disableVerticalScroll: true,
-          disableHorizontalScroll: true,
-        ),
-        onWebViewCreated: (controller) {
-          widget.bridge._attach(controller);
-          // Register the channel that JS calls to push snapshots
-          controller.addJavaScriptHandler(
-            handlerName: 'FlutterChannel',
-            callback: (args) {
-              final msg = args.isNotEmpty ? args[0].toString() : '';
-              widget.bridge._onMessage(msg);
-              return null;
-            },
-          );
-        },
-        onLoadStop: (controller, _) async {
-          // Inject the engine script from assets
-          try {
-            final js = await DefaultAssetBundle.of(context).loadString('assets/engine.js');
-            // Install the FlutterChannel bridge shim before running the engine.
-            // The shim routes postMessage → JavaScriptHandler so the engine
-            // doesn't need to know whether it's running in Tauri or Flutter.
-            await controller.evaluateJavascript(source: '''
-              window.FlutterChannel = {
-                postMessage: function(msg) {
-                  window.flutter_inappwebview.callHandler("FlutterChannel", msg);
-                }
-              };
-            ''');
-            await controller.evaluateJavascript(source: js);
-            // Give engine bootstrap ~500ms then mark ready
-            await Future.delayed(const Duration(milliseconds: 500));
-            widget.bridge._onReady();
-          } catch (e) {
-            debugPrint('[JsEngineWebView] engine load error: $e');
-          }
-        },
-        onConsoleMessage: (_, msg) {
-          debugPrint('[engine console] ${msg.messageLevel}: ${msg.message}');
-        },
+    return InAppWebView(
+      initialData: InAppWebViewInitialData(
+        data: _engineHtml,
+        mimeType: 'text/html',
+        baseUrl: WebUri('https://localhost'),
       ),
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        allowFileAccessFromFileURLs: true,
+        allowUniversalAccessFromFileURLs: true,
+        mediaPlaybackRequiresUserGesture: false,
+        transparentBackground: true,
+        disableVerticalScroll: true,
+        disableHorizontalScroll: true,
+      ),
+      onWebViewCreated: (controller) {
+        widget.bridge._attach(controller);
+        controller.addJavaScriptHandler(
+          handlerName: 'FlutterChannel',
+          callback: (args) {
+            final msg = args.isNotEmpty ? args[0].toString() : '';
+            widget.bridge._onMessage(msg);
+            return null;
+          },
+        );
+      },
+      onLoadStop: (controller, _) async {
+        try {
+          final js = await DefaultAssetBundle.of(context).loadString('assets/engine.js');
+          await controller.evaluateJavascript(source: '''
+            window.FlutterChannel = {
+              postMessage: function(msg) {
+                window.flutter_inappwebview.callHandler("FlutterChannel", msg);
+              }
+            };
+          ''');
+          await controller.evaluateJavascript(source: js);
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.bridge._onReady();
+        } catch (e) {
+          debugPrint('[JsEngineWebView] engine load error: $e');
+        }
+      },
+      onConsoleMessage: (_, msg) {
+        debugPrint('[engine console] ${msg.messageLevel}: ${msg.message}');
+      },
     );
   }
 }

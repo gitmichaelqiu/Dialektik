@@ -70,15 +70,14 @@ class _AppRoot extends StatelessWidget {
 
     if (jsWebView == null) return shell;
 
+    // The engine WebView must be in the widget tree so the WKWebView process
+    // stays alive (WebRTC connection), but it must never be visible.
+    // Give it a real 1×1 frame placed just above the visible area so WKWebView
+    // is active and fires onLoadStop, but users never see it.
     return Stack(
       children: [
-        // Hidden 1×1 engine WebView – must be in the tree to keep WebRTC alive
-        Positioned(
-          left: 0, top: 0,
-          width: 1, height: 1,
-          child: Opacity(opacity: 0, child: jsWebView),
-        ),
-        shell,
+        Positioned(top: -2, left: 0, width: 1, height: 1, child: jsWebView),
+        Positioned.fill(child: shell),
       ],
     );
   }
