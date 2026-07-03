@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dialektik Engine</title>
+  <style>
+    body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <!--
+    Headless engine host page.
+    The Flutter WebView injects a `window.FlutterChannel` JavascriptChannel
+    before this page loads, so all engine.js postMessage calls are automatically
+    captured and forwarded to Dart.
+  -->
+  <script src="engine.js"></script>
+</body>
+</html>
