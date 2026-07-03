@@ -25,6 +25,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  Future<bool> _confirmAction(BuildContext context, {required String title, required String content}) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -73,92 +93,97 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     // Helper to build Stats Card
     Widget buildStatsCard() {
+      final content = [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Win Performance',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$winRate%',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$wins Wins / $totalRounds Matches',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        if (compact) const SizedBox(height: 16) else const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Win-rate by side',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Affirmative', style: TextStyle(fontSize: 12)),
+                    Text('$affWinRate%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: affWinRate / 100,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  color: Theme.of(context).colorScheme.primary,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Negative', style: TextStyle(fontSize: 12)),
+                    Text('$negWinRate%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: negWinRate / 100,
+                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                  color: Theme.of(context).colorScheme.secondary,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ];
+
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 2,
-                child: Column(
+          child: compact
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  children: content,
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      'Win Performance',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$winRate%',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: Colors.teal.shade700,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$wins Wins / $totalRounds Matches',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    Expanded(flex: 2, child: content[0]),
+                    content[1],
+                    Expanded(flex: 3, child: content[2]),
                   ],
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Win-rate by side',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Affirmative', style: TextStyle(fontSize: 12)),
-                            Text('$affWinRate%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: affWinRate / 100,
-                          backgroundColor: Colors.teal.shade50,
-                          color: Colors.teal,
-                          minHeight: 6,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Negative', style: TextStyle(fontSize: 12)),
-                            Text('$negWinRate%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: negWinRate / 100,
-                          backgroundColor: Colors.orange.shade50,
-                          color: Colors.orange,
-                          minHeight: 6,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       );
     }
@@ -210,18 +235,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: () {
-                      widget.bridge.dispatch(action('history.delete', {'id': record.id}));
-                      setState(() {
-                        if (_selectedRecordId == record.id) {
-                          _selectedRecordId = null;
-                        }
-                      });
-                      if (insideDialog) Navigator.pop(context);
+                    onPressed: () async {
+                      final confirm = await _confirmAction(
+                        context,
+                        title: 'Delete Log',
+                        content: 'Are you sure you want to delete this round log from history? This action cannot be undone.',
+                      );
+                      if (confirm) {
+                        widget.bridge.dispatch(action('history.delete', {'id': record.id}));
+                        setState(() {
+                          if (_selectedRecordId == record.id) {
+                            _selectedRecordId = null;
+                          }
+                        });
+                        if (insideDialog) Navigator.pop(context);
+                      }
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                      side: BorderSide(color: Theme.of(context).colorScheme.error),
                     ),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     label: const Text('Delete log'),
@@ -360,8 +392,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           leading: CircleAvatar(
-                            backgroundColor: record.result == 'win' ? Colors.teal.shade50 : Colors.red.shade50,
-                            foregroundColor: record.result == 'win' ? Colors.teal.shade800 : Colors.red.shade800,
+                            backgroundColor: record.result == 'win'
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : Theme.of(context).colorScheme.errorContainer,
+                            foregroundColor: record.result == 'win'
+                                ? Theme.of(context).colorScheme.onPrimaryContainer
+                                : Theme.of(context).colorScheme.onErrorContainer,
                             child: Icon(record.result == 'win'
                                 ? Icons.emoji_events_outlined
                                 : Icons.flag_outlined),
@@ -371,11 +407,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               '${record.opponentName.isEmpty ? 'Unknown opponent' : record.opponentName} • $dateStr'),
                           trailing: Chip(
                             label: Text(record.result.isEmpty ? 'pending' : record.result),
-                            backgroundColor: record.result == 'win' ? Colors.teal.shade50 : Colors.red.shade50,
+                            backgroundColor: record.result == 'win'
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : Theme.of(context).colorScheme.errorContainer,
                             labelStyle: TextStyle(
-                              color: record.result == 'win' ? Colors.teal.shade800 : Colors.red.shade800,
+                              color: record.result == 'win'
+                                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                                  : Theme.of(context).colorScheme.onErrorContainer,
                               fontWeight: FontWeight.bold,
                             ),
+                            side: BorderSide.none,
                           ),
                           onTap: () {
                             setState(() {
