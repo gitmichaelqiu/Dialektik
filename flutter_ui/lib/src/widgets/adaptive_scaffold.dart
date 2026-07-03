@@ -81,9 +81,14 @@ class ResponsivePane extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 840;
     if (compact) {
+      final paneHeight =
+          (MediaQuery.sizeOf(context).height - 176).clamp(420.0, 680.0);
       return ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemBuilder: (context, index) => children[index],
+        itemBuilder: (context, index) => SizedBox(
+          height: paneHeight,
+          child: children[index],
+        ),
         separatorBuilder: (context, index) => const SizedBox(height: 16),
         itemCount: children.length,
       );

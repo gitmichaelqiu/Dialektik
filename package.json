@@ -5,7 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "flutter:dev": "cd flutter_ui && flutter run",
+    "flutter:web": "cd flutter_ui && flutter run -d chrome",
+    "flutter:ios": "cd flutter_ui && flutter run -d ios",
+    "flutter:analyze": "cd flutter_ui && flutter analyze",
     "build": "tsc && vite build",
+    "flutter:build:web": "cd flutter_ui && flutter build web",
+    "flutter:build:ios": "cd flutter_ui && flutter build ios",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run"
