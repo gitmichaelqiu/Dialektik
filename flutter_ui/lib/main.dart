@@ -41,13 +41,47 @@ class PreviewEngineBridge implements EngineBridge {
       onCancel: () {
         _state.removeListener(_emit);
         _periodicTimer?.cancel();
+        _reloadTimer?.cancel();
       },
     );
+
+    // Cross-tab real-time sync reloader loop
+    _reloadTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      final p = _prefs;
+      if (p == null) return;
+      try {
+        await p.reload();
+        final savedStateStr = p.getString('dialektik_preview_state');
+        if (savedStateStr == null) return;
+        final Map<String, Object?> newState = (jsonDecode(savedStateStr) as Map).cast<String, Object?>();
+        bool changed = false;
+
+        for (final key in const ['session', 'documents', 'cards', 'history']) {
+          final newVal = newState[key];
+          final currentVal = _rawState[key];
+          if (jsonEncode(newVal) != jsonEncode(currentVal)) {
+            if (key == 'session' && newVal is Map && currentVal is Map) {
+              final mergedSession = Map<String, Object?>.from(newVal);
+              mergedSession['isHost'] = currentVal['isHost'];
+              _rawState['session'] = mergedSession;
+            } else {
+              _rawState[key] = newVal;
+            }
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          _state.value = AppSnapshot.fromJson(_rawState);
+        }
+      } catch (_) {}
+    });
   }
 
   final SharedPreferences? _prefs;
   static Timer? _syncTimer;
   Timer? _periodicTimer;
+  Timer? _reloadTimer;
   final ValueNotifier<AppSnapshot> _state;
   late final StreamController<AppSnapshot> _controller;
   late DateTime _lastTick;
@@ -252,15 +286,19 @@ class PreviewEngineBridge implements EngineBridge {
       Timer(const Duration(seconds: 4), () {
         if (_rawState['session'] != null && _sessionJson['status'] == 'lobby') {
           final reqs = _list(_sessionJson['pendingRequests']);
-          _patchSession({
-            'pendingRequests': [
-              ...reqs,
-              {
-                'id': 'debater-guest-${DateTime.now().millisecondsSinceEpoch}',
-                'name': 'Sarah (Guest)',
-              }
-            ]
-          });
+          final debaters = _list(_sessionJson['debaters']);
+          // Only add Sarah if no real client has requested to join and only host is present
+          if (reqs.isEmpty && debaters.length <= 1) {
+            _patchSession({
+              'pendingRequests': [
+                ...reqs,
+                {
+                  'id': 'debater-guest-sarah',
+                  'name': 'Sarah (Guest)',
+                }
+              ]
+            });
+          }
         }
       });
       return;
@@ -699,6 +737,7 @@ class PreviewEngineBridge implements EngineBridge {
       final docs = _list(_rawState['documents']);
       if (docs.isEmpty) return;
 
+      // Find the first shared writable doc to update caret position only (no text changes!)
       final sharedDocIndex = docs.indexWhere(
         (d) => d['partnerAccess'] != 'private' && d['encryptedHash'] != 'read',
       );
@@ -707,26 +746,13 @@ class PreviewEngineBridge implements EngineBridge {
 
       final docId = sharedDoc['id'] as String;
       final currentContent = sharedDoc['content'] as String? ?? '';
-      
-      final teammateLines = [
-        'Teammate note: Civic reasoning is core to modern education.',
-        'Teammate citation: According to Dewey (1916), democracy requires active civic participation.',
-        'Teammate warning: Make sure to check the counter-evidence on vocational training.',
-        'Teammate outline: 1. Civic awareness 2. Critical analysis 3. Active engagement.',
-      ];
-      final randomLine = teammateLines[DateTime.now().second % teammateLines.length];
-      
-      if (!currentContent.contains(randomLine)) {
-        final nextContent = '$currentContent\n$randomLine';
-        final caretPosition = nextContent.length;
-        
+      if (currentContent.isNotEmpty) {
+        final randomCaret = Random().nextInt(currentContent.length);
         final updatedDocs = docs.map((d) {
           if (d['id'] != docId) return d;
           return {
             ...d,
-            'content': nextContent,
-            'lastModified': DateTime.now().millisecondsSinceEpoch,
-            'partnerCaret': caretPosition,
+            'partnerCaret': randomCaret,
             'partnerName': 'Teammate',
           };
         }).toList();
