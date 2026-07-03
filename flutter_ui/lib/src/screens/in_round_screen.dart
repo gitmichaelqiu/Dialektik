@@ -70,28 +70,64 @@ class _InRoundScreenState extends State<InRoundScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasUsername = widget.snapshot.settings.userName.trim().isNotEmpty;
     final session = widget.snapshot.session;
+
+    if (!hasUsername && session == null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: EmptyState(
+            icon: Icons.person_off_outlined,
+            message: 'A user name is required to host or join debate sessions.',
+            action: FilledButton(
+              onPressed: () => widget.bridge.dispatch(
+                action('app.setActivePage', {'page': 'settings'}),
+              ),
+              child: const Text('Configure Username in Settings'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final compact = MediaQuery.sizeOf(context).width < 840;
+
+    final startSessionPane = _StartSessionPane(
+      matchController: _matchController,
+      groupController: _groupController,
+      teamSize: _teamSize,
+      onTeamSizeChanged: (value) => setState(() => _teamSize = value),
+      onHost: () => widget.bridge.dispatch(action('session.host', {
+        'matchName': _matchController.text.trim(),
+        'groupName': _groupController.text.trim(),
+        'teamSize': _teamSize,
+      })),
+    );
+
+    final joinSessionPane = _JoinSessionPane(
+      codeController: _joinCodeController,
+      onJoin: () => widget.bridge.dispatch(action('session.join', {
+        'roomCode': _joinCodeController.text.trim().toUpperCase(),
+      })),
+    );
+
     if (session == null) {
+      if (compact) {
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            startSessionPane,
+            const SizedBox(height: 16),
+            joinSessionPane,
+          ],
+        );
+      }
       return ResponsivePane(
         cacheKey: 'in_round_setup',
         children: [
-          _StartSessionPane(
-            matchController: _matchController,
-            groupController: _groupController,
-            teamSize: _teamSize,
-            onTeamSizeChanged: (value) => setState(() => _teamSize = value),
-            onHost: () => widget.bridge.dispatch(action('session.host', {
-              'matchName': _matchController.text.trim(),
-              'groupName': _groupController.text.trim(),
-              'teamSize': _teamSize,
-            })),
-          ),
-          _JoinSessionPane(
-            codeController: _joinCodeController,
-            onJoin: () => widget.bridge.dispatch(action('session.join', {
-              'roomCode': _joinCodeController.text.trim().toUpperCase(),
-            })),
-          ),
+          startSessionPane,
+          joinSessionPane,
         ],
       );
     }
@@ -102,52 +138,95 @@ class _InRoundScreenState extends State<InRoundScreen> {
         .firstOrNull;
     final active = session.status == 'active';
 
+    final handoutPane = active
+        ? _HandoutReadPane(session: session)
+        : _LobbyHandoutPane(
+            titleController: _handoutTitleController,
+            problemController: _handoutProblemController,
+            detailsController: _handoutDetailsController,
+            onChanged: _updateHandout,
+            onStart: () =>
+                widget.bridge.dispatch(action('session.startDebate')),
+          );
+
+    final timersPane = _TimersPane(
+      bridge: widget.bridge,
+      session: session,
+      customNameController: _customTimerNameController,
+      customDurationController: _customTimerDurationController,
+    );
+
+    final debatersOrNotesPane = active
+        ? _NotesPane(
+            session: session,
+            activeSpeaker: activeSpeaker,
+            controller: _notesController,
+            onSpeakerSelected: (debater) {
+              setState(() => _localActiveSpeakerId = debater.id);
+              widget.bridge.dispatch(
+                  action('session.selectSpeaker', {'id': debater.id}));
+            },
+            onNotesChanged: (text) {
+              if (activeSpeakerId == null) return;
+              widget.bridge.dispatch(action('session.updateNotes', {
+                'speakerId': activeSpeakerId,
+                'text': text,
+              }));
+            },
+            onAiOutline: () =>
+                widget.bridge.dispatch(action('session.aiOutline')),
+            onSaveRound: () =>
+                widget.bridge.dispatch(action('session.saveRound')),
+            onExit: () => widget.bridge.dispatch(action('session.exit')),
+          )
+        : _DebatersPane(
+            bridge: widget.bridge,
+            session: session,
+          );
+
+    if (compact) {
+      return DefaultTabController(
+        length: 3,
+        child: Scaffold(
+          appBar: AppBar(
+            toolbarHeight: 0,
+            bottom: TabBar(
+              tabs: [
+                const Tab(icon: Icon(Icons.description), text: 'Handout'),
+                const Tab(icon: Icon(Icons.timer), text: 'Timers'),
+                Tab(
+                  icon: Icon(active ? Icons.edit_note : Icons.group),
+                  text: active ? 'Notes' : 'Debaters',
+                ),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: handoutPane,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: timersPane,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: debatersOrNotesPane,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ResponsivePane(
       cacheKey: 'in_round_active',
       children: [
-        active
-            ? _HandoutReadPane(session: session)
-            : _LobbyHandoutPane(
-                titleController: _handoutTitleController,
-                problemController: _handoutProblemController,
-                detailsController: _handoutDetailsController,
-                onChanged: _updateHandout,
-                onStart: () =>
-                    widget.bridge.dispatch(action('session.startDebate')),
-              ),
-        _TimersPane(
-          bridge: widget.bridge,
-          session: session,
-          customNameController: _customTimerNameController,
-          customDurationController: _customTimerDurationController,
-        ),
-        active
-            ? _NotesPane(
-                session: session,
-                activeSpeaker: activeSpeaker,
-                controller: _notesController,
-                onSpeakerSelected: (debater) {
-                  setState(() => _localActiveSpeakerId = debater.id);
-                  widget.bridge.dispatch(
-                      action('session.selectSpeaker', {'id': debater.id}));
-                },
-                onNotesChanged: (text) {
-                  if (activeSpeakerId == null) return;
-                  widget.bridge.dispatch(action('session.updateNotes', {
-                    'speakerId': activeSpeakerId,
-                    'text': text,
-                  }));
-                },
-                onAiOutline: () =>
-                    widget.bridge.dispatch(action('session.aiOutline')),
-                onSaveRound: () =>
-                    widget.bridge.dispatch(action('session.saveRound')),
-                onExit: () => widget.bridge.dispatch(action('session.exit')),
-              )
-            : _DebatersPane(
-                bridge: widget.bridge,
-                session: session,
-              ),
+        handoutPane,
+        timersPane,
+        debatersOrNotesPane,
       ],
     );
   }
