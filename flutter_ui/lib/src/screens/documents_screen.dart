@@ -74,7 +74,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           onSelect: (doc) {
             setState(() {
               _selectedId = doc.id;
-              _nameController.text = doc.name;
+              _nameController.text = doc.title;
               _contentController.text = doc.content;
             });
           },
@@ -184,7 +184,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (_selectedId == null || _selectedId != doc.id) {
       _selectedId = doc.id;
     }
-    if (_nameController.text != doc.name) _nameController.text = doc.name;
+    if (_nameController.text != doc.title) _nameController.text = doc.title;
     if (_contentController.text != doc.content && documentHasFocus == false) {
       _contentController.text = doc.content;
     }
@@ -559,25 +559,199 @@ class _ReadMode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parts = _splitCitations(content);
+    final lines = content.split('\n');
+    final children = <Widget>[];
+    var inCodeBlock = false;
+    for (final line in lines) {
+      if (line.trimRight().startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
+      children.add(
+        _MarkdownLine(
+          line: line,
+          inCodeBlock: inCodeBlock,
+          documents: documents,
+          cards: cards,
+          onNavigateDoc: onNavigateDoc,
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.only(bottom: 12),
-      children: [
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
+    );
+  }
+}
+
+class _MarkdownLine extends StatelessWidget {
+  const _MarkdownLine({
+    required this.line,
+    required this.inCodeBlock,
+    required this.documents,
+    required this.cards,
+    required this.onNavigateDoc,
+  });
+
+  final String line;
+  final bool inCodeBlock;
+  final List<DebateDocument> documents;
+  final List<EvidenceCard> cards;
+  final ValueChanged<DebateDocument> onNavigateDoc;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = line.trimRight();
+    if (trimmed.isEmpty) return const SizedBox(height: 10);
+    if (inCodeBlock) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Text(trimmed, style: const TextStyle(fontFamily: 'monospace')),
+      );
+    }
+
+    final heading = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(trimmed);
+    if (heading != null) {
+      final level = heading.group(1)!.length;
+      final text = heading.group(2)!;
+      final style = switch (level) {
+        1 => Theme.of(context).textTheme.headlineSmall,
+        2 => Theme.of(context).textTheme.titleLarge,
+        3 => Theme.of(context).textTheme.titleMedium,
+        _ => Theme.of(context).textTheme.titleSmall,
+      };
+      return Padding(
+        padding: EdgeInsets.only(top: level == 1 ? 8 : 6, bottom: 6),
+        child: _InlineMarkdown(
+          text: text,
+          style: style?.copyWith(fontWeight: FontWeight.w700),
+          documents: documents,
+          cards: cards,
+          onNavigateDoc: onNavigateDoc,
+        ),
+      );
+    }
+
+    final unordered = RegExp(r'^\s*[-*+]\s+(.+)$').firstMatch(trimmed);
+    if (unordered != null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final part in parts)
-              part.isCitation
-                  ? _CitationLink(
-                      citation: part.text,
-                      documents: documents,
-                      cards: cards,
-                      onNavigateDoc: onNavigateDoc,
-                    )
-                  : Text(part.text),
+            const SizedBox(width: 18, child: Text('•')),
+            Expanded(
+              child: _InlineMarkdown(
+                text: unordered.group(1)!,
+                documents: documents,
+                cards: cards,
+                onNavigateDoc: onNavigateDoc,
+              ),
+            ),
           ],
         ),
-      ],
+      );
+    }
+
+    final ordered = RegExp(r'^\s*(\d+)\.\s+(.+)$').firstMatch(trimmed);
+    if (ordered != null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 30, child: Text('${ordered.group(1)}.')),
+            Expanded(
+              child: _InlineMarkdown(
+                text: ordered.group(2)!,
+                documents: documents,
+                cards: cards,
+                onNavigateDoc: onNavigateDoc,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final quote = RegExp(r'^>\s?(.+)$').firstMatch(trimmed);
+    if (quote != null) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(left: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: Theme.of(context).colorScheme.outline),
+          ),
+        ),
+        child: _InlineMarkdown(
+          text: quote.group(1)!,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+          documents: documents,
+          cards: cards,
+          onNavigateDoc: onNavigateDoc,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: _InlineMarkdown(
+        text: trimmed,
+        documents: documents,
+        cards: cards,
+        onNavigateDoc: onNavigateDoc,
+      ),
+    );
+  }
+}
+
+class _InlineMarkdown extends StatelessWidget {
+  const _InlineMarkdown({
+    required this.text,
+    required this.documents,
+    required this.cards,
+    required this.onNavigateDoc,
+    this.style,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final List<DebateDocument> documents;
+  final List<EvidenceCard> cards;
+  final ValueChanged<DebateDocument> onNavigateDoc;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium;
+    final parts = _splitCitations(text);
+    return RichText(
+      text: TextSpan(
+        style: baseStyle?.copyWith(
+          color: Theme.of(context).colorScheme.onSurface,
+          height: 1.45,
+        ),
+        children: [
+          for (final part in parts)
+            if (part.isCitation)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: _CitationLink(
+                  citation: part.text,
+                  documents: documents,
+                  cards: cards,
+                  onNavigateDoc: onNavigateDoc,
+                ),
+              )
+            else
+              TextSpan(text: _stripInlineMarkdown(part.text)),
+        ],
+      ),
     );
   }
 }
@@ -615,7 +789,7 @@ class _CitationLink extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         onTap: doc == null ? null : () => onNavigateDoc(doc),
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primaryContainer,
@@ -626,6 +800,7 @@ class _CitationLink extends StatelessWidget {
             style: TextStyle(
               color: Theme.of(context).colorScheme.primary,
               decoration: TextDecoration.underline,
+              decorationColor: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -769,6 +944,18 @@ List<_TextPart> _splitCitations(String text) {
     parts.add(_TextPart(text.substring(cursor), false));
   }
   return parts;
+}
+
+String _stripInlineMarkdown(String text) {
+  return text
+      .replaceAllMapped(RegExp(r'`([^`]+)`'), (match) => match.group(1) ?? '')
+      .replaceAllMapped(
+          RegExp(r'\*\*([^*]+)\*\*'), (match) => match.group(1) ?? '')
+      .replaceAllMapped(RegExp(r'__([^_]+)__'), (match) => match.group(1) ?? '')
+      .replaceAllMapped(RegExp(r'\*([^*]+)\*'), (match) => match.group(1) ?? '')
+      .replaceAllMapped(RegExp(r'_([^_]+)_'), (match) => match.group(1) ?? '')
+      .replaceAllMapped(
+          RegExp(r'\[([^\]]+)\]\([^)]+\)'), (match) => match.group(1) ?? '');
 }
 
 extension _FirstOrNull<T> on Iterable<T> {
