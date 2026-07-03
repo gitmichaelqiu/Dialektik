@@ -31,7 +31,8 @@ import {
   ActionIcon,
   Modal,
   Notification,
-  HoverCard
+  HoverCard,
+  NavLink
 } from "@mantine/core";
 
 async function computeSHA256(text: string): Promise<string> {
@@ -580,7 +581,7 @@ export const Documents: React.FC = () => {
   );
 
   return (
-    <Stack gap="md" style={{ height: "calc(100vh - 40px)" }}>
+    <Stack gap="md" style={{ height: "calc(100dvh - 56px - (var(--mantine-spacing-md) * 2))", minHeight: 0 }}>
       {toastNotification && (
         <Notification color="teal" onClose={() => setToastNotification(null)}>
           {toastNotification}
@@ -608,9 +609,8 @@ export const Documents: React.FC = () => {
         </Stack>
       </Modal>
 
-      <Grid style={{ height: "100%", minHeight: 0 }} align="stretch" gutter="md">
-        {/* 1. Left Sidebar directory list */}
-        <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Grid style={{ flex: 1, minHeight: 0 }} align="stretch" gutter="md">
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">
@@ -655,7 +655,7 @@ export const Documents: React.FC = () => {
                 </Stack>
               </form>
 
-              <ScrollArea style={{ flex: 1 }}>
+              <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
                 <Stack gap="md">
                   {(["private", "team", "public"] as const).map(folder => (
                     <Stack gap="xs" key={folder}>
@@ -664,22 +664,12 @@ export const Documents: React.FC = () => {
                         <Text size="xs" style={{ italic: "true" }} c="dimmed" pl="xs">Empty</Text>
                       )}
                       {groupedDocs[folder].map(doc => (
-                        <Paper 
-                          key={doc.id} 
-                          withBorder 
-                          p="xs" 
-                          radius="md" 
-                          bg={selectedDoc?.id === doc.id ? "var(--mantine-color-teal-0)" : "transparent"}
-                          style={{ cursor: "pointer", borderColor: selectedDoc?.id === doc.id ? "var(--mantine-color-teal-3)" : "var(--mantine-color-gray-3)" }}
-                          onClick={() => handleSelectDoc(doc)}
-                        >
-                          <Group justify="space-between" wrap="nowrap">
-                            <Group gap="xs" wrap="nowrap" style={{ overflow: "hidden" }}>
-                              <FileText size={14} color="var(--mantine-color-teal-6)" />
-                              <Text size="xs" fw={500} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {doc.name.replace(/\.md$/i, "")}
-                              </Text>
-                            </Group>
+                        <NavLink
+                          key={doc.id}
+                          active={selectedDoc?.id === doc.id}
+                          label={doc.name.replace(/\.md$/i, "")}
+                          leftSection={<FileText size={14} />}
+                          rightSection={
                             <ActionIcon 
                               variant="subtle" 
                               color="red" 
@@ -691,8 +681,12 @@ export const Documents: React.FC = () => {
                             >
                               <Trash2 size={12} />
                             </ActionIcon>
-                          </Group>
-                        </Paper>
+                          }
+                          onClick={() => handleSelectDoc(doc)}
+                          variant="light"
+                          color="teal"
+                          styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+                        />
                       ))}
                     </Stack>
                   ))}
@@ -714,8 +708,7 @@ export const Documents: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        {/* 2. Middle Editor Section */}
-        <Grid.Col span={6} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Grid.Col span={{ base: 12, md: 6 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           <Card withBorder p={0} radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
             {selectedDoc ? (
               <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
@@ -879,8 +872,7 @@ export const Documents: React.FC = () => {
           </Card>
         </Grid.Col>
 
-        {/* 3. Right Sidebar Evidence Library */}
-        <Grid.Col span={3} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
           <Card withBorder p="sm" radius="md" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <Stack gap="sm" style={{ flex: 1, minHeight: 0 }}>
               <Group justify="space-between" align="center">
@@ -919,10 +911,10 @@ export const Documents: React.FC = () => {
                 </Stack>
               </form>
 
-              <ScrollArea style={{ flex: 1 }}>
-                <Stack gap="xs">
+              <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
+                <Stack gap={0}>
                   {cards.map((card) => (
-                    <Card key={card.id} withBorder p="xs" radius="md">
+                    <Paper key={card.id} p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", borderRadius: 0 }}>
                       <Stack gap={4}>
                         <Group justify="space-between" align="center">
                           <Text size="xs" fw={700}>{card.title}</Text>
@@ -949,7 +941,7 @@ export const Documents: React.FC = () => {
                           )}
                         </Group>
                       </Stack>
-                    </Card>
+                    </Paper>
                   ))}
                 </Stack>
               </ScrollArea>
