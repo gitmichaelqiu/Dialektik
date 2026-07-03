@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { db, type DebateDocument, type EvidenceCard } from "../services/db";
+import { liveQuery } from "dexie";
 import { PeerJSYjsProvider } from "../services/yjs-provider";
 import * as Y from "yjs";
 import { 
@@ -91,10 +92,41 @@ export const Documents: React.FC = () => {
   const ydocRef = useRef<Y.Doc | null>(null);
   const yproviderRef = useRef<PeerJSYjsProvider | null>(null);
   const isSyncingRef = useRef<boolean>(false);
+  const syncSnapshotTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    loadDocs();
     loadCards();
+
+    const subscription = liveQuery(() => db.documents.toArray()).subscribe({
+      next: (allDocs) => {
+        setDocs(allDocs);
+        setSelectedDoc(current => {
+          if (!current) {
+            const firstDoc = allDocs[0];
+            if (firstDoc) {
+              setEditorName(firstDoc.name);
+              setEditorContent(firstDoc.content);
+              return firstDoc;
+            }
+            return null;
+          }
+
+          const refreshed = allDocs.find(doc => doc.id === current.id);
+          if (!refreshed) {
+            setEditorName("");
+            setEditorContent("");
+            return null;
+          }
+
+          setEditorName(refreshed.name);
+          setEditorContent(refreshed.content);
+          return refreshed;
+        });
+      },
+      error: (err) => console.error("Failed to subscribe to documents:", err)
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function loadDocs() {
@@ -147,6 +179,18 @@ export const Documents: React.FC = () => {
     }
   };
 
+  const broadcastDocumentSnapshot = (doc: DebateDocument) => {
+    if (!isPeerConnected || (doc.partnerAccess || "private") === "private") return;
+    if (!isDocumentOwner(doc)) return;
+    if (syncSnapshotTimerRef.current) {
+      window.clearTimeout(syncSnapshotTimerRef.current);
+    }
+    syncSnapshotTimerRef.current = window.setTimeout(() => {
+      syncSnapshotTimerRef.current = null;
+      syncSharedDocs();
+    }, 180);
+  };
+
   useEffect(() => {
     if (!isPeerConnected) return;
 
@@ -183,7 +227,7 @@ export const Documents: React.FC = () => {
             }
           }
           if (changed) {
-            await loadDocs();
+            setDocs(await db.documents.toArray());
           }
         })();
       } else if (msg.type === "doc-cursor" && msg.payload?.docId) {
@@ -205,6 +249,9 @@ export const Documents: React.FC = () => {
     });
     syncSharedDocs();
     return () => {
+      if (syncSnapshotTimerRef.current) {
+        window.clearTimeout(syncSnapshotTimerRef.current);
+      }
       unsubscribeMessage();
       unsubscribeConnect();
     };
@@ -239,6 +286,7 @@ export const Documents: React.FC = () => {
         content: nextContent,
         lastModified: nextDoc.lastModified
       });
+      broadcastDocumentSnapshot(nextDoc);
     };
     ytext.observe(handleYjsUpdate);
 
@@ -285,12 +333,14 @@ export const Documents: React.FC = () => {
     }
 
     if (selectedDoc) {
+      const nextDoc = { ...selectedDoc, content: val, lastModified: Date.now() };
       db.documents.update(selectedDoc.id, { 
         content: val,
-        lastModified: Date.now() 
+        lastModified: nextDoc.lastModified 
       });
-      setSelectedDoc({ ...selectedDoc, content: val, lastModified: Date.now() });
-      setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? { ...doc, content: val, lastModified: Date.now() } : doc));
+      setSelectedDoc(nextDoc);
+      setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
+      broadcastDocumentSnapshot(nextDoc);
     }
   };
 
@@ -375,11 +425,12 @@ export const Documents: React.FC = () => {
     const cleanTitle = editorName.trim().replace(/[\[\]#?/\\]/g, "");
     const requestedName = cleanTitle.endsWith(".md") ? cleanTitle : `${cleanTitle}.md`;
     const nextName = getAvailableFilename(requestedName, selectedDoc.id);
-    const nextDoc = { ...selectedDoc, name: nextName };
+    const nextDoc = { ...selectedDoc, name: nextName, lastModified: Date.now() };
     setSelectedDoc(nextDoc);
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     setEditorName(nextName);
-    db.documents.update(selectedDoc.id, { name: nextName });
+    db.documents.update(selectedDoc.id, { name: nextName, lastModified: nextDoc.lastModified });
+    broadcastDocumentSnapshot(nextDoc);
     loadDocs();
   };
 
@@ -423,6 +474,7 @@ export const Documents: React.FC = () => {
     await db.documents.put(newDoc);
     setNewDocTitle("");
     await loadDocs();
+    broadcastDocumentSnapshot(newDoc);
     handleSelectDoc(newDoc);
   };
 
@@ -437,6 +489,7 @@ export const Documents: React.FC = () => {
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     await db.documents.update(selectedDoc.id, { partnerAccess: folder, lastModified: nextDoc.lastModified });
     await loadDocs();
+    syncSharedDocs();
     triggerToast(`Moved document to ${folder} folder.`);
   };
 
@@ -451,6 +504,7 @@ export const Documents: React.FC = () => {
     setDocs(prev => prev.map(doc => doc.id === selectedDoc.id ? nextDoc : doc));
     await db.documents.update(selectedDoc.id, { encryptedHash: mode, lastModified: nextDoc.lastModified });
     await loadDocs();
+    syncSharedDocs();
     triggerToast(`Sharing mode updated to: ${mode === "write" ? "shared writable" : "shared read-only"}.`);
   };
 
@@ -470,6 +524,7 @@ export const Documents: React.FC = () => {
     };
     await db.documents.put(newDoc);
     await loadDocs();
+    broadcastDocumentSnapshot(newDoc);
     handleSelectDoc(newDoc);
     triggerToast("Document duplicated.");
   };
@@ -484,6 +539,7 @@ export const Documents: React.FC = () => {
       await db.documents.delete(pendingDelete.id);
       setSelectedDoc(null);
       await loadDocs();
+      syncSharedDocs();
       triggerToast("Document deleted.");
     } else {
       await db.cards.delete(pendingDelete.id);

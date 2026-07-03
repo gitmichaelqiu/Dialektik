@@ -5,7 +5,7 @@ export const APP_VERSION = "0.1.0";
 const ROOM_PREFIX = "dialektik-room-";
 
 export interface PeerMessage {
-  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "session-state" | "shared-docs-sync" | "doc-cursor";
+  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "session-state" | "shared-docs-sync" | "doc-cursor" | "custom-timers-sync";
   version?: string;
   senderId: string;
   payload?: any;

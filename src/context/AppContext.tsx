@@ -243,7 +243,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           for (const doc of incomingDocs) {
-            if (doc.partnerAccess !== "public") continue;
             const existing = await db.documents.get(doc.id);
             if (existing?.ownerId === userIdRef.current) continue;
             if (!existing) {

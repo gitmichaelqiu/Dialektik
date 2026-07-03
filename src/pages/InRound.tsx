@@ -55,6 +55,8 @@ interface CustomTimer {
   targetTime?: number;
 }
 
+type CustomTimerAction = "start" | "pause" | "reset" | "remove";
+
 export const InRound: React.FC = () => {
   const { 
     session,
@@ -101,6 +103,7 @@ export const InRound: React.FC = () => {
   const [customTimerName, setCustomTimerName] = useState("");
   const [customTimerDuration, setCustomTimerDuration] = useState("01:00");
   const [savedRoom, setSavedRoom] = useState<{ code: string; host: boolean } | null>(null);
+  const customTimersRef = React.useRef<CustomTimer[]>([]);
 
   // History state for welcome page
   const [historyList, setHistoryList] = useState<TournamentRecord[]>([]);
@@ -133,6 +136,15 @@ export const InRound: React.FC = () => {
     }
   };
 
+  const broadcastCustomTimers = (timers: CustomTimer[]) => {
+    if (!isHost) return;
+    mesh.broadcast({
+      type: "custom-timers-sync",
+      senderId: mesh.peerId,
+      payload: { timers }
+    });
+  };
+
   // Load history list
   useEffect(() => {
     async function loadHistory() {
@@ -144,6 +156,10 @@ export const InRound: React.FC = () => {
       loadHistory();
     }
   }, [isRoundStarted]);
+
+  useEffect(() => {
+    customTimersRef.current = customTimers;
+  }, [customTimers]);
 
   useEffect(() => {
     if (isRoundStarted) return;
@@ -257,7 +273,7 @@ export const InRound: React.FC = () => {
   useEffect(() => {
     if (!isRoundStarted) return;
 
-    mesh.onMessage((senderId, msg) => {
+    const unsubscribe = mesh.onMessage((senderId, msg) => {
       if (msg.type === "join-request") {
         if (isHost) {
           const newDebater: Debater = {
@@ -320,6 +336,10 @@ export const InRound: React.FC = () => {
             setterRunning(false);
           }
         }
+      } else if (msg.type === "custom-timers-sync") {
+        if (!isHost && Array.isArray(msg.payload?.timers)) {
+          setCustomTimers(msg.payload.timers);
+        }
       } else if (msg.type === "version-reject" || msg.type === "handshake") {
         if (!isHost) {
           mesh.sendToPeer(senderId, {
@@ -327,9 +347,12 @@ export const InRound: React.FC = () => {
             senderId: mesh.peerId,
             payload: { id: userId, name: userName }
           });
+        } else {
+          broadcastCustomTimers(customTimersRef.current);
         }
       }
     });
+    return unsubscribe;
   }, [isRoundStarted, isHost, mesh, userId, userName, session?.speechDuration, session?.prepDuration, session?.currentSpeakerId]);
 
   const handleApproveDebater = (request: Debater) => {
@@ -443,6 +466,10 @@ export const InRound: React.FC = () => {
         const remainingMs = Math.max(0, timer.targetTime - Date.now());
         if (remainingMs === 0) {
           triggerToast(`${timer.name} timer ended.`);
+          if (isHost) {
+            const endedTimers = prev.map(item => item.id === timer.id ? { ...item, remainingMs, running: false, targetTime: undefined } : item);
+            window.setTimeout(() => broadcastCustomTimers(endedTimers), 0);
+          }
           return { ...timer, remainingMs, running: false, targetTime: undefined };
         }
         return { ...timer, remainingMs };
@@ -455,24 +482,27 @@ export const InRound: React.FC = () => {
     const name = customTimerName.trim();
     const durationSeconds = parseMMSS(customTimerDuration);
     if (!name || durationSeconds <= 0) return;
-    setCustomTimers(prev => [
-      ...prev,
-      {
+    setCustomTimers(prev => {
+      const nextTimers = [
+        ...prev,
+        {
         id: `timer-${Math.random().toString(36).slice(2, 10)}`,
         name,
         durationSeconds,
         remainingMs: durationSeconds * 1000,
         running: false
       }
-    ]);
+      ];
+      broadcastCustomTimers(nextTimers);
+      return nextTimers;
+    });
     setCustomTimerName("");
     setCustomTimerDuration("01:00");
   };
 
-  const handleCustomTimerAction = (id: string, action: "start" | "pause" | "reset" | "remove") => {
+  const handleCustomTimerAction = (id: string, action: CustomTimerAction) => {
     setCustomTimers(prev => {
-      if (action === "remove") return prev.filter(timer => timer.id !== id);
-      return prev.map(timer => {
+      const nextTimers = action === "remove" ? prev.filter(timer => timer.id !== id) : prev.map(timer => {
         if (timer.id !== id) return timer;
         if (action === "start") {
           return { ...timer, running: true, targetTime: Date.now() + timer.remainingMs };
@@ -482,6 +512,8 @@ export const InRound: React.FC = () => {
         }
         return { ...timer, running: false, remainingMs: timer.durationSeconds * 1000, targetTime: undefined };
       });
+      broadcastCustomTimers(nextTimers);
+      return nextTimers;
     });
   };
 
