@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "flutter:dev": "cd flutter_ui && flutter run",
+    "flutter:dev": "node scripts/flutter-dev.mjs",
     "flutter:web": "cd flutter_ui && flutter run -d chrome",
     "flutter:ios": "cd flutter_ui && flutter run -d ios",
     "flutter:analyze": "cd flutter_ui && flutter analyze",
