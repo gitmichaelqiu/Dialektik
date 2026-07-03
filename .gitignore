@@ -24,6 +24,9 @@ dist-ssr
 *.sw?
 
 # Project custom files to ignore in git history
+AGENTS.md
 DESIGN.md
+DESIGN_v2.md
+FRONTEND.md
 PROMPT.md
 
