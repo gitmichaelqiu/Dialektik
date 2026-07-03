@@ -340,6 +340,129 @@ class PreviewEngineBridge implements EngineBridge {
       });
       return;
     }
+
+    if (type == 'ai.newChat') {
+      final chat = {
+        'id': 'chat-${DateTime.now().microsecondsSinceEpoch}',
+        'title': 'New chat',
+        'messages': <Map<String, Object?>>[],
+      };
+      _patch({
+        'ai': {
+          ..._aiJson,
+          'activeChatId': chat['id'],
+          'chats': [..._chatsJson, chat],
+        }
+      });
+      return;
+    }
+
+    if (type == 'ai.selectChat') {
+      _patch({
+        'ai': {..._aiJson, 'activeChatId': payload['id']}
+      });
+      return;
+    }
+
+    if (type == 'ai.renameChat') {
+      final id = payload['id'];
+      final title = payload['title'];
+      if (id is! String || title is! String || title.trim().isEmpty) return;
+      _patch({
+        'ai': {
+          ..._aiJson,
+          'chats': _chatsJson.map((chat) {
+            if (chat['id'] != id) return chat;
+            return {...chat, 'title': title.trim()};
+          }).toList(),
+        }
+      });
+      return;
+    }
+
+    if (type == 'ai.deleteChat') {
+      final id = payload['id'];
+      final chats = _chatsJson.where((chat) => chat['id'] != id).toList();
+      _patch({
+        'ai': {
+          ..._aiJson,
+          'activeChatId': chats.isEmpty ? null : chats.first['id'],
+          'chats': chats,
+        }
+      });
+      return;
+    }
+
+    if (type == 'ai.sendMessage') {
+      final text = payload['text'];
+      if (text is! String || text.trim().isEmpty) return;
+      final activeId = _aiJson['activeChatId'] as String? ??
+          (_chatsJson.isEmpty ? null : _chatsJson.first['id'] as String?);
+      if (activeId == null) return;
+      _patch({
+        'ai': {
+          ..._aiJson,
+          'chats': _chatsJson.map((chat) {
+            if (chat['id'] != activeId) return chat;
+            final messages = _list(chat['messages']);
+            return {
+              ...chat,
+              'title': chat['title'] == 'New chat'
+                  ? text.trim().split(' ').take(4).join(' ')
+                  : chat['title'],
+              'messages': [
+                ...messages,
+                {'role': 'user', 'text': text.trim()},
+                {
+                  'role': 'assistant',
+                  'text':
+                      'Preview response: I would use your cited files to build a tighter debate answer.'
+                },
+              ],
+            };
+          }).toList(),
+        }
+      });
+      return;
+    }
+
+    if (type == 'history.delete') {
+      final id = payload['id'];
+      _patch({
+        'history': _historyJson.where((record) => record['id'] != id).toList()
+      });
+      return;
+    }
+
+    if (type == 'settings.save') {
+      final current =
+          (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
+      _patch({
+        'settings': {
+          ...current,
+          'userName': payload['userName'] ?? current['userName'],
+          'aiEndpoint': payload['aiEndpoint'] ?? current['aiEndpoint'],
+          'aiModel': payload['aiModel'] ?? current['aiModel'],
+          'hasAiKey': payload['aiApiKey'] is String &&
+                  (payload['aiApiKey']! as String).isNotEmpty ||
+              current['hasAiKey'] == true,
+          'githubOwner': payload['githubOwner'] ?? current['githubOwner'],
+          'githubRepo': payload['githubRepo'] ?? current['githubRepo'],
+          'hasGithubToken': payload['githubToken'] is String &&
+                  (payload['githubToken']! as String).isNotEmpty ||
+              current['hasGithubToken'] == true,
+        }
+      });
+      return;
+    }
+
+    if (type == 'workspace.reset') {
+      _rawState
+        ..clear()
+        ..addAll(_initialPreviewState);
+      _state.value = AppSnapshot.fromJson(_rawState);
+      return;
+    }
   }
 
   List<Map<String, Object?>> get _documentsJson {
@@ -357,6 +480,19 @@ class PreviewEngineBridge implements EngineBridge {
 
   List<Map<String, Object?>> get _customTimersJson {
     return _list(_sessionJson['customTimers']);
+  }
+
+  Map<String, Object?> get _aiJson {
+    return (_rawState['ai'] as Map?)?.cast<String, Object?>() ??
+        <String, Object?>{};
+  }
+
+  List<Map<String, Object?>> get _chatsJson {
+    return _list(_aiJson['chats']);
+  }
+
+  List<Map<String, Object?>> get _historyJson {
+    return _list(_rawState['history']);
   }
 
   void _patchSession(Map<String, Object?> patch) {
@@ -453,6 +589,16 @@ final Map<String, Object?> _initialPreviewState = {
       'docId': 'doc-aff-case',
     },
   ],
+  'history': <Map<String, Object?>>[
+    {
+      'id': 'history-demo',
+      'matchName': 'Practice Round',
+      'opponentName': 'Dialektik Preview',
+      'sides': 'affirmative',
+      'winLoss': 'pending',
+      'timestamp': 1793648700000,
+    }
+  ],
   'session': <String, Object?>{
     'roomCode': 'DEMO',
     'matchName': 'Practice Round',
@@ -507,6 +653,11 @@ final Map<String, Object?> _initialPreviewState = {
   },
   'settings': <String, Object?>{
     'userName': 'Preview User',
+    'aiEndpoint': 'https://api.openai.com/v1',
     'aiModel': 'gpt-4o',
+    'hasAiKey': false,
+    'githubOwner': '',
+    'githubRepo': '',
+    'hasGithubToken': false,
   },
 };

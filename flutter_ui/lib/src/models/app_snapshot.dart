@@ -32,6 +32,7 @@ class AppSnapshot {
     required this.activePage,
     required this.documents,
     required this.cards,
+    required this.history,
     required this.session,
     required this.ai,
     required this.settings,
@@ -42,6 +43,7 @@ class AppSnapshot {
       activePage: AppPage.inRound,
       documents: [],
       cards: [],
+      history: [],
       session: null,
       ai: AiState.empty(),
       settings: SettingsState.empty(),
@@ -53,6 +55,7 @@ class AppSnapshot {
       activePage: AppPage.fromJson(json['activePage']),
       documents: _list(json['documents']).map(DebateDocument.fromJson).toList(),
       cards: _list(json['cards']).map(EvidenceCard.fromJson).toList(),
+      history: _list(json['history']).map(HistoryRecord.fromJson).toList(),
       session: json['session'] is Map<String, Object?>
           ? SessionState.fromJson(json['session']! as Map<String, Object?>)
           : null,
@@ -65,6 +68,7 @@ class AppSnapshot {
   final AppPage activePage;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
+  final List<HistoryRecord> history;
   final SessionState? session;
   final AiState ai;
   final SettingsState settings;
@@ -144,6 +148,35 @@ class EvidenceCard {
   final String text;
   final String sourceUrl;
   final String? docId;
+}
+
+class HistoryRecord {
+  const HistoryRecord({
+    required this.id,
+    required this.matchName,
+    required this.opponentName,
+    required this.side,
+    required this.result,
+    required this.timestamp,
+  });
+
+  factory HistoryRecord.fromJson(Map<String, Object?> json) {
+    return HistoryRecord(
+      id: _string(json['id']),
+      matchName: _string(json['matchName'], fallback: 'Debate round'),
+      opponentName: _string(json['opponentName']),
+      side: _string(json['sides'], fallback: _string(json['side'])),
+      result: _string(json['winLoss'], fallback: _string(json['result'])),
+      timestamp: _number(json['timestamp'], fallback: 0),
+    );
+  }
+
+  final String id;
+  final String matchName;
+  final String opponentName;
+  final String side;
+  final String result;
+  final int timestamp;
 }
 
 class SessionState {
@@ -340,23 +373,43 @@ class AiMessage {
 class SettingsState {
   const SettingsState({
     required this.userName,
+    required this.aiEndpoint,
     required this.aiModel,
+    required this.hasAiKey,
+    required this.githubOwner,
+    required this.githubRepo,
+    required this.hasGithubToken,
   });
 
   const SettingsState.empty()
       : userName = '',
-        aiModel = '';
+        aiEndpoint = '',
+        aiModel = '',
+        hasAiKey = false,
+        githubOwner = '',
+        githubRepo = '',
+        hasGithubToken = false;
 
   factory SettingsState.fromJson(Map<String, Object?>? json) {
     if (json == null) return const SettingsState.empty();
     return SettingsState(
       userName: _string(json['userName']),
+      aiEndpoint: _string(json['aiEndpoint']),
       aiModel: _string(json['aiModel']),
+      hasAiKey: json['hasAiKey'] == true,
+      githubOwner: _string(json['githubOwner']),
+      githubRepo: _string(json['githubRepo']),
+      hasGithubToken: json['hasGithubToken'] == true,
     );
   }
 
   final String userName;
+  final String aiEndpoint;
   final String aiModel;
+  final bool hasAiKey;
+  final String githubOwner;
+  final String githubRepo;
+  final bool hasGithubToken;
 }
 
 String _string(Object? value, {String fallback = ''}) {
