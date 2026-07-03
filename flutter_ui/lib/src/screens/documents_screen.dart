@@ -19,9 +19,19 @@ class DocumentsScreen extends StatefulWidget {
 }
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
+  static String? _cachedSelectedId;
+  static bool _cachedReadMode = false;
+
   String? _selectedId;
   bool _readMode = false;
   final TextEditingController _nameController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = _cachedSelectedId;
+    _readMode = _cachedReadMode;
+  }
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _newTitleController = TextEditingController();
   final TextEditingController _cardTitleController = TextEditingController();
@@ -75,6 +85,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           onSelect: (doc) {
             setState(() {
               _selectedId = doc.id;
+              _cachedSelectedId = doc.id;
               _nameController.text = doc.title;
               _contentController.text = doc.content;
             });
@@ -89,7 +100,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           readMode: _readMode,
           documents: widget.snapshot.documents,
           cards: widget.snapshot.cards,
-          onToggleReadMode: (value) => setState(() => _readMode = value),
+          onToggleReadMode: (value) => setState(() {
+            _readMode = value;
+            _cachedReadMode = value;
+          }),
           onRename: () {
             if (selected == null) return;
             widget.bridge.dispatch(action('document.rename', {
@@ -139,7 +153,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           },
           onNavigateDoc: (doc) => setState(() {
             _selectedId = doc.id;
-            _readMode = false;
+            _cachedSelectedId = doc.id;
           }),
         ),
         _EvidencePane(
@@ -184,6 +198,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (doc == null) return;
     if (_selectedId == null || _selectedId != doc.id) {
       _selectedId = doc.id;
+      _cachedSelectedId = doc.id;
     }
     if (_nameController.text != doc.title) _nameController.text = doc.title;
     if (_contentController.text != doc.content && documentHasFocus == false) {
