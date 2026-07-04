@@ -42,12 +42,15 @@ class JsEngineBridge implements EngineBridge {
     }
   }
 
-  /// Calls getSnapshot() on the engine and pushes the result into the stream.
+  /// Calls getLatestSnapshot() on the engine and pushes the result into the stream.
+  /// Uses the synchronous getLatestSnapshot() rather than the async
+  /// getSnapshot() because evaluateJavascript doesn't resolve Promise
+  /// return values in this WKWebView version.
   Future<void> _pullSnapshot() async {
     if (!_ready || _webView == null) return;
     try {
       final result = await _webView!.evaluateJavascript(
-        source: 'window.dialektikEngine && window.dialektikEngine.getSnapshot()',
+        source: 'window.dialektikEngine && window.dialektikEngine.getLatestSnapshot()',
       );
       if (result is String && result.isNotEmpty) {
         _pushSnapshot(result);

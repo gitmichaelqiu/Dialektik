@@ -59,9 +59,7 @@ class JsEngineBridge implements EngineBridge {
     try {
       final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
       if (engine == null) return;
-      final result = await js_util.promiseToFuture(
-        js_util.callMethod(engine, 'getSnapshot', []),
-      );
+      final result = js_util.callMethod(engine, 'getLatestSnapshot', []);
       if (result is String && result.isNotEmpty) {
         _pushSnapshot(result);
       }
