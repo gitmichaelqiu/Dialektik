@@ -330,6 +330,30 @@ class _InRoundScreenState extends State<InRoundScreen>
       })),
     );
 
+    final lastCode = widget.snapshot.lastRoomCode;
+    final wasHost = widget.snapshot.lastRoomIsHost;
+    final rejoinAction = lastCode != null && lastCode.isNotEmpty
+        ? () {
+            _isJoining = true;
+            if (wasHost) {
+              widget.bridge.dispatch(
+                action('session.host', {
+                  'matchName': 'Practice Round',
+                  'groupName': 'Dialektik Team',
+                  'teamSize': 1
+                }),
+              );
+            } else {
+              widget.bridge.dispatch(
+                action('session.join', {'roomCode': lastCode}),
+              );
+            }
+          }
+        : null;
+    final rejoinLabel = wasHost && lastCode != null && lastCode.isNotEmpty
+        ? 'Re-host last room ($lastCode)'
+        : null;
+
     final joinSessionPane = _JoinSessionPane(
       codeController: _joinCodeController,
       onJoin: () {
@@ -338,40 +362,9 @@ class _InRoundScreenState extends State<InRoundScreen>
           'roomCode': _joinCodeController.text.trim().toUpperCase(),
         }));
       },
+      rejoinLabel: rejoinLabel,
+      onRejoin: rejoinAction,
     );
-
-    final lastCode = widget.snapshot.lastRoomCode;
-    final wasHost = widget.snapshot.lastRoomIsHost;
-    final rejoinButton = lastCode != null && lastCode.isNotEmpty
-        ? Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  _isJoining = true;
-                  if (wasHost) {
-                    widget.bridge.dispatch(
-                      action('session.host', {
-                        'matchName': 'Practice Round',
-                        'groupName': 'Dialektik Team',
-                        'teamSize': 1
-                      }),
-                    );
-                  } else {
-                    widget.bridge.dispatch(
-                      action('session.join', {'roomCode': lastCode}),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.replay),
-                label: Text(wasHost
-                    ? 'Re-host last room'
-                    : 'Rejoin last session ($lastCode)'),
-              ),
-            ),
-          )
-        : null;
 
     if (session == null) {
       if (compact) {
@@ -381,7 +374,6 @@ class _InRoundScreenState extends State<InRoundScreen>
             startSessionPane,
             const SizedBox(height: 16),
             joinSessionPane,
-            if (rejoinButton != null) rejoinButton,
           ],
         );
       }
@@ -390,11 +382,6 @@ class _InRoundScreenState extends State<InRoundScreen>
         children: [
           startSessionPane,
           joinSessionPane,
-          if (rejoinButton != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: rejoinButton,
-            ),
         ],
       );
     }
@@ -721,10 +708,14 @@ class _JoinSessionPane extends StatelessWidget {
   const _JoinSessionPane({
     required this.codeController,
     required this.onJoin,
+    this.rejoinLabel,
+    this.onRejoin,
   });
 
   final TextEditingController codeController;
   final VoidCallback onJoin;
+  final String? rejoinLabel;
+  final VoidCallback? onRejoin;
 
   @override
   Widget build(BuildContext context) {
@@ -756,6 +747,17 @@ class _JoinSessionPane extends StatelessWidget {
                   label: const Text('Join'),
                 ),
               ),
+              if (onRejoin != null && rejoinLabel != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onRejoin,
+                    icon: const Icon(Icons.replay),
+                    label: Text(rejoinLabel!),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
