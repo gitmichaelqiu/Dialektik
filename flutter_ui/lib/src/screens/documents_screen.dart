@@ -366,7 +366,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _maybeUpdateHighlight(doc);
       return;
     }
-    _lastSyncedContent = doc.content;
 
     if (_nameController.text != doc.title) _nameController.text = doc.title;
     // Never overwrite the editor while the user is actively typing.
@@ -378,7 +377,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       if (saved.isValid && saved.baseOffset <= doc.content.length) {
         _contentController.selection = saved;
       }
+      _lastSyncedContent = doc.content;
+    } else if (_contentController.text == doc.content) {
+      // Content already matches (idle state). Mark synced so future
+      // timer-only ticks early-return instead of running these checks.
+      _lastSyncedContent = doc.content;
     }
+    // Otherwise: user is actively typing with unsaved text.
+    // Don't mark synced — next tick re-checks.
+
     _maybeUpdateHighlight(doc);
   }
 
@@ -834,6 +841,7 @@ class _ReadMode extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: SelectableText.rich(
               _buildDocumentSpan(context),
+              textAlign: TextAlign.start,
             ),
           ),
         ),
