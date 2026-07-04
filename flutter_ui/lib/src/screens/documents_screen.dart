@@ -63,11 +63,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   String _newMode = 'write';
   String _newCardFolder = 'private';
 
+  List<DebateDocument> _filteredDocs = const [];
+
   DebateDocument? get _selectedDocument {
-    if (widget.snapshot.documents.isEmpty) return null;
-    return widget.snapshot.documents.firstWhere(
+    final docs = _filteredDocs;
+    if (docs.isEmpty) return null;
+    return docs.firstWhere(
       (doc) => doc.id == _selectedId,
-      orElse: () => widget.snapshot.documents.first,
+      orElse: () => docs.first,
     );
   }
 
@@ -129,7 +132,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         .firstOrNull
         ?.team;
 
-    final filteredDocs = widget.snapshot.documents.where((doc) {
+    _filteredDocs = widget.snapshot.documents.where((doc) {
       if (doc.folder != 'team') return true;
       if (myTeam == null) return true;
       // Find the owner's team in the session
@@ -142,7 +145,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }).toList();
 
     final filesPane = _FilesPane(
-      documents: filteredDocs,
+      documents: _filteredDocs,
       selectedId: selected?.id,
       myUserId: myUserId,
       newTitleController: _newTitleController,
@@ -785,10 +788,10 @@ class _ReadMode extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: SelectionArea(
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 12),
-              children: _buildLines(context),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SelectableText.rich(
+              _buildDocumentSpan(context),
             ),
           ),
         ),
@@ -796,152 +799,110 @@ class _ReadMode extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildLines(BuildContext context) {
+  TextSpan _buildDocumentSpan(BuildContext context) {
     final lines = content.split('\n');
-    final children = <Widget>[];
+    final spans = <InlineSpan>[];
     var inCodeBlock = false;
-    for (final line in lines) {
-      if (line.trimRight().startsWith('```')) {
-        inCodeBlock = !inCodeBlock;
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trimRight();
+      final isLast = i == lines.length - 1;
+
+      if (trimmed.isEmpty) {
+        spans.add(const TextSpan(text: '\n'));
         continue;
       }
-      children.add(
-        _MarkdownLine(
-          line: line,
-          inCodeBlock: inCodeBlock,
-          documents: documents,
-          cards: cards,
-          onNavigateDoc: onNavigateDoc,
-        ),
-      );
-    }
-    return children;
-  }
-}
 
-class _MarkdownLine extends StatelessWidget {
-  const _MarkdownLine({
-    required this.line,
-    required this.inCodeBlock,
-    required this.documents,
-    required this.cards,
-    required this.onNavigateDoc,
-  });
-
-  final String line;
-  final bool inCodeBlock;
-  final List<DebateDocument> documents;
-  final List<EvidenceCard> cards;
-  final ValueChanged<DebateDocument> onNavigateDoc;
-
-  @override
-  Widget build(BuildContext context) {
-    final trimmed = line.trimRight();
-    if (trimmed.isEmpty) return const SizedBox(height: 10);
-    if (inCodeBlock) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Text(trimmed, style: const TextStyle(fontFamily: 'monospace')),
-      );
-    }
-
-    final heading = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(trimmed);
-    if (heading != null) {
-      final level = heading.group(1)!.length;
-      final text = heading.group(2)!;
-      final style = switch (level) {
-        1 => Theme.of(context).textTheme.headlineSmall,
-        2 => Theme.of(context).textTheme.titleLarge,
-        3 => Theme.of(context).textTheme.titleMedium,
-        _ => Theme.of(context).textTheme.titleSmall,
-      };
-      return Padding(
-        padding: EdgeInsets.only(top: level == 1 ? 8 : 6, bottom: 6),
-        child: _InlineMarkdown(
-          text: text,
-          style: style?.copyWith(fontWeight: FontWeight.w700),
-          documents: documents,
-          cards: cards,
-          onNavigateDoc: onNavigateDoc,
-        ),
-      );
-    }
-
-    final unordered = RegExp(r'^\s*[-*+]\s+(.+)$').firstMatch(trimmed);
-    if (unordered != null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(width: 18, child: Text('•')),
-            Expanded(
-              child: _InlineMarkdown(
-                text: unordered.group(1)!,
-                documents: documents,
-                cards: cards,
-                onNavigateDoc: onNavigateDoc,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final ordered = RegExp(r'^\s*(\d+)\.\s+(.+)$').firstMatch(trimmed);
-    if (ordered != null) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 30, child: Text('${ordered.group(1)}.')),
-            Expanded(
-              child: _InlineMarkdown(
-                text: ordered.group(2)!,
-                documents: documents,
-                cards: cards,
-                onNavigateDoc: onNavigateDoc,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final quote = RegExp(r'^>\s?(.+)$').firstMatch(trimmed);
-    if (quote != null) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.only(left: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(color: Theme.of(context).colorScheme.outline),
+      if (trimmed.startsWith('```')) {
+        inCodeBlock = !inCodeBlock;
+        spans.add(TextSpan(
+          text: '$line\n',
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            backgroundColor: Color(0x1A000000),
           ),
-        ),
-        child: _InlineMarkdown(
-          text: quote.group(1)!,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-          documents: documents,
-          cards: cards,
-          onNavigateDoc: onNavigateDoc,
-        ),
-      );
-    }
+        ));
+        continue;
+      }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: _InlineMarkdown(
-        text: trimmed,
-        documents: documents,
-        cards: cards,
-        onNavigateDoc: onNavigateDoc,
-      ),
+      if (inCodeBlock) {
+        spans.add(TextSpan(
+          text: '$line\n',
+          style: const TextStyle(fontFamily: 'monospace'),
+        ));
+        continue;
+      }
+
+      final heading = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(trimmed);
+      if (heading != null) {
+        final level = heading.group(1)!.length;
+        final text = heading.group(2)!;
+        final style = switch (level) {
+          1 => Theme.of(context).textTheme.headlineSmall,
+          2 => Theme.of(context).textTheme.titleLarge,
+          3 => Theme.of(context).textTheme.titleMedium,
+          _ => Theme.of(context).textTheme.titleSmall,
+        };
+        spans.add(TextSpan(
+          text: '$text${isLast ? '' : '\n'}',
+          style: style?.copyWith(fontWeight: FontWeight.w700),
+        ));
+        continue;
+      }
+
+      // Unordered list
+      final unordered = RegExp(r'^\s*[-*+]\s+(.+)$').firstMatch(trimmed);
+      if (unordered != null) {
+        spans.add(TextSpan(
+          text: '\u{2022} ${unordered.group(1)}${isLast ? '' : '\n'}',
+        ));
+        continue;
+      }
+
+      // Ordered list
+      final ordered = RegExp(r'^\s*(\d+)\.\s+(.+)$').firstMatch(trimmed);
+      if (ordered != null) {
+        spans.add(TextSpan(
+          text: '${ordered.group(1)}. ${ordered.group(2)}${isLast ? '' : '\n'}',
+        ));
+        continue;
+      }
+
+      // Blockquote
+      final quote = RegExp(r'^>\s?(.+)$').firstMatch(trimmed);
+      if (quote != null) {
+        spans.add(TextSpan(
+          text: '${quote.group(1)}${isLast ? '' : '\n'}',
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ));
+        continue;
+      }
+
+      // Code block end
+      if (trimmed == '```') {
+        inCodeBlock = false;
+        continue;
+      }
+
+      // Regular line — parse inline formatting
+      spans.add(TextSpan(
+        text: '${_stripCitations(trimmed)}${isLast ? '' : '\n'}',
+      ));
+    }
+    return TextSpan(
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+      children: spans,
+    );
+  }
+
+  /// Strip [[citation]] markers from a line of text.
+  String _stripCitations(String text) {
+    return text.replaceAllMapped(
+      RegExp(r'\[\[([^\]]+)\]\]'),
+      (m) => m.group(1) ?? '',
     );
   }
 }

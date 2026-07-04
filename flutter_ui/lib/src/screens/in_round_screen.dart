@@ -107,20 +107,24 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     if (session.status == 'pending_approval') {
       _wasPending = true;
     }
-    if (_handoutTitleController.text != session.handout.title) {
-      _handoutTitleController.text = session.handout.title;
-    }
-    if (_handoutProblemController.text != session.handout.problem) {
-      _handoutProblemController.text = session.handout.problem;
-    }
-    if (_handoutDetailsController.text != session.handout.details) {
-      _handoutDetailsController.text = session.handout.details;
+    // Don't overwrite actively-edited text fields with stale snapshot data.
+    final isEditing =
+        FocusManager.instance.primaryFocus?.context?.widget is EditableText;
+    if (!isEditing) {
+      if (_handoutTitleController.text != session.handout.title) {
+        _handoutTitleController.text = session.handout.title;
+      }
+      if (_handoutProblemController.text != session.handout.problem) {
+        _handoutProblemController.text = session.handout.problem;
+      }
+      if (_handoutDetailsController.text != session.handout.details) {
+        _handoutDetailsController.text = session.handout.details;
+      }
     }
     final speakerId = _activeSpeakerId(session);
     final notes =
         speakerId == null ? '' : session.speakerNotes[speakerId] ?? '';
-    if (_notesController.text != notes &&
-        FocusManager.instance.primaryFocus?.context?.widget is! EditableText) {
+    if (_notesController.text != notes && !isEditing) {
       _notesController.text = notes;
     }
 
