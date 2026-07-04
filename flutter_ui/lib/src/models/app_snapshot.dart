@@ -41,6 +41,7 @@ class AppSnapshot {
     required this.ai,
     required this.settings,
     this.systemBrightness = _unknownSystemBrightness,
+    this.lastRoomCode,
   });
 
   factory AppSnapshot.initial() {
@@ -59,6 +60,7 @@ class AppSnapshot {
     return AppSnapshot(
       activePage: AppPage.fromJson(json['activePage']),
       systemBrightness: _brightnessFromJson(json['systemBrightness']),
+      lastRoomCode: _string(json['lastRoomCode'], fallback: ''),
       documents: _list(json['documents']).map(DebateDocument.fromJson).toList(),
       cards: _list(json['cards']).map(EvidenceCard.fromJson).toList(),
       history: _list(json['history']).map(HistoryRecord.fromJson).toList(),
@@ -73,6 +75,7 @@ class AppSnapshot {
 
   final AppPage activePage;
   final Brightness systemBrightness;
+  final String? lastRoomCode;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
   final List<HistoryRecord> history;
@@ -329,6 +332,7 @@ class Debater {
     required this.status,
     this.team,
     this.position,
+    this.disconnected = false,
   });
 
   factory Debater.fromJson(Map<String, Object?> json) {
@@ -339,6 +343,7 @@ class Debater {
       team: json['team'] as String?,
       position:
           json['position'] is num ? (json['position']! as num).toInt() : null,
+      disconnected: json['disconnected'] == true,
     );
   }
 
@@ -347,6 +352,7 @@ class Debater {
   final String status;
   final String? team;
   final int? position;
+  final bool disconnected;
 }
 
 class RoundTimer {

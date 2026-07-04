@@ -54,15 +54,18 @@ class _InRoundScreenState extends State<InRoundScreen> {
   }
 
   final Set<String> _shownRequestIds = {};
+  final Set<String> _shownDisconnectedIds = {};
   bool _wasPending = false;
+  bool _userInitiatedExit = false;
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final session = widget.snapshot.session;
     if (session == null) {
-      if (_wasPending) {
-        // Transitioned from pending_approval → null: we were rejected.
+      if (_wasPending && !_userInitiatedExit) {
+        // Transitioned from pending_approval → null without user clicking
+        // exit: host rejected us.
         _wasPending = false;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -84,6 +87,8 @@ class _InRoundScreenState extends State<InRoundScreen> {
           );
         });
       }
+      _wasPending = false;
+      _userInitiatedExit = false;
       _shownRequestIds.clear();
       return;
     }
@@ -155,6 +160,34 @@ class _InRoundScreenState extends State<InRoundScreen> {
         }
       }
     }
+
+    // Notify host when a debater disconnects.
+    if (session.isHost) {
+      for (final d in session.debaters) {
+        if (d.disconnected && !_shownDisconnectedIds.contains(d.id)) {
+          _shownDisconnectedIds.add(d.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.fixed,
+                backgroundColor: Colors.orange.shade800,
+                content: Row(
+                  children: [
+                    const Icon(Icons.link_off, color: Colors.white70, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text('${d.name} disconnected.',
+                          style: const TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          });
+        }
+      }
+    }
   }
 
   @override
@@ -218,6 +251,23 @@ class _InRoundScreenState extends State<InRoundScreen> {
       })),
     );
 
+    final lastCode = widget.snapshot.lastRoomCode;
+    final rejoinButton = lastCode != null && lastCode.isNotEmpty
+        ? Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => widget.bridge.dispatch(
+                  action('session.join', {'roomCode': lastCode}),
+                ),
+                icon: const Icon(Icons.replay),
+                label: Text('Rejoin last session ($lastCode)'),
+              ),
+            ),
+          )
+        : null;
+
     if (session == null) {
       if (compact) {
         return ListView(
@@ -226,6 +276,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
             startSessionPane,
             const SizedBox(height: 16),
             joinSessionPane,
+            if (rejoinButton != null) rejoinButton,
           ],
         );
       }
@@ -234,6 +285,11 @@ class _InRoundScreenState extends State<InRoundScreen> {
         children: [
           startSessionPane,
           joinSessionPane,
+          if (rejoinButton != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: rejoinButton,
+            ),
         ],
       );
     }
@@ -263,7 +319,10 @@ class _InRoundScreenState extends State<InRoundScreen> {
                   ),
                   const SizedBox(height: 24),
                   OutlinedButton.icon(
-                    onPressed: () => widget.bridge.dispatch(action('session.exit')),
+                    onPressed: () {
+                      _userInitiatedExit = true;
+                      widget.bridge.dispatch(action('session.exit'));
+                    },
                     icon: const Icon(Icons.close),
                     label: const Text('Cancel Request'),
                   ),
@@ -298,6 +357,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
                 content: 'Are you sure you want to cancel and exit this lobby?',
               );
               if (confirm) {
+                _userInitiatedExit = true;
                 widget.bridge.dispatch(action('session.exit'));
               }
             },
@@ -344,6 +404,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
                 content: 'Are you sure you want to exit? Any unsaved round progress will be lost.',
               );
               if (confirm) {
+                _userInitiatedExit = true;
                 widget.bridge.dispatch(action('session.exit'));
               }
             },
@@ -948,11 +1009,30 @@ class _DebatersPane extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final debater = session.debaters[index];
                         return ListTile(
-                          leading:
-                              const CircleAvatar(child: Icon(Icons.person)),
-                          title: Text(debater.name),
+                          leading: CircleAvatar(
+                            backgroundColor: debater.disconnected
+                                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                                : null,
+                            child: debater.disconnected
+                                ? Icon(Icons.do_not_disturb_alt,
+                                    color: Theme.of(context).colorScheme.error)
+                                : const Icon(Icons.person),
+                          ),
+                          title: debater.disconnected
+                              ? Text(debater.name,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                        decoration: TextDecoration.lineThrough,
+                                      ))
+                              : Text(debater.name),
                           subtitle: Text(
                               '${debater.team ?? 'unassigned'} • position ${debater.position ?? '-'}'),
+                          enabled: !debater.disconnected,
                           trailing: Wrap(
                             children: [
                               DropdownButton<String>(

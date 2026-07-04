@@ -65,7 +65,7 @@ const db = new DialektikDB();
 // ─────────────────────────────────────────────
 // Engine State
 // ─────────────────────────────────────────────
-interface Debater { id: string; name: string; status: string; team?: string; position?: number }
+interface Debater { id: string; name: string; status: string; team?: string; position?: number; disconnected?: boolean }
 interface SessionState {
   roomCode: string; matchName: string; groupName: string; status: string;
   handout: { title: string; problem: string; details: string };
@@ -85,6 +85,7 @@ let yjsDocs: Map<string, Y.Doc> = new Map();
 let userId = "";
 let userName = "";
 let activePage = "inround";
+let lastRoomCode = "";
 const rejectedPeers = new Set<string>();
 const peerUserId = new Map<string, string>();
 let aiEndpoint = "https://api.openai.com/v1";
@@ -150,6 +151,7 @@ async function buildSnapshot() {
   return {
     activePage,
     systemBrightness,
+    lastRoomCode: session ? "" : lastRoomCode,
     documents: docs.map(d => ({
       id: d.id, name: d.name, content: d.content,
       partnerAccess: d.partnerAccess ?? "private",
@@ -280,7 +282,16 @@ function setupMeshHandlers() {
     syncPublicDocsToPeers();
   });
 
-  mesh.onConnectionClose((_peerId) => {
+  mesh.onConnectionClose((peerId) => {
+    // Mark the disconnected debater.
+    const uid = peerUserId.get(peerId);
+    if (uid && session) {
+      session.debaters = session.debaters.map(d =>
+        d.id === uid ? { ...d, disconnected: true } : d
+      );
+      // Also clean up any pending request from this peer.
+      session.pendingRequests = session.pendingRequests.filter(r => r.id !== uid);
+    }
     emitSnapshot();
   });
 
@@ -395,6 +406,16 @@ async function handlePeerMessage(msg: PeerMessage) {
         }
       }
       await emitSnapshot();
+      break;
+    }
+
+    case "session-ended": {
+      // The host (or peer) closed the session.
+      if (session) {
+        session = null;
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        await emitSnapshot();
+      }
       break;
     }
 
@@ -641,6 +662,7 @@ async function dispatch(actionJson: string) {
   if (type === "session.host") {
     const code = generateRoomCode();
     const participate = payload.participate !== false;
+    lastRoomCode = code;
     session = {
       roomCode: code,
       matchName: payload.matchName?.trim() || "Practice Round",
@@ -675,6 +697,7 @@ async function dispatch(actionJson: string) {
     // Pass identity metadata so the host learns about us via
     // PeerJS connection metadata (before the data channel opens).
     mesh.connectMeta = { userId, userName };
+    lastRoomCode = code;
     session = {
       roomCode: code, matchName: "", groupName: "",
       status: "pending_approval",
@@ -698,6 +721,10 @@ async function dispatch(actionJson: string) {
 
   // ── Session: Exit ─────────────────────────
   if (type === "session.exit") {
+    // Notify peers before tearing down so they know the session ended.
+    mesh.broadcast({ type: "session-ended", senderId: mesh.peerId });
+    // Small delay to let the broadcast go out before closing connections.
+    await new Promise(r => setTimeout(r, 100));
     mesh.terminateSession();
     session = null;
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
