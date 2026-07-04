@@ -414,6 +414,7 @@ async function handlePeerMessage(msg: PeerMessage) {
             name: doc.name, content: doc.content,
             lastModified: doc.lastModified,
             partnerAccess: doc.partnerAccess,
+            encryptedHash: doc.encryptedHash,
             ownerId: doc.ownerId, ownerName: doc.ownerName,
           });
         }

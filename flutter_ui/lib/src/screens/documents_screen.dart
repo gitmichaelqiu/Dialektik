@@ -314,7 +314,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }
     if (_nameController.text != doc.title) _nameController.text = doc.title;
     if (_contentController.text != doc.content && documentHasFocus == false) {
+      final saved = _contentController.selection;
       _contentController.text = doc.content;
+      // Restore cursor position if still valid to prevent jumps.
+      if (saved.isValid && saved.baseOffset <= doc.content.length) {
+        _contentController.selection = saved;
+      }
     }
     _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
     _contentController.highlightedLine = _getLineFromCaret(doc.content, doc.partnerCaret);

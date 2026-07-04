@@ -19,7 +19,7 @@ class InRoundScreen extends StatefulWidget {
   State<InRoundScreen> createState() => _InRoundScreenState();
 }
 
-class _InRoundScreenState extends State<InRoundScreen> {
+class _InRoundScreenState extends State<InRoundScreen> with SingleTickerProviderStateMixin {
   final _matchController = TextEditingController();
   final _groupController = TextEditingController();
   final _joinCodeController = TextEditingController();
@@ -59,6 +59,9 @@ class _InRoundScreenState extends State<InRoundScreen> {
   bool _userInitiatedExit = false;
   bool _showSpeakerPosition = false;
   String? _previousSpeakerId;
+  bool _speakerInitialized = false;
+  TabController? _tabController;
+  int _savedTabIndex = 0;
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
@@ -91,6 +94,7 @@ class _InRoundScreenState extends State<InRoundScreen> {
       }
       _wasPending = false;
       _userInitiatedExit = false;
+      _speakerInitialized = false;
       _shownRequestIds.clear();
       return;
     }
@@ -192,6 +196,11 @@ class _InRoundScreenState extends State<InRoundScreen> {
     }
 
     // Notify only the selected client when the host assigns a new active speaker.
+    // Only fire on actual changes, not on initial mount or tab re-entry.
+    if (!_speakerInitialized) {
+      _previousSpeakerId = session.currentSpeakerId;
+      _speakerInitialized = true;
+    }
     if (session.currentSpeakerId != null &&
         session.currentSpeakerId != _previousSpeakerId) {
       final prevId = _previousSpeakerId;
@@ -462,39 +471,50 @@ class _InRoundScreenState extends State<InRoundScreen> {
             session: session,
           );
 
+    _tabController?.dispose();
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: _savedTabIndex,
+    );
+    _tabController?.addListener(() {
+      if (_tabController != null && !_tabController!.indexIsChanging) {
+        _savedTabIndex = _tabController!.index;
+      }
+    });
     return compact
-        ? DefaultTabController(
-            length: 3,
-            child: Scaffold(
-              appBar: AppBar(
-                toolbarHeight: 0,
-                bottom: TabBar(
-                  tabs: [
-                    const Tab(icon: Icon(Icons.description), text: 'Handout'),
-                    const Tab(icon: Icon(Icons.timer), text: 'Timers'),
-                    Tab(
-                      icon: Icon(active ? Icons.edit_note : Icons.group),
-                      text: active ? 'Notes' : 'Debaters',
-                    ),
-                  ],
-                ),
-              ),
-              body: TabBarView(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: handoutPane,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: timersPane,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: debatersOrNotesPane,
+        ? Scaffold(
+            key: ValueKey('compact_${_savedTabIndex}'),
+            appBar: AppBar(
+              toolbarHeight: 0,
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: [
+                  const Tab(icon: Icon(Icons.description), text: 'Handout'),
+                  const Tab(icon: Icon(Icons.timer), text: 'Timers'),
+                  Tab(
+                    icon: Icon(active ? Icons.edit_note : Icons.group),
+                    text: active ? 'Notes' : 'Debaters',
                   ),
                 ],
               ),
+            ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: handoutPane,
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: timersPane,
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: debatersOrNotesPane,
+                ),
+              ],
             ),
           )
         : ResponsivePane(
@@ -877,6 +897,14 @@ class _TimersPane extends StatelessWidget {
               remainingMs: session.speechRemainingMs,
               running: session.speechRunning,
               enabled: session.isHost,
+              durationMs: 240000,
+              onDurationChanged: session.isHost
+                  ? (ms) => bridge.dispatch(action('timer.action', {
+                        'timerType': 'speech',
+                        'action': 'reset',
+                        'durationSeconds': (ms / 1000).round(),
+                      }))
+                  : null,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'speech',
@@ -888,6 +916,14 @@ class _TimersPane extends StatelessWidget {
               remainingMs: session.prepRemainingMs,
               running: session.prepRunning,
               enabled: session.isHost,
+              durationMs: 180000,
+              onDurationChanged: session.isHost
+                  ? (ms) => bridge.dispatch(action('timer.action', {
+                        'timerType': 'prep',
+                        'action': 'reset',
+                        'durationSeconds': (ms / 1000).round(),
+                      }))
+                  : null,
               onAction: (timerAction) =>
                   bridge.dispatch(action('timer.action', {
                 'timerType': 'prep',
@@ -1076,6 +1112,8 @@ class _TimerTile extends StatelessWidget {
     this.removable = false,
     this.onRemove,
     this.enabled = true,
+    this.durationMs,
+    this.onDurationChanged,
   });
 
   final String name;
@@ -1085,12 +1123,42 @@ class _TimerTile extends StatelessWidget {
   final VoidCallback? onRemove;
   final ValueChanged<String> onAction;
   final bool enabled;
+  final int? durationMs;
+  final ValueChanged<int>? onDurationChanged;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(name),
+      title: Row(
+        children: [
+          Text(name),
+          if (onDurationChanged != null && durationMs != null) ...[
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 60,
+              child: TextField(
+                enabled: enabled,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                ),
+                controller: TextEditingController(
+                  text: _formatDuration(durationMs!).replaceFirst('0:', ''),
+                ),
+                onSubmitted: (val) {
+                  final parts = val.split(':');
+                  final m = int.tryParse(parts[0]) ?? 4;
+                  final s = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+                  onDurationChanged!(((m * 60) + s) * 1000);
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
       subtitle: Text(_formatDuration(remainingMs),
           style: Theme.of(context).textTheme.headlineSmall),
       trailing: Wrap(
