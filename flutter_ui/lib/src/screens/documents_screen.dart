@@ -89,6 +89,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void didUpdateWidget(covariant DocumentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // Recompute filtered docs with the latest snapshot before any sync logic.
+    final session = widget.snapshot.session;
+    final myUserId = widget.snapshot.settings.userId;
+    final myTeam =
+        session?.debaters.where((d) => d.id == myUserId).firstOrNull?.team;
+    _computeFilteredDocs(session, myTeam, myUserId);
+
     // Only search for new documents when the list actually grew.
     if (widget.snapshot.documents.length >
         oldWidget.snapshot.documents.length) {
@@ -131,32 +138,24 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _selectedDocument;
     final compact = MediaQuery.sizeOf(context).width < 840;
 
     final myUserId = widget.snapshot.settings.userId;
+    final session = widget.snapshot.session;
+    final myTeam =
+        session?.debaters.where((d) => d.id == myUserId).firstOrNull?.team;
+
+    _computeFilteredDocs(session, myTeam, myUserId);
+
+    // Restore the cached selection if the doc is still accessible.
+    _restoreSelection();
+
+    final selected = _selectedDocument;
     final isOwner = selected == null ||
         selected.isOwnedBy(
           userId: myUserId,
           userName: widget.snapshot.settings.userName,
         );
-
-    // Determine user's team from session for team-folder filtering.
-    final session = widget.snapshot.session;
-    final myTeam =
-        session?.debaters.where((d) => d.id == myUserId).firstOrNull?.team;
-
-    _filteredDocs = widget.snapshot.documents.where((doc) {
-      if (doc.folder != 'team') return true;
-      if (myTeam == null) return true;
-      // Find the owner's team in the session
-      final ownerTeam =
-          session?.debaters.where((d) => d.id == doc.ownerId).firstOrNull?.team;
-      // Team doc is visible if we own it, or if the owner is on our team
-      return doc.ownerId == myUserId ||
-          ownerTeam == null ||
-          ownerTeam == myTeam;
-    }).toList();
 
     final filesPane = _FilesPane(
       documents: _filteredDocs,
@@ -414,6 +413,56 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     // Don't mark synced — next tick re-checks.
 
     _maybeUpdateHighlight(doc);
+  }
+
+  /// Compute the filtered document list based on folder access rules.
+  void _computeFilteredDocs(
+    SessionState? session,
+    String? myTeam,
+    String myUserId,
+  ) {
+    _filteredDocs = widget.snapshot.documents.where((doc) {
+      if (doc.folder != 'team') return true;
+      if (myTeam == null) return true;
+      // Find the owner's team in the session
+      final ownerTeam =
+          session?.debaters.where((d) => d.id == doc.ownerId).firstOrNull?.team;
+      // Team doc is visible if we own it, or if the owner is on our team
+      return doc.ownerId == myUserId ||
+          ownerTeam == null ||
+          ownerTeam == myTeam;
+    }).toList();
+  }
+
+  /// Restore the cached document selection if the document is still accessible.
+  /// Falls back to the first available document if the cached one was removed
+  /// or its access permissions changed. Syncs controllers so the editor shows
+  /// the correct content immediately on the first build.
+  void _restoreSelection() {
+    if (_filteredDocs.isEmpty) {
+      _selectedId = null;
+      return;
+    }
+    if (_selectedId != null &&
+        _filteredDocs.any((doc) => doc.id == _selectedId)) {
+      // Cached selection is still valid — ensure controllers are in sync.
+      final doc = _filteredDocs.firstWhere((d) => d.id == _selectedId);
+      if (_nameController.text != doc.title) _nameController.text = doc.title;
+      if (_contentController.text != doc.content) {
+        _contentController.text = doc.content;
+      }
+      _lastSyncedContent = doc.content;
+      _lastLocalContent = doc.content;
+      return;
+    }
+    // Cached doc lost access — fall back to first available doc.
+    _selectedId = _filteredDocs.first.id;
+    _cachedSelectedId = _selectedId;
+    final doc = _filteredDocs.first;
+    _nameController.text = doc.title;
+    _contentController.text = doc.content;
+    _lastSyncedContent = doc.content;
+    _lastLocalContent = doc.content;
   }
 
   /// Update the partner-caret highlight line without touching the text.
