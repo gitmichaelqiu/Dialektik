@@ -887,10 +887,11 @@ class _ReadMode extends StatelessWidget {
         continue;
       }
 
-      // Regular line — parse inline formatting
-      spans.add(TextSpan(
-        text: '${_stripCitations(trimmed)}${isLast ? '' : '\n'}',
-      ));
+      // Regular line — parse inline formatting (bold, italic, code, etc.)
+      final lineStyle = Theme.of(context).textTheme.bodyMedium;
+      final inlineSpans = _parseInlineMarkdown(trimmed, lineStyle!);
+      spans.addAll(inlineSpans);
+      if (!isLast) spans.add(const TextSpan(text: '\n'));
     }
     return TextSpan(
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
@@ -898,12 +899,71 @@ class _ReadMode extends StatelessWidget {
     );
   }
 
-  /// Strip [[citation]] markers from a line of text.
-  String _stripCitations(String text) {
-    return text.replaceAllMapped(
-      RegExp(r'\[\[([^\]]+)\]\]'),
-      (m) => m.group(1) ?? '',
+  /// Parse inline markdown syntax into styled [TextSpan]s.
+  List<TextSpan> _parseInlineMarkdown(String text, TextStyle base) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(
+      r'`([^`]+)`'                                      // inline code
+      r'|\*\*([^*]+)\*\*'                                // **bold**
+      r'|__([^_]+)__'                                    // __bold__
+      r'|\*([^*]+)\*'                                    // *italic*
+      r'|_([^_]+)_'                                      // _italic_
+      r'|~~([^~]+)~~'                                    // ~~strikethrough~~
+      r'|==([^=]+)=='                                    // ==highlight==
     );
+
+    var lastEnd = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      lastEnd = match.end;
+
+      final code = match.group(1);
+      final bold1 = match.group(2);
+      final bold2 = match.group(3);
+      final italic1 = match.group(4);
+      final italic2 = match.group(5);
+      final strike = match.group(6);
+      final highlight = match.group(7);
+
+      if (code != null) {
+        spans.add(TextSpan(
+          text: code,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            backgroundColor: const Color(0x1A000000),
+          ),
+        ));
+      } else if (bold1 != null || bold2 != null) {
+        spans.add(TextSpan(
+          text: bold1 ?? bold2,
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ));
+      } else if (italic1 != null || italic2 != null) {
+        spans.add(TextSpan(
+          text: italic1 ?? italic2,
+          style: TextStyle(fontStyle: FontStyle.italic),
+        ));
+      } else if (strike != null) {
+        spans.add(TextSpan(
+          text: strike,
+          style: TextStyle(decoration: TextDecoration.lineThrough),
+        ));
+      } else if (highlight != null) {
+        spans.add(TextSpan(
+          text: highlight,
+          style: TextStyle(
+            backgroundColor: Colors.yellow.shade200,
+            color: Colors.black87,
+          ),
+        ));
+      }
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+    return spans.isEmpty ? [TextSpan(text: text)] : spans;
   }
 }
 

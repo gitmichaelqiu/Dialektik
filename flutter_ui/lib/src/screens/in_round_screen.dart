@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -255,6 +256,7 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
 
   @override
   void dispose() {
+    _handoutDebounce?.cancel();
     _tabController?.dispose();
     _matchController.dispose();
     _groupController.dispose();
@@ -559,12 +561,17 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
         (session.debaters.isEmpty ? 'general' : session.debaters.first.id);
   }
 
+  Timer? _handoutDebounce;
+
   void _updateHandout() {
-    widget.bridge.dispatch(action('session.updateHandout', {
-      'title': _handoutTitleController.text,
-      'problem': _handoutProblemController.text,
-      'details': _handoutDetailsController.text,
-    }));
+    _handoutDebounce?.cancel();
+    _handoutDebounce = Timer(const Duration(milliseconds: 300), () {
+      widget.bridge.dispatch(action('session.updateHandout', {
+        'title': _handoutTitleController.text,
+        'problem': _handoutProblemController.text,
+        'details': _handoutDetailsController.text,
+      }));
+    });
   }
 }
 
@@ -592,24 +599,26 @@ class _StartSessionPane extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionHeader(
-              title: 'Start debate session',
-              subtitle:
-                  'Host a synced room for partner prep and round management',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: matchController,
-              decoration: const InputDecoration(labelText: 'Match name'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: groupController,
-              decoration: const InputDecoration(labelText: 'School or group'),
-            ),
+        child: FocusTraversalGroup(
+          policy: ReadingOrderTraversalPolicy(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(
+                title: 'Start debate session',
+                subtitle:
+                    'Host a synced room for partner prep and round management',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: matchController,
+                decoration: const InputDecoration(labelText: 'Match name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: groupController,
+                decoration: const InputDecoration(labelText: 'School or group'),
+              ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               initialValue: teamSize,
@@ -641,6 +650,7 @@ class _StartSessionPane extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
