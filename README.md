@@ -1,6 +1,8 @@
 # Dialektik
 
-A local-first, serverless portal for National Speech and Debate Association (NSDA) clubs, functioning as a hybrid Tauri Desktop App and a Progressive Web App (PWA).
+A local-first, serverless portal for National Speech and Debate Association (NSDA) clubs. Manages debate rounds with P2P WebRTC connections, collaborative Yjs/CRDT document editing, AI coaching, evidence cards, and round history. All data is stored locally in IndexedDB (via Dexie.js) — no backend server required.
+
+The app uses a **Flutter UI** backed by a **JavaScript engine** that runs in a hidden WebView (native) or directly via JS interop (web). The engine handles IndexedDB persistence, WebRTC mesh networking, CRDT sync, and AI API calls. Flutter consumes immutable JSON snapshots and dispatches JSON actions.
 
 Licensed under [MIT License](LICENSE).
 
@@ -8,67 +10,114 @@ Licensed under [MIT License](LICENSE).
 
 ## Prerequisites
 
-Before setting up the project, ensure you have the following installed on your system:
-- **Node.js** (v18 or higher recommended)
-- **Rust & Cargo** (Required for Tauri desktop builds)
+- **Node.js** (v18 or higher)
+- **Flutter SDK** (>=3.4.0, with Dart)
+- **Xcode** (macOS/iOS builds)
+- **CocoaPods** (iOS builds)
 
 ---
 
 ## Getting Started
 
-1. **Install Dependencies**
-   ```bash
-   npm install
-   ```
+```bash
+# 1. Install JS dependencies
+npm install
 
-2. **Run in Development Mode**
-   - **Web App (Vite)**:
-     ```bash
-     npm run dev
-     ```
-   - **Desktop App (Tauri)**:
-     ```bash
-     npm run tauri dev
-     ```
+# 2. Build the JS engine bundle (required before running the app)
+npm run engine:build
 
-3. **Run Unit Tests**
-   ```bash
-   npm test
-   ```
+# 3. Run in development mode
+npm run dev
+```
+
+The `engine:build` step compiles the TypeScript engine (`src/`) into `flutter_ui/assets/engine.js` using Vite's library mode. It must be run before any `flutter run` invocation.
 
 ---
 
-## Production Build
+## Common Commands
 
-- **Compile Web client**:
-  ```bash
-  npm run build
-  ```
-  The production web build (including PWA service worker and manifest) will be outputted to the `dist/` directory.
+| Command | Description |
+|---|---|
+| `npm run engine:build` | Build JS engine bundle (TypeScript → IIFE) |
+| `npm run dev` | Run Flutter app (auto-detects macOS/Windows/Linux) |
+| `npm run flutter:web` | Run in Chrome |
+| `npm run flutter:ios` | Run in iOS simulator |
+| `npm run flutter:analyze` | Dart static analysis |
+| `npm run build` | Production build (auto-detects platform) |
+| `npm run flutter:build:web` | Build Flutter web |
+| `npm run flutter:build:ios` | Build iOS app |
+| `cd flutter_ui && flutter test` | Run unit tests |
 
-- **Compile Desktop binaries**:
-  ```bash
-  npm run tauri build
-  ```
-  This will bundle the native binaries (e.g. `.app`, `.dmg` on macOS, `.msi`, `.exe` on Windows) inside `src-tauri/target/release/bundle/`.
+**Common inner loop:**
+```bash
+npm run engine:build && npm run flutter:web
+```
 
 ---
 
-## 👥 Local Multi-Peer Testing (Single Machine)
+## Architecture
 
-Since Dialektik is local-first and relies on WebCrypto/IndexedDB, running two tabs in the same browser sharing the same origin (`http://localhost:1420`) will point to the **same database**. To test a Host and Client relationship concurrently on one machine, you must isolate their storage:
+```
+Flutter UI ──EngineBridge──> Hidden WebView ──> engine.js (TypeScript/IIFE)
+  (dispatch JSON actions)       or                    |
+  (receive JSON snapshots)    JS interop (web)        ├─ DialektikDB (Dexie/IndexedDB)
+                                                      ├─ PeerMeshManager (WebRTC/PeerJS)
+                                                      ├─ PeerJSYjsProvider (CRDT sync)
+                                                      └─ AIService (OpenAI-compatible API)
+```
 
-### Option A: Tauri App + Browser (Recommended)
-1. Launch the Tauri desktop app (Host):
-   ```bash
-   npm run tauri dev
-   ```
-2. Open a standard web browser (Client) at `http://localhost:1420`.
-   - *Since Tauri uses the native OS application storage directory and Chrome/Safari use the browser sandbox, they will have completely separate IndexedDB instances.*
+### Key patterns
 
-### Option B: Cross-Browser Isolation
-- Open one instance in **Google Chrome** (Host) and another instance in **Safari or Firefox** (Client).
+- **Unidirectional data flow**: Flutter sends JSON `{type, payload}` actions via `EngineBridge.dispatch()`. The JS engine processes them, updates IndexedDB, and pushes a full `AppSnapshot` JSON blob back. Flutter rebuilds its widget tree from the snapshot stream.
 
-### Option C: Private / Incognito Mode
-- Open a standard window in your browser (Host) and an **Incognito / Private Window** (Client).
+- **Platform-dependent bridge**: `EngineBridge` has two implementations:
+  - `JsEngineBridge` (IO/native) — uses a hidden `HeadlessInAppWebView` with the compiled `engine.js` bundle
+  - `JsEngineBridge` (web) — uses `dart:js_util` to call `window.dialektikEngine` directly
 
+- **Poll-based sync**: In addition to push messages, the bridge polls `getLatestSnapshot()` every 500ms (synchronous read of a cached `__latestSnapshot` string) to catch dropped messages.
+
+- **Snapshot model**: Immutable `AppSnapshot` Dart classes parsed from JSON. Top-level fields: `activePage`, `documents`, `cards`, `history`, `session`, `ai`, `settings`.
+
+---
+
+## Source Structure
+
+```
+├── src/                              # TypeScript engine (builds to engine.js)
+│   ├── engine-entry.ts               # DB init, action dispatch, snapshot push
+│   └── services/
+│       ├── webrtc.ts                 # PeerMeshManager — full-mesh P2P via PeerJS
+│       ├── yjs-provider.ts           # PeerJSYjsProvider — CRDT sync over data channels
+│       └── ai.ts                     # AIService — OpenAI-compatible API client
+├── flutter_ui/                       # Flutter application
+│   ├── lib/
+│   │   ├── main.dart                 # App entry + PreviewEngineBridge (dev)
+│   │   └── src/
+│   │       ├── app/dialektik_app.dart     # Root shell, snapshot subscription, routing
+│   │       ├── bridge/                   # EngineBridge abstract + implementations
+│   │       ├── models/app_snapshot.dart  # All snapshot model classes
+│   │       ├── screens/                  # In-round, documents, AI, history, settings
+│   │       └── widgets/adaptive_scaffold.dart  # ResponsivePane, EmptyState, etc.
+│   └── assets/
+│       ├── engine.html               # Host page for WebView bridge
+│       └── engine.js                 # Compiled IIFE bundle (gitignored)
+├── scripts/
+│   ├── flutter-dev.mjs               # Dev launcher (auto-detects platform)
+│   └── flutter-build.mjs             # Production build launcher
+└── vite.config.engine.ts             # Vite config for engine.js IIFE bundle
+```
+
+---
+
+## Local Multi-Peer Testing (Single Machine)
+
+Since IndexedDB is per-origin, two tabs in the same browser share the same database. To test host and client on one machine, isolate storage:
+
+### Option A: Separate browser profiles
+Run one instance in **Chrome** and another in **Firefox/Safari**, or use Chrome's profile switcher.
+
+### Option B: Normal + Incognito
+Open one regular window and one incognito/private window in the same browser.
+
+### Option C: Preview Engine
+Use the `PreviewEngineBridge` (in-memory Dart simulation of the JS engine) for basic UI testing without the hidden WebView. It includes cross-tab sync via SharedPreferences.
