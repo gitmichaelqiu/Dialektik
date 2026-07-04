@@ -94,6 +94,19 @@ let activeAiChatId: string | null = null;
 let aiLoading = false;
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let lastTick = Date.now();
+let systemBrightness: "light" | "dark" = "light";
+
+// Detect and watch system dark mode via prefers-color-scheme media query.
+try {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  systemBrightness = mq.matches ? "dark" : "light";
+  mq.addEventListener("change", (e) => {
+    systemBrightness = e.matches ? "dark" : "light";
+    emitSnapshot();
+  });
+} catch (_) {
+  // matchMedia not available (unlikely in modern WebView/browser)
+}
 
 // ─────────────────────────────────────────────
 // Snapshot emission
@@ -134,6 +147,7 @@ async function buildSnapshot() {
 
   return {
     activePage,
+    systemBrightness,
     documents: docs.map(d => ({
       id: d.id, name: d.name, content: d.content,
       partnerAccess: d.partnerAccess ?? "private",
@@ -253,7 +267,6 @@ async function loadConfig() {
 function setupMeshHandlers() {
   mesh.onConnectionOpen((_peerId, _conn) => {
     emitSnapshot();
-    // After peer connects, sync public documents
     syncPublicDocsToPeers();
   });
 
@@ -263,6 +276,21 @@ function setupMeshHandlers() {
 
   mesh.onMessage((_senderId, msg: PeerMessage) => {
     handlePeerMessage(msg);
+  });
+
+  // Early-connect: when PeerJS relay delivers the connection request
+  // (before WebRTC data channel opens), metadata carries userId/userName.
+  mesh.onPeerConnecting((_peerId, meta) => {
+    if (mesh.isHost && session && meta?.userId && meta?.userName) {
+      const already = session.pendingRequests.some(r => r.id === meta.userId);
+      if (!already) {
+        session.pendingRequests = [...session.pendingRequests, {
+          id: meta.userId,
+          name: meta.userName,
+        }];
+        emitSnapshot();
+      }
+    }
   });
 }
 
@@ -608,6 +636,9 @@ async function dispatch(actionJson: string) {
   if (type === "session.join") {
     const code = (payload.roomCode || "").trim().toUpperCase();
     if (!code) return;
+    // Pass identity metadata so the host learns about us via
+    // PeerJS connection metadata (before the data channel opens).
+    mesh.connectMeta = { userId, userName };
     session = {
       roomCode: code, matchName: "", groupName: "",
       status: "pending_approval",

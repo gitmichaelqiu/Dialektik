@@ -62,37 +62,36 @@ class _AppRoot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = MediaQuery.platformBrightnessOf(context);
-    final shellTheme = _appTheme(brightness);
-
     final jsWebView = bridge.buildWebView();
 
     final shell = StreamBuilder<AppSnapshot>(
       stream: bridge.snapshots,
       initialData: initialSnapshot ?? AppSnapshot.initial(),
       builder: (context, snapshot) {
-        return _AppShell(
-          bridge: bridge,
-          snapshot: snapshot.data ?? AppSnapshot.initial(),
+        final snap = snapshot.data ?? AppSnapshot.initial();
+        // Apply theme from the engine-detected systemBrightness. The engine
+        // uses window.matchMedia which works in both browser (web) and
+        // WKWebView (desktop), unlike platformDispatcher on macOS.
+        final theme = _appTheme(snap.systemBrightness);
+        return Theme(
+          data: theme,
+          child: _AppShell(bridge: bridge, snapshot: snap),
         );
       },
     );
 
-    Widget body = shell;
-    if (jsWebView != null) {
-      // The engine WebView must be in the widget tree so the WKWebView process
-      // stays alive (WebRTC connection), but it must never be visible.
-      // Give it a real 1×1 frame placed just above the visible area so WKWebView
-      // is active and fires onLoadStop, but users never see it.
-      body = Stack(
-        children: [
-          Positioned(top: -2, left: 0, width: 1, height: 1, child: jsWebView),
-          Positioned.fill(child: shell),
-        ],
-      );
-    }
+    if (jsWebView == null) return shell;
 
-    return Theme(data: shellTheme, child: body);
+    // The engine WebView must be in the widget tree so the WKWebView process
+    // stays alive (WebRTC connection), but it must never be visible.
+    // Give it a real 1×1 frame placed just above the visible area so WKWebView
+    // is active and fires onLoadStop, but users never see it.
+    return Stack(
+      children: [
+        Positioned(top: -2, left: 0, width: 1, height: 1, child: jsWebView),
+        Positioned.fill(child: shell),
+      ],
+    );
   }
 }
 

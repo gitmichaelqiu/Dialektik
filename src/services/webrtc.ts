@@ -34,6 +34,8 @@ export class PeerMeshManager {
   private onVersionMismatchCallback: (() => void) | null = null;
   private onHostMigrationCallback: ((newHostId: string) => void) | null = null;
   private onMatchDetailsCallback: ((details: any) => void) | null = null;
+  /** Fires when a new peer connects (before the data channel opens). */
+  private onPeerConnectingCallbacks: ((peerId: string, metadata?: any) => void)[] = [];
 
   constructor() {
     // Generate a unique client peer ID
@@ -64,6 +66,12 @@ export class PeerMeshManager {
   public onVersionMismatch(cb: () => void) { this.onVersionMismatchCallback = cb; }
   public onHostMigration(cb: (newHostId: string) => void) { this.onHostMigrationCallback = cb; }
   public onMatchDetails(cb: (details: any) => void) { this.onMatchDetailsCallback = cb; }
+  public onPeerConnecting(cb: (peerId: string, metadata?: any) => void) {
+    this.onPeerConnectingCallbacks.push(cb);
+    return () => {
+      this.onPeerConnectingCallbacks = this.onPeerConnectingCallbacks.filter(item => item !== cb);
+    };
+  }
 
   /**
    * Initializes a PeerJS instance connected to the signaling server.
@@ -91,6 +99,12 @@ export class PeerMeshManager {
 
       this.peer.on("connection", (conn) => {
         this.handleIncomingConnection(conn);
+        // Fire early-connect callbacks so the host learns about the
+        // joining peer via PeerJS metadata before the data channel opens.
+        const meta = (conn as any).metadata;
+        for (const cb of this.onPeerConnectingCallbacks) {
+          cb(conn.peer, meta);
+        }
       });
 
       this.peer.on("error", (err) => {
@@ -136,11 +150,16 @@ export class PeerMeshManager {
   /**
    * Connect to a specific peer in the mesh.
    */
+  /** Attach metadata (userId, userName) so the host learns about a joining
+   *  client before the WebRTC data channel opens. */
+  public connectMeta: { userId?: string; userName?: string } = {};
+
   public connectToPeer(targetPeerId: string): DataConnection {
     if (!this.peer) throw new Error("Peer not initialized");
 
     const conn = this.peer.connect(targetPeerId, {
-      serialization: "json"
+      serialization: "json",
+      metadata: this.connectMeta,
     });
 
     this.setupConnectionEvents(conn);
