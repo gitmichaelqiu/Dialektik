@@ -99,6 +99,10 @@ export class PeerMeshManager {
 
       this.peer.on("connection", (conn) => {
         this.handleIncomingConnection(conn);
+        // Register in connections immediately so broadcasts (document
+        // scope changes, session-state, etc.) work even before the
+        // handshake message arrives over the data channel.
+        this.connections.set(conn.peer, conn);
         // Fire early-connect callbacks so the host learns about the
         // joining peer via PeerJS metadata before the data channel opens.
         const meta = (conn as any).metadata;

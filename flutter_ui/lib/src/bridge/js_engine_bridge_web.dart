@@ -27,6 +27,7 @@ class JsEngineBridge implements EngineBridge {
   bool _ready = false;
   final _pendingActions = <String>[];
   bool _initStarted = false;
+  Timer? _pollTimer;
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
@@ -88,6 +89,22 @@ class JsEngineBridge implements EngineBridge {
       _callDispatch(pending);
     }
     _pendingActions.clear();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+      if (!_ready) return;
+      try {
+        final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
+        if (engine == null) return;
+        final result = js_util.callMethod(engine, 'getLatestSnapshot', []);
+        if (result is String && result.isNotEmpty) {
+          _pushSnapshot(result);
+        }
+      } catch (_) {}
+    });
   }
 
   Future<void> _init() async {
@@ -123,6 +140,7 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void dispose() {
+    _pollTimer?.cancel();
     _controller.close();
     _ready = false;
   }

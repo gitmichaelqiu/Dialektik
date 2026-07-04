@@ -20,6 +20,7 @@ class JsEngineBridge implements EngineBridge {
   InAppWebViewController? _webView;
   bool _ready = false;
   final _pendingActions = <String>[];
+  Timer? _pollTimer;
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
@@ -79,6 +80,22 @@ class JsEngineBridge implements EngineBridge {
       );
     }
     _pendingActions.clear();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+      if (!_ready || _webView == null) return;
+      try {
+        final result = await _webView!.evaluateJavascript(
+          source: 'window.dialektikEngine && window.dialektikEngine.getLatestSnapshot()',
+        );
+        if (result is String && result.isNotEmpty) {
+          _pushSnapshot(result);
+        }
+      } catch (_) {}
+    });
   }
 
   /// Called by [JsEngineWebView] when the FlutterChannel receives a message.
@@ -87,6 +104,7 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void dispose() {
+    _pollTimer?.cancel();
     _controller.close();
   }
 

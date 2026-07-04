@@ -115,14 +115,20 @@ try {
 // ─────────────────────────────────────────────
 // Snapshot emission
 // ─────────────────────────────────────────────
+// Reliable snapshot delivery: write to a global variable that Flutter's
+// polling reads via evaluateJavascript. The FlutterChannel.postMessage
+// push path (callHandler) is unreliable for event-driven state changes.
+let __latestSnapshot: string | null = null;
+
+function setSnapshot(json: string) {
+  __latestSnapshot = json;
+}
+
 function postSnapshot() {
   try {
     const snapshot = buildSnapshot();
     const json = JSON.stringify(snapshot);
-    // Flutter JavascriptChannel
-    if ((window as any).FlutterChannel) {
-      (window as any).FlutterChannel.postMessage(json);
-    }
+    setSnapshot(json);
   } catch (e) {
     console.error("[engine] postSnapshot error:", e);
   }
@@ -191,14 +197,11 @@ function serializeSession(s: SessionState) {
   return { ...s };
 }
 
-// Async post (await buildSnapshot then post)
 async function emitSnapshot() {
   try {
     const snapshot = await buildSnapshot();
     const json = JSON.stringify(snapshot);
-    if ((window as any).FlutterChannel) {
-      (window as any).FlutterChannel.postMessage(json);
-    }
+    setSnapshot(json);
   } catch (e) {
     console.error("[engine] emitSnapshot error:", e);
   }
@@ -575,17 +578,13 @@ async function dispatch(actionJson: string) {
     if (!id || content === undefined) return;
     await db.documents.update(id, { content, lastModified: Date.now() });
     const updated = await db.documents.get(id);
-    if (updated?.partnerAccess !== "private") {
-      // Update Yjs doc for real-time sync if provider active
-      const yDoc = yjsDocs.get(id);
-      if (yDoc) {
-        const text = yDoc.getText("content");
-        yDoc.transact(() => {
-          text.delete(0, text.length);
-          text.insert(0, content);
-        });
-      }
-      syncPublicDocsToPeers();
+    if (updated && updated.partnerAccess !== "private") {
+      // Broadcast the change to peers so they see live updates.
+      mesh.broadcast({
+        type: "shared-docs-sync",
+        senderId: mesh.peerId,
+        payload: { docs: [{ ...updated, content }], removeIds: [] },
+      });
     }
     await emitSnapshot();
     return;
@@ -635,6 +634,14 @@ async function dispatch(actionJson: string) {
     const { id, mode } = payload;
     if (!id) return;
     await db.documents.update(id, { encryptedHash: mode, lastModified: Date.now() });
+    const updated = await db.documents.get(id);
+    if (updated && updated.partnerAccess !== "private") {
+      mesh.broadcast({
+        type: "shared-docs-sync",
+        senderId: mesh.peerId,
+        payload: { docs: [updated], removeIds: [] },
+      });
+    }
     await emitSnapshot();
     return;
   }
@@ -1080,6 +1087,9 @@ async function bootstrap() {
     },
     getSnapshot: async () => {
       return JSON.stringify(await buildSnapshot());
+    },
+    getLatestSnapshot: () => {
+      return __latestSnapshot;
     },
   };
 
