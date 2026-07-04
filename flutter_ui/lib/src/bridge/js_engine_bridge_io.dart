@@ -21,6 +21,7 @@ class JsEngineBridge implements EngineBridge {
   bool _ready = false;
   final _pendingActions = <String>[];
   Timer? _pollTimer;
+  String? _lastSnapshotJson;
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
@@ -48,7 +49,8 @@ class JsEngineBridge implements EngineBridge {
       final result = await _webView!.evaluateJavascript(
         source: 'window.dialektikEngine && await window.dialektikEngine.getSnapshot()',
       );
-      if (result is String && result.isNotEmpty) {
+      if (result is String && result.isNotEmpty && result != _lastSnapshotJson) {
+        _lastSnapshotJson = result;
         _pushSnapshot(result);
       }
     } catch (_) {}
@@ -91,7 +93,10 @@ class JsEngineBridge implements EngineBridge {
         final result = await _webView!.evaluateJavascript(
           source: 'window.dialektikEngine && window.dialektikEngine.getLatestSnapshot()',
         );
-        if (result is String && result.isNotEmpty) {
+        // Only push when the snapshot actually changed — prevents
+        // unnecessary StreamBuilder rebuilds that reset TextField cursors.
+        if (result is String && result.isNotEmpty && result != _lastSnapshotJson) {
+          _lastSnapshotJson = result;
           _pushSnapshot(result);
         }
       } catch (_) {}

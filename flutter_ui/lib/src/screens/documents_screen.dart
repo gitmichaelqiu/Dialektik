@@ -832,11 +832,12 @@ class _ReadMode extends StatelessWidget {
       }
 
       if (inCodeBlock) {
+        final codeBg = Theme.of(context).colorScheme.surfaceContainerHighest;
         spans.add(TextSpan(
           text: '$line\n',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
-            backgroundColor: Color(0x1A000000),
+            backgroundColor: codeBg,
           ),
         ));
         continue;
