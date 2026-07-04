@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dialektik_flutter_ui.dart';
 import 'src/bridge/js_engine_bridge_io.dart'
-  if (dart.library.html) 'src/bridge/js_engine_bridge_web.dart';
+    if (dart.library.html) 'src/bridge/js_engine_bridge_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +47,8 @@ class PreviewEngineBridge implements EngineBridge {
         await p.reload();
         final savedStateStr = p.getString('dialektik_preview_state');
         if (savedStateStr == null) return;
-        final Map<String, Object?> newState = (jsonDecode(savedStateStr) as Map).cast<String, Object?>();
+        final Map<String, Object?> newState =
+            (jsonDecode(savedStateStr) as Map).cast<String, Object?>();
         bool changed = false;
 
         for (final key in const ['session', 'documents', 'cards', 'history']) {
@@ -62,9 +63,11 @@ class PreviewEngineBridge implements EngineBridge {
               final currentStatus = currentVal['status'];
               if (currentStatus == 'pending_approval') {
                 final settings = _rawState['settings'] as Map?;
-                final cleanUserName = (settings?['userName'] as String? ?? 'Debater').trim();
+                final cleanUserName =
+                    (settings?['userName'] as String? ?? 'Debater').trim();
                 final approvedList = _list(newVal['debaters']);
-                final isApproved = approvedList.any((d) => d['name'] == cleanUserName);
+                final isApproved =
+                    approvedList.any((d) => d['name'] == cleanUserName);
                 if (isApproved) {
                   mergedSession['status'] = 'lobby';
                 }
@@ -122,6 +125,34 @@ class PreviewEngineBridge implements EngineBridge {
           };
         }
         return doc;
+      }).toList();
+      _patch({'documents': docs});
+      return;
+    }
+
+    if (type == 'document.spliceContent') {
+      final id = payload['id'];
+      final index = payload['index'];
+      final deleteCount = payload['deleteCount'];
+      final insertText = payload['insertText'];
+      if (id is! String ||
+          index is! num ||
+          deleteCount is! num ||
+          insertText is! String) {
+        return;
+      }
+      final docs = _documentsJson.map((doc) {
+        if (doc['id'] != id) return doc;
+        return {
+          ...doc,
+          'content': _applyTextSplice(
+            doc['content'] as String? ?? '',
+            index.toInt(),
+            deleteCount.toInt(),
+            insertText,
+          ),
+          'lastModified': DateTime.now().millisecondsSinceEpoch,
+        };
       }).toList();
       _patch({'documents': docs});
       return;
@@ -295,7 +326,8 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.join') {
-      final code = (payload['roomCode'] as String? ?? 'ROOM').trim().toUpperCase();
+      final code =
+          (payload['roomCode'] as String? ?? 'ROOM').trim().toUpperCase();
       final settings = _rawState['settings'] as Map?;
       final userName = (settings?['userName'] as String? ?? 'Debater').trim();
       final cleanUserName = userName.isNotEmpty ? userName : 'Debater';
@@ -428,6 +460,35 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'session.spliceHandout') {
+      final field = payload['field'];
+      final index = payload['index'];
+      final deleteCount = payload['deleteCount'];
+      final insertText = payload['insertText'];
+      if (field is! String ||
+          index is! num ||
+          deleteCount is! num ||
+          insertText is! String) {
+        return;
+      }
+      if (!const {'title', 'problem', 'details'}.contains(field)) return;
+      final session = _sessionJson;
+      final handout = (session['handout'] as Map?)?.cast<String, Object?>() ??
+          const <String, Object?>{};
+      _patchSession({
+        'handout': {
+          ...handout,
+          field: _applyTextSplice(
+            handout[field] as String? ?? '',
+            index.toInt(),
+            deleteCount.toInt(),
+            insertText,
+          ),
+        }
+      });
+      return;
+    }
+
     if (type == 'session.assignDebater') {
       final id = payload['id'];
       if (id is! String) return;
@@ -479,7 +540,9 @@ class PreviewEngineBridge implements EngineBridge {
       final session = _sessionJson;
       final debaters = _list(session['debaters']);
       final flows = <Map<String, Object?>>[];
-      final notes = (session['speakerNotes'] as Map?)?.cast<String, Object?>() ?? const {};
+      final notes =
+          (session['speakerNotes'] as Map?)?.cast<String, Object?>() ??
+              const {};
 
       for (final debater in debaters) {
         final id = debater['id'] as String? ?? '';
@@ -687,7 +750,9 @@ class PreviewEngineBridge implements EngineBridge {
     if (type == 'settings.save') {
       final current =
           (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
-      final newUserName = payload['userName'] as String? ?? current['userName'] as String? ?? '';
+      final newUserName = payload['userName'] as String? ??
+          current['userName'] as String? ??
+          '';
       _patch({
         'settings': {
           ...current,
@@ -706,7 +771,9 @@ class PreviewEngineBridge implements EngineBridge {
           if (d['id'] == 'debater-local') {
             return {
               ...d,
-              'name': newUserName.trim().isNotEmpty ? newUserName.trim() : 'Debater',
+              'name': newUserName.trim().isNotEmpty
+                  ? newUserName.trim()
+                  : 'Debater',
             };
           }
           return d;
@@ -880,6 +947,17 @@ int _parseDuration(Object? value) {
   final minutes = int.tryParse(parts[0]) ?? 1;
   final seconds = int.tryParse(parts[1]) ?? 0;
   return ((minutes * 60) + seconds) * 1000;
+}
+
+String _applyTextSplice(
+  String text,
+  int index,
+  int deleteCount,
+  String insertText,
+) {
+  final start = index.clamp(0, text.length);
+  final end = (start + deleteCount).clamp(start, text.length);
+  return text.replaceRange(start, end, insertText);
 }
 
 extension _FirstOrNull<T> on Iterable<T> {

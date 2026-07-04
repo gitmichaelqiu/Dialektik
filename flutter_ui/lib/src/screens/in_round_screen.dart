@@ -20,7 +20,8 @@ class InRoundScreen extends StatefulWidget {
   State<InRoundScreen> createState() => _InRoundScreenState();
 }
 
-class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateMixin {
+class _InRoundScreenState extends State<InRoundScreen>
+    with TickerProviderStateMixin {
   final _matchController = TextEditingController();
   final _groupController = TextEditingController();
   final _joinCodeController = TextEditingController();
@@ -33,25 +34,30 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
   int _teamSize = 1;
   String? _localActiveSpeakerId;
   bool _hostIsDebater = true;
+  String _lastLocalHandoutTitle = '';
+  String _lastLocalHandoutProblem = '';
+  String _lastLocalHandoutDetails = '';
 
-  Future<bool> _confirmAction(BuildContext context, {required String title, required String content}) async {
+  Future<bool> _confirmAction(BuildContext context,
+      {required String title, required String content}) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirm'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   final Set<String> _shownRequestIds = {};
@@ -110,8 +116,7 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     }
     // Don't overwrite actively-edited text fields with stale snapshot data.
     final isEditing =
-        FocusManager.instance.primaryFocus?.context?.widget is EditableText ||
-        _handoutDebounce?.isActive == true;
+        FocusManager.instance.primaryFocus?.context?.widget is EditableText;
     if (!isEditing) {
       if (_handoutTitleController.text != session.handout.title) {
         _handoutTitleController.text = session.handout.title;
@@ -122,6 +127,9 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
       if (_handoutDetailsController.text != session.handout.details) {
         _handoutDetailsController.text = session.handout.details;
       }
+      _lastLocalHandoutTitle = session.handout.title;
+      _lastLocalHandoutProblem = session.handout.problem;
+      _lastLocalHandoutDetails = session.handout.details;
     }
     final speakerId = _activeSpeakerId(session);
     final notes =
@@ -141,25 +149,30 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
                 backgroundColor: Colors.black87,
                 content: Row(
                   children: [
-                    const Icon(Icons.person_add, color: Colors.white70, size: 20),
+                    const Icon(Icons.person_add,
+                        color: Colors.white70, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Join request from ${req.name}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
                     TextButton(
                       onPressed: () {
-                        widget.bridge.dispatch(action('session.rejectJoin', {'id': req.id}));
+                        widget.bridge.dispatch(
+                            action('session.rejectJoin', {'id': req.id}));
                         ScaffoldMessenger.of(context).hideCurrentSnackBar();
                       },
-                      child: const Text('Reject', style: TextStyle(color: Colors.redAccent)),
+                      child: const Text('Reject',
+                          style: TextStyle(color: Colors.redAccent)),
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
                       onPressed: () {
-                        widget.bridge.dispatch(action('session.approveJoin', {'id': req.id}));
+                        widget.bridge.dispatch(
+                            action('session.approveJoin', {'id': req.id}));
                         ScaffoldMessenger.of(context).hideCurrentSnackBar();
                       },
                       style: FilledButton.styleFrom(
@@ -247,7 +260,8 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
   void _initTabController() {
     if (_tabController != null && _tabController!.length == 3) return;
     _tabController?.dispose();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: _savedTabIndex);
+    _tabController =
+        TabController(length: 3, vsync: this, initialIndex: _savedTabIndex);
     _tabController!.addListener(() {
       if (!_tabController!.indexIsChanging) {
         _savedTabIndex = _tabController!.index;
@@ -257,7 +271,6 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
 
   @override
   void dispose() {
-    _handoutDebounce?.cancel();
     _tabController?.dispose();
     _matchController.dispose();
     _groupController.dispose();
@@ -333,7 +346,11 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
                   _isJoining = true;
                   if (wasHost) {
                     widget.bridge.dispatch(
-                      action('session.host', {'matchName': 'Practice Round', 'groupName': 'Dialektik Team', 'teamSize': 1}),
+                      action('session.host', {
+                        'matchName': 'Practice Round',
+                        'groupName': 'Dialektik Team',
+                        'teamSize': 1
+                      }),
                     );
                   } else {
                     widget.bridge.dispatch(
@@ -342,7 +359,9 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
                   }
                 },
                 icon: const Icon(Icons.replay),
-                label: Text(wasHost ? 'Re-host last room' : 'Rejoin last session ($lastCode)'),
+                label: Text(wasHost
+                    ? 'Re-host last room'
+                    : 'Rejoin last session ($lastCode)'),
               ),
             ),
           )
@@ -389,7 +408,10 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
                   const SizedBox(height: 24),
                   Text(
                     'Waiting for Host Approval',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -422,8 +444,12 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
         : null;
     final notesSpeakerId = _activeSpeakerId(session);
     final notesSpeaker = session.debaters
-        .where((debater) => debater.id == notesSpeakerId)
-        .firstOrNull ?? (notesSpeakerId == 'general' ? const Debater(id: 'general', name: 'General Notes', status: 'approved') : null);
+            .where((debater) => debater.id == notesSpeakerId)
+            .firstOrNull ??
+        (notesSpeakerId == 'general'
+            ? const Debater(
+                id: 'general', name: 'General Notes', status: 'approved')
+            : null);
     final active = session.status == 'active';
 
     final handoutPane = active
@@ -486,17 +512,20 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
               final confirm = await _confirmAction(
                 context,
                 title: 'End Round & Declare Winner',
-                content: 'Are you sure you want to declare ${winner == 'affirmative' ? 'Affirmative' : 'Negative'} as the winner and save the round to history?',
+                content:
+                    'Are you sure you want to declare ${winner == 'affirmative' ? 'Affirmative' : 'Negative'} as the winner and save the round to history?',
               );
               if (confirm) {
-                widget.bridge.dispatch(action('session.saveRound', {'winner': winner}));
+                widget.bridge
+                    .dispatch(action('session.saveRound', {'winner': winner}));
               }
             },
             onExit: () async {
               final confirm = await _confirmAction(
                 context,
                 title: 'Exit Round',
-                content: 'Are you sure you want to exit? Any unsaved round progress will be lost.',
+                content:
+                    'Are you sure you want to exit? Any unsaved round progress will be lost.',
               );
               if (confirm) {
                 _userInitiatedExit = true;
@@ -562,17 +591,40 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
         (session.debaters.isEmpty ? 'general' : session.debaters.first.id);
   }
 
-  Timer? _handoutDebounce;
-
   void _updateHandout() {
-    _handoutDebounce?.cancel();
-    _handoutDebounce = Timer(const Duration(milliseconds: 300), () {
-      widget.bridge.dispatch(action('session.updateHandout', {
-        'title': _handoutTitleController.text,
-        'problem': _handoutProblemController.text,
-        'details': _handoutDetailsController.text,
-      }));
-    });
+    _dispatchHandoutEdit(
+      field: 'title',
+      previous: _lastLocalHandoutTitle,
+      next: _handoutTitleController.text,
+    );
+    _dispatchHandoutEdit(
+      field: 'problem',
+      previous: _lastLocalHandoutProblem,
+      next: _handoutProblemController.text,
+    );
+    _dispatchHandoutEdit(
+      field: 'details',
+      previous: _lastLocalHandoutDetails,
+      next: _handoutDetailsController.text,
+    );
+    _lastLocalHandoutTitle = _handoutTitleController.text;
+    _lastLocalHandoutProblem = _handoutProblemController.text;
+    _lastLocalHandoutDetails = _handoutDetailsController.text;
+  }
+
+  void _dispatchHandoutEdit({
+    required String field,
+    required String previous,
+    required String next,
+  }) {
+    final edit = _TextEditOp.between(previous, next);
+    if (edit == null) return;
+    widget.bridge.dispatch(action('session.spliceHandout', {
+      'field': field,
+      'index': edit.index,
+      'deleteCount': edit.deleteCount,
+      'insertText': edit.insertText,
+    }));
   }
 }
 
@@ -620,38 +672,38 @@ class _StartSessionPane extends StatelessWidget {
                 controller: groupController,
                 decoration: const InputDecoration(labelText: 'School or group'),
               ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: teamSize,
-              decoration: const InputDecoration(labelText: 'Team size'),
-              items: [1, 2, 3, 4]
-                  .map((value) =>
-                      DropdownMenuItem(value: value, child: Text('$value')))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) onTeamSizeChanged(value);
-              },
-            ),
-            const SizedBox(height: 8),
-            CheckboxListTile(
-              title: const Text('Participate as debater'),
-              value: hostIsDebater,
-              onChanged: (val) => onHostIsDebaterChanged(val ?? true),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onHost,
-                icon: const Icon(Icons.add),
-                label: const Text('Host room'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: teamSize,
+                decoration: const InputDecoration(labelText: 'Team size'),
+                items: [1, 2, 3, 4]
+                    .map((value) =>
+                        DropdownMenuItem(value: value, child: Text('$value')))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) onTeamSizeChanged(value);
+                },
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: const Text('Participate as debater'),
+                value: hostIsDebater,
+                onChanged: (val) => onHostIsDebaterChanged(val ?? true),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onHost,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Host room'),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -755,7 +807,9 @@ class _LobbyHandoutPane extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: session.roomCode));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Room code copied to clipboard!'), duration: Duration(seconds: 1)),
+                      const SnackBar(
+                          content: Text('Room code copied to clipboard!'),
+                          duration: Duration(seconds: 1)),
                     );
                   },
                 ),
@@ -798,7 +852,9 @@ class _LobbyHandoutPane extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: session.isHost ? onStart : null,
                 icon: const Icon(Icons.play_arrow),
-                label: Text(session.isHost ? 'Start debate' : 'Waiting for host to start...'),
+                label: Text(session.isHost
+                    ? 'Start debate'
+                    : 'Waiting for host to start...'),
               ),
             ),
             const SizedBox(height: 8),
@@ -863,7 +919,9 @@ class _HandoutReadPane extends StatelessWidget {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: session.roomCode));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Room code copied to clipboard!'), duration: Duration(seconds: 1)),
+                      const SnackBar(
+                          content: Text('Room code copied to clipboard!'),
+                          duration: Duration(seconds: 1)),
                     );
                   },
                 ),
@@ -923,7 +981,8 @@ class _TimersPane extends StatelessWidget {
               subtitle: 'Speech, prep, and custom timers',
               trailing: session.isHost
                   ? IconButton(
-                      onPressed: () => bridge.dispatch(action('timer.resetAll')),
+                      onPressed: () =>
+                          bridge.dispatch(action('timer.resetAll')),
                       icon: const Icon(Icons.restart_alt),
                     )
                   : null,
@@ -1180,7 +1239,8 @@ class _TimerTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 12),
                 decoration: const InputDecoration(
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 ),
                 controller: TextEditingController(
                   text: _formatDuration(durationMs!).replaceFirst('0:', ''),
@@ -1188,7 +1248,8 @@ class _TimerTile extends StatelessWidget {
                 onSubmitted: (val) {
                   final parts = val.split(':');
                   final m = int.tryParse(parts[0]) ?? 4;
-                  final s = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+                  final s =
+                      parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
                   onDurationChanged!(((m * 60) + s) * 1000);
                 },
               ),
@@ -1202,7 +1263,8 @@ class _TimerTile extends StatelessWidget {
         spacing: 4,
         children: [
           IconButton.filledTonal(
-            onPressed: enabled ? () => onAction(running ? 'pause' : 'start') : null,
+            onPressed:
+                enabled ? () => onAction(running ? 'pause' : 'start') : null,
             icon: Icon(running ? Icons.pause : Icons.play_arrow),
           ),
           IconButton(
@@ -1253,10 +1315,10 @@ class _DebatersPane extends StatelessWidget {
               for (final req in session.pendingRequests)
                 _PendingRequestTile(
                   name: req.name,
-                  onApprove: () => bridge.dispatch(
-                      action('session.approveJoin', {'id': req.id})),
-                  onReject: () => bridge.dispatch(
-                      action('session.rejectJoin', {'id': req.id})),
+                  onApprove: () => bridge
+                      .dispatch(action('session.approveJoin', {'id': req.id})),
+                  onReject: () => bridge
+                      .dispatch(action('session.rejectJoin', {'id': req.id})),
                 ),
               const Divider(height: 24),
             ],
@@ -1275,7 +1337,9 @@ class _DebatersPane extends StatelessWidget {
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: debater.disconnected
-                                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
                                 : null,
                             child: debater.disconnected
                                 ? Icon(Icons.do_not_disturb_alt,
@@ -1410,7 +1474,9 @@ class _NotesPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final subtitle = hostSpeaker != null
         ? 'Active: ${hostSpeaker!.name}'
-        : (notesSpeaker != null ? 'Notes: ${notesSpeaker!.name}' : 'Select a speaker');
+        : (notesSpeaker != null
+            ? 'Notes: ${notesSpeaker!.name}'
+            : 'Select a speaker');
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1422,12 +1488,8 @@ class _NotesPane extends StatelessWidget {
               subtitle: subtitle,
               trailing: onTogglePosition != null
                   ? IconButton(
-                      icon: Icon(showPosition
-                          ? Icons.person
-                          : Icons.badge),
-                      tooltip: showPosition
-                          ? 'Show name'
-                          : 'Show position',
+                      icon: Icon(showPosition ? Icons.person : Icons.badge),
+                      tooltip: showPosition ? 'Show name' : 'Show position',
                       onPressed: onTogglePosition,
                     )
                   : null,
@@ -1437,7 +1499,14 @@ class _NotesPane extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final debater in session.debaters.isEmpty ? [const Debater(id: 'general', name: 'General Notes', status: 'approved')] : session.debaters)
+                for (final debater in session.debaters.isEmpty
+                    ? [
+                        const Debater(
+                            id: 'general',
+                            name: 'General Notes',
+                            status: 'approved')
+                      ]
+                    : session.debaters)
                   ChoiceChip(
                     label: Text(
                       showPosition && debater.id != 'general'
@@ -1516,4 +1585,44 @@ String _formatDuration(int ms) {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _TextEditOp {
+  const _TextEditOp({
+    required this.index,
+    required this.deleteCount,
+    required this.insertText,
+  });
+
+  final int index;
+  final int deleteCount;
+  final String insertText;
+
+  static _TextEditOp? between(String previous, String next) {
+    if (previous == next) return null;
+
+    var prefix = 0;
+    final maxPrefix =
+        previous.length < next.length ? previous.length : next.length;
+    while (prefix < maxPrefix &&
+        previous.codeUnitAt(prefix) == next.codeUnitAt(prefix)) {
+      prefix++;
+    }
+
+    var previousSuffix = previous.length;
+    var nextSuffix = next.length;
+    while (previousSuffix > prefix &&
+        nextSuffix > prefix &&
+        previous.codeUnitAt(previousSuffix - 1) ==
+            next.codeUnitAt(nextSuffix - 1)) {
+      previousSuffix--;
+      nextSuffix--;
+    }
+
+    return _TextEditOp(
+      index: prefix,
+      deleteCount: previousSuffix - prefix,
+      insertText: next.substring(prefix, nextSuffix),
+    );
+  }
 }

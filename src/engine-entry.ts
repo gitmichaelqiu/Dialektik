@@ -41,6 +41,11 @@ interface TournamentRecord {
   flows: { speechId: string; notes: string }[]; tag: string; timestamp: number;
 }
 interface AiChat { id: string; title: string; messages: { role: string; text: string; timestamp: number }[] }
+interface TextSplice {
+  index: number;
+  deleteCount: number;
+  insertText: string;
+}
 
 class DialektikDB extends Dexie {
   settings!: Dexie.Table<AppSetting, string>;
@@ -197,6 +202,46 @@ async function buildSnapshot() {
 
 function serializeSession(s: SessionState) {
   return { ...s };
+}
+
+function toTextSplice(payload: any): TextSplice | null {
+  const index = Number(payload?.index);
+  const deleteCount = Number(payload?.deleteCount);
+  const insertText = payload?.insertText;
+  if (!Number.isFinite(index) || !Number.isFinite(deleteCount) || typeof insertText !== "string") {
+    return null;
+  }
+  return {
+    index: Math.max(0, Math.trunc(index)),
+    deleteCount: Math.max(0, Math.trunc(deleteCount)),
+    insertText,
+  };
+}
+
+function applyTextSplice(text: string, edit: TextSplice): string {
+  const start = Math.min(edit.index, text.length);
+  const end = Math.min(start + edit.deleteCount, text.length);
+  return text.slice(0, start) + edit.insertText + text.slice(end);
+}
+
+async function applyDocumentSplice(id: string, edit: TextSplice) {
+  const existing = await db.documents.get(id);
+  if (!existing) return null;
+  const content = applyTextSplice(existing.content ?? "", edit);
+  const lastModified = Date.now();
+  await db.documents.update(id, { content, lastModified });
+  return { ...existing, content, lastModified };
+}
+
+function applyHandoutSplice(field: string, edit: TextSplice) {
+  if (!session) return false;
+  if (field !== "title" && field !== "problem" && field !== "details") return false;
+  const current = session.handout[field] ?? "";
+  session.handout = {
+    ...session.handout,
+    [field]: applyTextSplice(current, edit),
+  };
+  return true;
 }
 
 async function emitSnapshot() {
@@ -425,6 +470,27 @@ async function handlePeerMessage(msg: PeerMessage) {
       break;
     }
 
+    case "shared-doc-op": {
+      const { id } = msg.payload || {};
+      const edit = toTextSplice(msg.payload);
+      if (typeof id !== "string" || !edit) break;
+      const updated = await applyDocumentSplice(id, edit);
+      if (updated?.partnerAccess !== "private") {
+        await emitSnapshot();
+      }
+      break;
+    }
+
+    case "handout-op": {
+      const { field } = msg.payload || {};
+      const edit = toTextSplice(msg.payload);
+      if (typeof field !== "string" || !edit) break;
+      if (applyHandoutSplice(field, edit)) {
+        await emitSnapshot();
+      }
+      break;
+    }
+
     case "session-ended": {
       // The host (or peer) closed the session.
       if (session) {
@@ -587,6 +653,22 @@ async function dispatch(actionJson: string) {
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [{ ...updated, content }], removeIds: [] },
+      });
+    }
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "document.spliceContent") {
+    const { id } = payload;
+    const edit = toTextSplice(payload);
+    if (typeof id !== "string" || !edit) return;
+    const updated = await applyDocumentSplice(id, edit);
+    if (updated && updated.partnerAccess !== "private") {
+      mesh.broadcast({
+        type: "shared-doc-op",
+        senderId: mesh.peerId,
+        payload: { id, ...edit },
       });
     }
     await emitSnapshot();
@@ -839,6 +921,20 @@ async function dispatch(actionJson: string) {
       title: payload.title || "", problem: payload.problem || "", details: payload.details || "",
     };
     if (session.status === "active") broadcastSessionState();
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "session.spliceHandout") {
+    const { field } = payload;
+    const edit = toTextSplice(payload);
+    if (typeof field !== "string" || !edit) return;
+    if (!applyHandoutSplice(field, edit)) return;
+    mesh.broadcast({
+      type: "handout-op",
+      senderId: mesh.peerId,
+      payload: { field, ...edit },
+    });
     await emitSnapshot();
     return;
   }

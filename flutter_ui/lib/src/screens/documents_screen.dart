@@ -29,24 +29,26 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   bool _readMode = false;
   final TextEditingController _nameController = TextEditingController();
 
-  Future<bool> _confirmAction(BuildContext context, {required String title, required String content}) async {
+  Future<bool> _confirmAction(BuildContext context,
+      {required String title, required String content}) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirm'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   @override
@@ -55,7 +57,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     _selectedId = _cachedSelectedId;
     _readMode = _cachedReadMode;
   }
-  final HighlightingTextController _contentController = HighlightingTextController();
+
+  final HighlightingTextController _contentController =
+      HighlightingTextController();
   final TextEditingController _newTitleController = TextEditingController();
   final TextEditingController _cardTitleController = TextEditingController();
   final TextEditingController _cardSourceController = TextEditingController();
@@ -63,11 +67,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   String _newFolder = 'private';
   String _newMode = 'write';
   String _newCardFolder = 'private';
-  Timer? _docDebounce;
+
   /// Tracks the last document content that was synced into controllers.
   /// Prevents _syncControllers from doing work when only timer values changed
   /// in the snapshot (which would otherwise trigger unnecessary rebuilds).
   String? _lastSyncedContent;
+  String? _lastLocalContent;
 
   List<DebateDocument> _filteredDocs = const [];
 
@@ -85,7 +90,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     super.didUpdateWidget(oldWidget);
 
     // Only search for new documents when the list actually grew.
-    if (widget.snapshot.documents.length > oldWidget.snapshot.documents.length) {
+    if (widget.snapshot.documents.length >
+        oldWidget.snapshot.documents.length) {
       final oldIds = oldWidget.snapshot.documents.map((d) => d.id).toSet();
       final currentDocs = widget.snapshot.documents;
       String? newDocId;
@@ -104,6 +110,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _nameController.text = newDoc.title;
         _contentController.text = newDoc.content;
         _lastSyncedContent = newDoc.content;
+        _lastLocalContent = newDoc.content;
       }
     }
 
@@ -112,7 +119,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   void dispose() {
-    _docDebounce?.cancel();
     _nameController.dispose();
     _contentController.dispose();
     _newTitleController.dispose();
@@ -136,21 +142,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     // Determine user's team from session for team-folder filtering.
     final session = widget.snapshot.session;
-    final myTeam = session?.debaters
-        .where((d) => d.id == myUserId)
-        .firstOrNull
-        ?.team;
+    final myTeam =
+        session?.debaters.where((d) => d.id == myUserId).firstOrNull?.team;
 
     _filteredDocs = widget.snapshot.documents.where((doc) {
       if (doc.folder != 'team') return true;
       if (myTeam == null) return true;
       // Find the owner's team in the session
-      final ownerTeam = session?.debaters
-          .where((d) => d.id == doc.ownerId)
-          .firstOrNull
-          ?.team;
+      final ownerTeam =
+          session?.debaters.where((d) => d.id == doc.ownerId).firstOrNull?.team;
       // Team doc is visible if we own it, or if the owner is on our team
-      return doc.ownerId == myUserId || ownerTeam == null || ownerTeam == myTeam;
+      return doc.ownerId == myUserId ||
+          ownerTeam == null ||
+          ownerTeam == myTeam;
     }).toList();
 
     final filesPane = _FilesPane(
@@ -176,6 +180,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           _cachedSelectedId = doc.id;
           _nameController.text = doc.title;
           _contentController.text = doc.content;
+          _lastSyncedContent = doc.content;
+          _lastLocalContent = doc.content;
         });
         if (compact) _scaffoldKey.currentState?.closeDrawer();
       },
@@ -183,7 +189,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         final confirm = await _confirmAction(
           context,
           title: 'Delete Document',
-          content: 'Are you sure you want to delete "${doc.title}"? This cannot be undone.',
+          content:
+              'Are you sure you want to delete "${doc.title}"? This cannot be undone.',
         );
         if (confirm) {
           widget.bridge.dispatch(action('document.delete', {'id': doc.id}));
@@ -215,13 +222,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       },
       onChanged: (content) {
         if (selected == null) return;
-        _docDebounce?.cancel();
-        _docDebounce = Timer(const Duration(milliseconds: 400), () {
-          widget.bridge.dispatch(action('document.updateContent', {
-            'id': selected.id,
-            'content': content,
-          }));
-        });
+        final previous = _lastLocalContent ?? selected.content;
+        final edit = _TextEditOp.between(previous, content);
+        _lastLocalContent = content;
+        if (edit == null) return;
+        widget.bridge.dispatch(action('document.spliceContent', {
+          'id': selected.id,
+          'index': edit.index,
+          'deleteCount': edit.deleteCount,
+          'insertText': edit.insertText,
+        }));
       },
       onMove: (folder) {
         if (selected == null) return;
@@ -243,11 +253,17 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           selection.isValid ? selection.extentOffset : insertAt,
           '[[$citation]]',
         );
+        final previous = _contentController.text;
         _contentController.text = nextText;
+        _lastLocalContent = nextText;
         if (selected != null) {
-          widget.bridge.dispatch(action('document.updateContent', {
+          final edit = _TextEditOp.between(previous, nextText);
+          if (edit == null) return;
+          widget.bridge.dispatch(action('document.spliceContent', {
             'id': selected.id,
-            'content': nextText,
+            'index': edit.index,
+            'deleteCount': edit.deleteCount,
+            'insertText': edit.insertText,
           }));
         }
       },
@@ -294,25 +310,34 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           widget.bridge.dispatch(action('card.delete', {'id': card.id}));
         }
       },
-      onInsert: (_readMode || (selected != null && !selected.isWritable && !isOwner)) ? null : (card) {
-        final selectedDoc = _selectedDocument;
-        if (selectedDoc == null) return;
-        final selection = _contentController.selection;
-        final insertAt = selection.isValid
-            ? selection.baseOffset
-            : _contentController.text.length;
-        final nextText = _contentController.text.replaceRange(
-          insertAt,
-          selection.isValid ? selection.extentOffset : insertAt,
-          '[[${card.id}]]',
-        );
-        _contentController.text = nextText;
-        widget.bridge.dispatch(action('document.updateContent', {
-          'id': selectedDoc.id,
-          'content': nextText,
-        }));
-        if (compact) _scaffoldKey.currentState?.closeEndDrawer();
-      },
+      onInsert:
+          (_readMode || (selected != null && !selected.isWritable && !isOwner))
+              ? null
+              : (card) {
+                  final selectedDoc = _selectedDocument;
+                  if (selectedDoc == null) return;
+                  final selection = _contentController.selection;
+                  final insertAt = selection.isValid
+                      ? selection.baseOffset
+                      : _contentController.text.length;
+                  final nextText = _contentController.text.replaceRange(
+                    insertAt,
+                    selection.isValid ? selection.extentOffset : insertAt,
+                    '[[${card.id}]]',
+                  );
+                  final previous = _contentController.text;
+                  _contentController.text = nextText;
+                  _lastLocalContent = nextText;
+                  final edit = _TextEditOp.between(previous, nextText);
+                  if (edit == null) return;
+                  widget.bridge.dispatch(action('document.spliceContent', {
+                    'id': selectedDoc.id,
+                    'index': edit.index,
+                    'deleteCount': edit.deleteCount,
+                    'insertText': edit.insertText,
+                  }));
+                  if (compact) _scaffoldKey.currentState?.closeEndDrawer();
+                },
     );
 
     if (compact) {
@@ -357,6 +382,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _cachedSelectedId = doc.id;
     }
 
+    if (_nameController.text != doc.title) _nameController.text = doc.title;
+
     // Skip entirely when document content hasn't materially changed since last
     // sync. Timer-only snapshot updates (every ~500ms from the polling loop)
     // would otherwise trigger unnecessary controller work and cursor jumps.
@@ -365,21 +392,20 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       return;
     }
 
-    if (_nameController.text != doc.title) _nameController.text = doc.title;
     // Never overwrite the editor while the user is actively typing.
-    if (_contentController.text != doc.content &&
-        documentHasFocus == false &&
-        _docDebounce?.isActive != true) {
+    if (_contentController.text != doc.content && documentHasFocus == false) {
       final saved = _contentController.selection;
       _contentController.text = doc.content;
       if (saved.isValid && saved.baseOffset <= doc.content.length) {
         _contentController.selection = saved;
       }
       _lastSyncedContent = doc.content;
+      _lastLocalContent = doc.content;
     } else if (_contentController.text == doc.content) {
       // Content already matches (idle state). Mark synced so future
       // timer-only ticks early-return instead of running these checks.
       _lastSyncedContent = doc.content;
+      _lastLocalContent = doc.content;
     }
     // Otherwise: user is actively typing with unsaved text.
     // Don't mark synced — next tick re-checks.
@@ -391,7 +417,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void _maybeUpdateHighlight(DebateDocument doc) {
     final newLine = _getLineFromCaret(doc.content, doc.partnerCaret);
     if (newLine != _contentController.highlightedLine) {
-      _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
+      _contentController.highlightColor =
+          Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
       _contentController.highlightedLine = newLine;
     }
   }
@@ -931,15 +958,14 @@ class _ReadMode extends StatelessWidget {
   /// Parse inline markdown syntax into styled [TextSpan]s.
   List<TextSpan> _parseInlineMarkdown(String text, TextStyle base) {
     final spans = <TextSpan>[];
-    final regex = RegExp(
-      r'`([^`]+)`'                                      // inline code
-      r'|\*\*([^*]+)\*\*'                                // **bold**
-      r'|__([^_]+)__'                                    // __bold__
-      r'|\*([^*]+)\*'                                    // *italic*
-      r'|_([^_]+)_'                                      // _italic_
-      r'|~~([^~]+)~~'                                    // ~~strikethrough~~
-      r'|==([^=]+)=='                                    // ==highlight==
-    );
+    final regex = RegExp(r'`([^`]+)`' // inline code
+        r'|\*\*([^*]+)\*\*' // **bold**
+        r'|__([^_]+)__' // __bold__
+        r'|\*([^*]+)\*' // *italic*
+        r'|_([^_]+)_' // _italic_
+        r'|~~([^~]+)~~' // ~~strikethrough~~
+        r'|==([^=]+)==' // ==highlight==
+        );
 
     var lastEnd = 0;
     for (final match in regex.allMatches(text)) {
@@ -1041,18 +1067,18 @@ class _InlineMarkdown extends StatelessWidget {
   }
 
   /// Parse inline markdown syntax into styled [TextSpan]s.
-  List<InlineSpan> _parseInline(String text, TextStyle base, BuildContext context) {
+  List<InlineSpan> _parseInline(
+      String text, TextStyle base, BuildContext context) {
     final spans = <InlineSpan>[];
-    final regex = RegExp(
-      r'`([^`]+)`'                                      // inline code
-      r'|\*\*([^*]+)\*\*'                                // **bold**
-      r'|__([^_]+)__'                                    // __bold__
-      r'|\*([^*]+)\*'                                    // *italic*
-      r'|_([^_]+)_'                                      // _italic_
-      r'|\[([^\]]+)\]\(([^)]+)\)'                         // [text](url)
-      r'|~~([^~]+)~~'                                    // ~~strikethrough~~
-      r'|==([^=]+)=='                                    // ==highlight==
-    );
+    final regex = RegExp(r'`([^`]+)`' // inline code
+        r'|\*\*([^*]+)\*\*' // **bold**
+        r'|__([^_]+)__' // __bold__
+        r'|\*([^*]+)\*' // *italic*
+        r'|_([^_]+)_' // _italic_
+        r'|\[([^\]]+)\]\(([^)]+)\)' // [text](url)
+        r'|~~([^~]+)~~' // ~~strikethrough~~
+        r'|==([^=]+)==' // ==highlight==
+        );
 
     var lastEnd = 0;
     for (final match in regex.allMatches(text)) {
@@ -1078,7 +1104,8 @@ class _InlineMarkdown extends StatelessWidget {
           text: code,
           style: TextStyle(
             fontFamily: 'monospace',
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor:
+                Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
         ));
       } else if (bold1 != null || bold2 != null) {
@@ -1152,7 +1179,9 @@ class _CitationLink extends StatelessWidget {
         text: title,
         children: [
           TextSpan(
-              text: exists ? '\n${card?.text ?? doc?.content}' : '\nMissing citation'),
+              text: exists
+                  ? '\n${card?.text ?? doc?.content}'
+                  : '\nMissing citation'),
         ],
       ),
       child: InkWell(
@@ -1173,8 +1202,10 @@ class _CitationLink extends StatelessWidget {
               color: exists
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.onError,
-              decoration: exists ? TextDecoration.underline : TextDecoration.none,
-              decorationColor: exists ? Theme.of(context).colorScheme.primary : null,
+              decoration:
+                  exists ? TextDecoration.underline : TextDecoration.none,
+              decorationColor:
+                  exists ? Theme.of(context).colorScheme.primary : null,
             ),
           ),
         ),
@@ -1223,8 +1254,7 @@ class _EvidencePane extends StatelessWidget {
   Widget build(BuildContext context) {
     const folders = ['private', 'team', 'public'];
     final grouped = {
-      for (final f in folders)
-        f: cards.where((c) => c.folder == f).toList(),
+      for (final f in folders) f: cards.where((c) => c.folder == f).toList(),
     };
 
     return Card(
@@ -1335,21 +1365,18 @@ class _CardFolderGroup extends StatelessWidget {
         return ListTile(
           dense: true,
           leading: Icon(
-            card.folder == 'private'
-                ? Icons.lock_outline
-                : Icons.public,
+            card.folder == 'private' ? Icons.lock_outline : Icons.public,
             size: 18,
           ),
           title: Text(card.title),
-          subtitle: Text(card.text,
-              maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle:
+              Text(card.text, maxLines: 2, overflow: TextOverflow.ellipsis),
           trailing: Wrap(
             children: [
               IconButton(
                 icon: const Icon(Icons.add_link),
                 tooltip: 'Insert citation',
-                onPressed:
-                    onInsert == null ? null : () => onInsert!(card),
+                onPressed: onInsert == null ? null : () => onInsert!(card),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline),
@@ -1388,9 +1415,48 @@ List<_TextPart> _splitCitations(String text) {
   return parts;
 }
 
-
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _TextEditOp {
+  const _TextEditOp({
+    required this.index,
+    required this.deleteCount,
+    required this.insertText,
+  });
+
+  final int index;
+  final int deleteCount;
+  final String insertText;
+
+  static _TextEditOp? between(String previous, String next) {
+    if (previous == next) return null;
+
+    var prefix = 0;
+    final maxPrefix =
+        previous.length < next.length ? previous.length : next.length;
+    while (prefix < maxPrefix &&
+        previous.codeUnitAt(prefix) == next.codeUnitAt(prefix)) {
+      prefix++;
+    }
+
+    var previousSuffix = previous.length;
+    var nextSuffix = next.length;
+    while (previousSuffix > prefix &&
+        nextSuffix > prefix &&
+        previous.codeUnitAt(previousSuffix - 1) ==
+            next.codeUnitAt(nextSuffix - 1)) {
+      previousSuffix--;
+      nextSuffix--;
+    }
+
+    return _TextEditOp(
+      index: prefix,
+      deleteCount: previousSuffix - prefix,
+      insertText: next.substring(prefix, nextSuffix),
+    );
+  }
 }
 
 class HighlightingTextController extends TextEditingController {
@@ -1408,10 +1474,16 @@ class HighlightingTextController extends TextEditingController {
   Color? highlightColor;
 
   @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+  TextSpan buildTextSpan(
+      {required BuildContext context,
+      TextStyle? style,
+      required bool withComposing}) {
     final lines = text.split('\n');
-    if (highlightedLine == null || highlightedLine! < 0 || highlightedLine! >= lines.length) {
-      return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    if (highlightedLine == null ||
+        highlightedLine! < 0 ||
+        highlightedLine! >= lines.length) {
+      return super.buildTextSpan(
+          context: context, style: style, withComposing: withComposing);
     }
 
     final List<TextSpan> children = [];
@@ -1421,7 +1493,8 @@ class HighlightingTextController extends TextEditingController {
         children.add(TextSpan(
           text: lineText,
           style: (style ?? const TextStyle()).copyWith(
-            backgroundColor: highlightColor ?? Colors.teal.shade50.withAlpha(76),
+            backgroundColor:
+                highlightColor ?? Colors.teal.shade50.withAlpha(76),
           ),
         ));
       } else {
