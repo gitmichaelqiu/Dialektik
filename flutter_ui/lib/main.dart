@@ -162,6 +162,8 @@ class PreviewEngineBridge implements EngineBridge {
       final requestedName = payload['name'];
       final folder = payload['folder'];
       final mode = payload['mode'];
+      final settings =
+          (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
       final name = requestedName is String && requestedName.trim().isNotEmpty
           ? requestedName.trim()
           : 'Untitled.md';
@@ -175,6 +177,8 @@ class PreviewEngineBridge implements EngineBridge {
           'content': '',
           'partnerAccess': folder is String ? folder : 'private',
           'encryptedHash': mode is String ? mode : 'write',
+          'ownerId': settings['userId'] as String? ?? 'preview-user',
+          'ownerName': settings['userName'] as String? ?? '',
           'lastModified': DateTime.now().millisecondsSinceEpoch,
         },
       ];
@@ -987,6 +991,7 @@ final Map<String, Object?> _initialPreviewState = {
     ],
   },
   'settings': <String, Object?>{
+    'userId': 'preview-user',
     'userName': '',
     'aiEndpoint': '',
     'aiModel': '',

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -28,6 +27,9 @@ class _InRoundScreenState extends State<InRoundScreen>
   final _handoutTitleController = TextEditingController();
   final _handoutProblemController = TextEditingController();
   final _handoutDetailsController = TextEditingController();
+  final _handoutTitleFocusNode = FocusNode();
+  final _handoutProblemFocusNode = FocusNode();
+  final _handoutDetailsFocusNode = FocusNode();
   final _customTimerNameController = TextEditingController();
   final _customTimerDurationController = TextEditingController(text: '01:00');
   final _notesController = TextEditingController();
@@ -115,8 +117,9 @@ class _InRoundScreenState extends State<InRoundScreen>
       _wasPending = true;
     }
     // Don't overwrite actively-edited text fields with stale snapshot data.
-    final isEditing =
-        FocusManager.instance.primaryFocus?.context?.widget is EditableText;
+    final isEditing = _handoutTitleFocusNode.hasFocus ||
+        _handoutProblemFocusNode.hasFocus ||
+        _handoutDetailsFocusNode.hasFocus;
     if (!isEditing) {
       if (_handoutTitleController.text != session.handout.title) {
         _handoutTitleController.text = session.handout.title;
@@ -278,6 +281,9 @@ class _InRoundScreenState extends State<InRoundScreen>
     _handoutTitleController.dispose();
     _handoutProblemController.dispose();
     _handoutDetailsController.dispose();
+    _handoutTitleFocusNode.dispose();
+    _handoutProblemFocusNode.dispose();
+    _handoutDetailsFocusNode.dispose();
     _customTimerNameController.dispose();
     _customTimerDurationController.dispose();
     _notesController.dispose();
@@ -459,6 +465,9 @@ class _InRoundScreenState extends State<InRoundScreen>
             titleController: _handoutTitleController,
             problemController: _handoutProblemController,
             detailsController: _handoutDetailsController,
+            titleFocusNode: _handoutTitleFocusNode,
+            problemFocusNode: _handoutProblemFocusNode,
+            detailsFocusNode: _handoutDetailsFocusNode,
             onChanged: _updateHandout,
             onStart: () =>
                 widget.bridge.dispatch(action('session.startDebate')),
@@ -759,6 +768,9 @@ class _LobbyHandoutPane extends StatelessWidget {
     required this.titleController,
     required this.problemController,
     required this.detailsController,
+    required this.titleFocusNode,
+    required this.problemFocusNode,
+    required this.detailsFocusNode,
     required this.onChanged,
     required this.onStart,
     required this.onCancel,
@@ -768,6 +780,9 @@ class _LobbyHandoutPane extends StatelessWidget {
   final TextEditingController titleController;
   final TextEditingController problemController;
   final TextEditingController detailsController;
+  final FocusNode titleFocusNode;
+  final FocusNode problemFocusNode;
+  final FocusNode detailsFocusNode;
   final VoidCallback onChanged;
   final VoidCallback onStart;
   final VoidCallback onCancel;
@@ -818,6 +833,7 @@ class _LobbyHandoutPane extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: titleController,
+              focusNode: titleFocusNode,
               enabled: session.isHost,
               decoration: const InputDecoration(labelText: 'Title'),
               onChanged: (_) => onChanged(),
@@ -825,6 +841,7 @@ class _LobbyHandoutPane extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: problemController,
+              focusNode: problemFocusNode,
               enabled: session.isHost,
               minLines: 4,
               maxLines: 7,
@@ -837,6 +854,7 @@ class _LobbyHandoutPane extends StatelessWidget {
             const SizedBox(height: 8),
             TextField(
               controller: detailsController,
+              focusNode: detailsFocusNode,
               enabled: session.isHost,
               minLines: 3,
               maxLines: 6,

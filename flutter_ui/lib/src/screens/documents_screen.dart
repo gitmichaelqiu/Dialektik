@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -28,6 +27,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   String? _selectedId;
   bool _readMode = false;
   final TextEditingController _nameController = TextEditingController();
+  final FocusNode _contentFocusNode = FocusNode();
 
   Future<bool> _confirmAction(BuildContext context,
       {required String title, required String content}) async {
@@ -121,6 +121,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void dispose() {
     _nameController.dispose();
     _contentController.dispose();
+    _contentFocusNode.dispose();
     _newTitleController.dispose();
     _cardTitleController.dispose();
     _cardSourceController.dispose();
@@ -135,10 +136,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     final myUserId = widget.snapshot.settings.userId;
     final isOwner = selected == null ||
-        (selected.ownerId != null && selected.ownerId == myUserId) ||
-        (selected.ownerName != null &&
-            selected.ownerName!.isNotEmpty &&
-            selected.ownerName == widget.snapshot.settings.userName);
+        selected.isOwnedBy(
+          userId: myUserId,
+          userName: widget.snapshot.settings.userName,
+        );
 
     // Determine user's team from session for team-folder filtering.
     final session = widget.snapshot.session;
@@ -161,6 +162,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       documents: _filteredDocs,
       selectedId: selected?.id,
       myUserId: myUserId,
+      myUserName: widget.snapshot.settings.userName,
       newTitleController: _newTitleController,
       newFolder: _newFolder,
       newMode: _newMode,
@@ -205,6 +207,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       document: selected,
       nameController: _nameController,
       contentController: _contentController,
+      contentFocusNode: _contentFocusNode,
       readMode: _readMode,
       documents: widget.snapshot.documents,
       cards: widget.snapshot.cards,
@@ -424,7 +427,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   bool get documentHasFocus {
-    return FocusManager.instance.primaryFocus?.context?.widget is EditableText;
+    return _contentFocusNode.hasFocus;
   }
 
   void _createDocument() {
@@ -453,6 +456,7 @@ class _FilesPane extends StatelessWidget {
     required this.onDelete,
     required this.onDuplicate,
     this.myUserId,
+    this.myUserName = '',
   });
 
   final List<DebateDocument> documents;
@@ -467,6 +471,7 @@ class _FilesPane extends StatelessWidget {
   final ValueChanged<DebateDocument> onDelete;
   final ValueChanged<DebateDocument> onDuplicate;
   final String? myUserId;
+  final String myUserName;
 
   @override
   Widget build(BuildContext context) {
@@ -556,6 +561,7 @@ class _FilesPane extends StatelessWidget {
                                 .toList(),
                             selectedId: selectedId,
                             myUserId: myUserId,
+                            myUserName: myUserName,
                             onSelect: onSelect,
                             onDelete: onDelete,
                             onDuplicate: onDuplicate,
@@ -579,6 +585,7 @@ class _FolderGroup extends StatelessWidget {
     required this.onDelete,
     required this.onDuplicate,
     this.myUserId,
+    this.myUserName = '',
   });
 
   final String title;
@@ -588,6 +595,7 @@ class _FolderGroup extends StatelessWidget {
   final ValueChanged<DebateDocument> onDelete;
   final ValueChanged<DebateDocument> onDuplicate;
   final String? myUserId;
+  final String myUserName;
 
   @override
   Widget build(BuildContext context) {
@@ -610,7 +618,7 @@ class _FolderGroup extends StatelessWidget {
                       tooltip: 'Duplicate',
                       onPressed: () => onDuplicate(doc),
                     ),
-                    if (myUserId != null && doc.ownerId == myUserId)
+                    if (doc.isOwnedBy(userId: myUserId, userName: myUserName))
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: 'Delete',
@@ -630,6 +638,7 @@ class _EditorPane extends StatelessWidget {
     required this.document,
     required this.nameController,
     required this.contentController,
+    required this.contentFocusNode,
     required this.readMode,
     required this.documents,
     required this.cards,
@@ -647,6 +656,7 @@ class _EditorPane extends StatelessWidget {
   final DebateDocument? document;
   final TextEditingController nameController;
   final TextEditingController contentController;
+  final FocusNode contentFocusNode;
   final bool readMode;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
@@ -787,6 +797,7 @@ class _EditorPane extends StatelessWidget {
                           child: TextField(
                             key: ValueKey('editor_${doc.id}'),
                             controller: contentController,
+                            focusNode: contentFocusNode,
                             expands: true,
                             maxLines: null,
                             minLines: null,

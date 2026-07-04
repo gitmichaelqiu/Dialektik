@@ -141,6 +141,15 @@ class DebateDocument {
       name.replaceFirst(RegExp(r'\.md$', caseSensitive: false), '');
   bool get isShared => folder != 'private';
   bool get isWritable => mode != 'read';
+  bool isOwnedBy({String? userId, required String userName}) {
+    if (ownerId != null && ownerId!.isNotEmpty) {
+      return ownerId == userId;
+    }
+    if (ownerName != null && ownerName!.isNotEmpty) {
+      return ownerName == userName;
+    }
+    return true;
+  }
 }
 
 class EvidenceCard {
@@ -210,9 +219,8 @@ class HistoryRecord {
       side: _string(json['sides'], fallback: _string(json['side'])),
       result: _string(json['winLoss'], fallback: _string(json['result'])),
       timestamp: _number(json['timestamp'], fallback: 0),
-      flows: AppSnapshot._list(json['flows'])
-          .map(HistoryFlow.fromJson)
-          .toList(),
+      flows:
+          AppSnapshot._list(json['flows']).map(HistoryFlow.fromJson).toList(),
     );
   }
 
