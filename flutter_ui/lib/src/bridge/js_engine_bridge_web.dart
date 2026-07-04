@@ -36,6 +36,7 @@ class JsEngineBridge implements EngineBridge {
     final json = jsonEncode(action);
     if (_ready) {
       _callDispatch(json);
+      await _pullSnapshot();
     } else {
       _pendingActions.add(json);
     }
@@ -51,7 +52,21 @@ class JsEngineBridge implements EngineBridge {
     }
   }
 
-  void _onMessage(String json) {
+  Future<void> _pullSnapshot() async {
+    if (!_ready) return;
+    try {
+      final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
+      if (engine == null) return;
+      final result = await js_util.promiseToFuture(
+        js_util.callMethod(engine, 'getSnapshot', []),
+      );
+      if (result is String && result.isNotEmpty) {
+        _pushSnapshot(result);
+      }
+    } catch (_) {}
+  }
+
+  void _pushSnapshot(String json) {
     try {
       final map = (jsonDecode(json) as Map).cast<String, Object?>();
       final snapshot = AppSnapshot.fromJson(map);
@@ -61,6 +76,10 @@ class JsEngineBridge implements EngineBridge {
     } catch (e) {
       // ignore parse errors
     }
+  }
+
+  void _onMessage(String json) {
+    _pushSnapshot(json);
   }
 
   void _onReady() {

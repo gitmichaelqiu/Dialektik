@@ -32,7 +32,8 @@ interface DebateDocument {
 }
 interface EvidenceCard {
   id: string; title: string; sourceUrl: string; text: string;
-  hash: string; timestamp: number; docId?: string; author: string;
+  hash: string; timestamp: number; docId?: string;
+  author: string; folder?: string;
 }
 interface TournamentRecord {
   id: string; matchName: string; speechOrder: string[];
@@ -160,7 +161,8 @@ async function buildSnapshot() {
       lastModified: d.lastModified,
     })),
     cards: cards.map(c => ({
-      id: c.id, title: c.title, text: c.text, sourceUrl: c.sourceUrl, docId: c.docId,
+      id: c.id, title: c.title, text: c.text, sourceUrl: c.sourceUrl,
+      docId: c.docId, folder: c.folder ?? "private",
     })),
     history: history.map(h => ({
       id: h.id, matchName: h.matchName, opponentName: h.opponentName,
@@ -173,6 +175,7 @@ async function buildSnapshot() {
       loading: aiLoading,
     },
     settings: {
+      userId,
       userName: currentUserName,
       aiEndpoint: currentAiEndpoint,
       aiModel: currentAiModel,
@@ -238,6 +241,13 @@ function startTimerLoop() {
     heartbeatTick += elapsed;
     if (changed || heartbeatTick >= 1000) {
       heartbeatTick = 0;
+      // Re-check system brightness — matchMedia change events can be slow
+      // or missed on desktop (WKWebView).
+      try {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const next = mq.matches ? "dark" : "light";
+        if (next !== systemBrightness) systemBrightness = next;
+      } catch (_) {}
       emitSnapshot();
     }
   }, 250);
@@ -594,8 +604,29 @@ async function dispatch(actionJson: string) {
   if (type === "document.move") {
     const { id, folder } = payload;
     if (!id) return;
+    const prev = await db.documents.get(id);
     await db.documents.update(id, { partnerAccess: folder, lastModified: Date.now() });
-    syncPublicDocsToPeers();
+    // Broadcast scope change to peers.
+    const wasShared = prev?.partnerAccess && prev.partnerAccess !== "private";
+    const isShared = folder !== "private";
+    if (isShared) {
+      // Document became shared — push it.
+      const updated = await db.documents.get(id);
+      if (updated) {
+        mesh.broadcast({
+          type: "shared-docs-sync",
+          senderId: mesh.peerId,
+          payload: { docs: [updated], removeIds: [] },
+        });
+      }
+    } else if (wasShared) {
+      // Document was removed from shared scope — tell peers to delete.
+      mesh.broadcast({
+        type: "shared-docs-sync",
+        senderId: mesh.peerId,
+        payload: { docs: [], removeIds: [id] },
+      });
+    }
     await emitSnapshot();
     return;
   }
@@ -640,12 +671,12 @@ async function dispatch(actionJson: string) {
 
   // ── Evidence Cards ────────────────────────
   if (type === "card.create") {
-    const { title, text, sourceUrl, docId } = payload;
+    const { title, text, sourceUrl, docId, folder } = payload;
     if (!title?.trim() || !text?.trim()) return;
     const card: EvidenceCard = {
       id: `card-${Date.now()}`, title: title.trim(), text: text.trim(),
       sourceUrl: sourceUrl || "", hash: "", timestamp: Date.now(),
-      author: userName, docId,
+      author: userName, docId, folder: folder || "private",
     };
     await db.cards.put(card);
     await emitSnapshot();

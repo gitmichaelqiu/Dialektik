@@ -31,8 +31,37 @@ class JsEngineBridge implements EngineBridge {
       await _webView!.evaluateJavascript(
         source: 'window.dialektikEngine && window.dialektikEngine.dispatch(${jsonEncode(json)});',
       );
+      // After dispatch, explicitly pull the snapshot so Flutter always gets
+      // the latest state — the push path (FlutterChannel.postMessage) can be
+      // lossy, especially for event-driven updates like onPeerConnecting.
+      await _pullSnapshot();
     } else {
       _pendingActions.add(json);
+    }
+  }
+
+  /// Calls getSnapshot() on the engine and pushes the result into the stream.
+  Future<void> _pullSnapshot() async {
+    if (!_ready || _webView == null) return;
+    try {
+      final result = await _webView!.evaluateJavascript(
+        source: 'window.dialektikEngine && await window.dialektikEngine.getSnapshot()',
+      );
+      if (result is String && result.isNotEmpty) {
+        _pushSnapshot(result);
+      }
+    } catch (_) {}
+  }
+
+  void _pushSnapshot(String json) {
+    try {
+      final map = (jsonDecode(json) as Map).cast<String, Object?>();
+      final snapshot = AppSnapshot.fromJson(map);
+      if (!_controller.isClosed) {
+        _controller.add(snapshot);
+      }
+    } catch (e) {
+      debugPrint('[JsEngineBridge] push error: $e');
     }
   }
 
@@ -54,15 +83,7 @@ class JsEngineBridge implements EngineBridge {
 
   /// Called by [JsEngineWebView] when the FlutterChannel receives a message.
   void _onMessage(String json) {
-    try {
-      final map = (jsonDecode(json) as Map).cast<String, Object?>();
-      final snapshot = AppSnapshot.fromJson(map);
-      if (!_controller.isClosed) {
-        _controller.add(snapshot);
-      }
-    } catch (e) {
-      debugPrint('[JsEngineBridge] parse error: $e');
-    }
+    _pushSnapshot(json);
   }
 
   void dispose() {

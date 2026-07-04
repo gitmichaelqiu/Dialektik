@@ -60,6 +60,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   final TextEditingController _cardTextController = TextEditingController();
   String _newFolder = 'private';
   String _newMode = 'write';
+  String _newCardFolder = 'private';
 
   DebateDocument? get _selectedDocument {
     if (widget.snapshot.documents.isEmpty) return null;
@@ -113,10 +114,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final selected = _selectedDocument;
     final compact = MediaQuery.sizeOf(context).width < 840;
 
+    final myUserId = widget.snapshot.settings.userId;
     final isOwner = selected == null ||
-        selected.ownerName == null ||
-        selected.ownerName!.isEmpty ||
-        selected.ownerName == widget.snapshot.settings.userName;
+        (selected.ownerId != null && selected.ownerId == myUserId) ||
+        (selected.ownerName != null &&
+            selected.ownerName!.isNotEmpty &&
+            selected.ownerName == widget.snapshot.settings.userName);
 
     final filesPane = _FilesPane(
       documents: widget.snapshot.documents,
@@ -226,6 +229,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       titleController: _cardTitleController,
       sourceController: _cardSourceController,
       textController: _cardTextController,
+      cardFolder: _newCardFolder,
+      onCardFolderChanged: (v) {
+        if (v != null) setState(() => _newCardFolder = v);
+      },
       onCreate: () {
         if (_cardTitleController.text.trim().isEmpty ||
             _cardTextController.text.trim().isEmpty) {
@@ -236,6 +243,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           'sourceUrl': _cardSourceController.text.trim(),
           'text': _cardTextController.text.trim(),
           'docId': selected?.id,
+          'folder': _newCardFolder,
         }));
         _cardTitleController.clear();
         _cardSourceController.clear();
@@ -682,7 +690,7 @@ class _EditorPane extends StatelessWidget {
                             expands: true,
                             maxLines: null,
                             minLines: null,
-                            readOnly: !doc.isWritable,
+                            readOnly: !doc.isWritable && !isOwner,
                             textAlignVertical: TextAlignVertical.top,
                             decoration: const InputDecoration(
                               labelText: 'Markdown',
@@ -993,6 +1001,8 @@ class _EvidencePane extends StatelessWidget {
     required this.onCreate,
     required this.onDelete,
     required this.onInsert,
+    this.cardFolder = 'private',
+    this.onCardFolderChanged,
   });
 
   final List<EvidenceCard> cards;
@@ -1002,9 +1012,17 @@ class _EvidencePane extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<EvidenceCard> onDelete;
   final ValueChanged<EvidenceCard>? onInsert;
+  final String cardFolder;
+  final ValueChanged<String?>? onCardFolderChanged;
 
   @override
   Widget build(BuildContext context) {
+    const folders = ['private', 'team', 'public'];
+    final grouped = {
+      for (final f in folders)
+        f: cards.where((c) => c.folder == f).toList(),
+    };
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1026,14 +1044,30 @@ class _EvidencePane extends StatelessWidget {
               decoration: const InputDecoration(labelText: 'Source URL'),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: textController,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Evidence text',
-                alignLabelWithHint: true,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: textController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Evidence text',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<String?>(
+                  value: cardFolder,
+                  items: const [
+                    DropdownMenuItem(value: 'private', child: Text('Private')),
+                    DropdownMenuItem(value: 'team', child: Text('Team')),
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                  ],
+                  onChanged: onCardFolderChanged,
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -1051,38 +1085,77 @@ class _EvidencePane extends StatelessWidget {
                       icon: Icons.fact_check_outlined,
                       message: 'No evidence cards yet.',
                     )
-                  : ListView.separated(
-                      itemCount: cards.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final card = cards[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(card.title),
-                          subtitle: Text(card.text,
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                          trailing: Wrap(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.add_link),
-                                tooltip: 'Insert citation',
-                                onPressed: onInsert == null ? null : () => onInsert!(card),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Delete card',
-                                onPressed: () => onDelete(card),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                  : ListView(
+                      children: [
+                        for (final folder in folders)
+                          if (grouped[folder]!.isNotEmpty)
+                            _CardFolderGroup(
+                              title: folder == 'private'
+                                  ? 'Private'
+                                  : folder == 'team'
+                                      ? 'Team'
+                                      : 'Public',
+                              cards: grouped[folder]!,
+                              onInsert: onInsert,
+                              onDelete: onDelete,
+                            ),
+                      ],
                     ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CardFolderGroup extends StatelessWidget {
+  const _CardFolderGroup({
+    required this.title,
+    required this.cards,
+    required this.onInsert,
+    required this.onDelete,
+  });
+
+  final String title;
+  final List<EvidenceCard> cards;
+  final ValueChanged<EvidenceCard>? onInsert;
+  final ValueChanged<EvidenceCard> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      initiallyExpanded: true,
+      title: Text('$title (${cards.length})'),
+      children: cards.map((card) {
+        return ListTile(
+          dense: true,
+          leading: Icon(
+            card.folder == 'private'
+                ? Icons.lock_outline
+                : Icons.public,
+            size: 18,
+          ),
+          title: Text(card.title),
+          subtitle: Text(card.text,
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+          trailing: Wrap(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.add_link),
+                tooltip: 'Insert citation',
+                onPressed:
+                    onInsert == null ? null : () => onInsert!(card),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete card',
+                onPressed: () => onDelete(card),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

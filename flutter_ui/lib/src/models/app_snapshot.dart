@@ -147,6 +147,7 @@ class EvidenceCard {
     required this.text,
     required this.sourceUrl,
     this.docId,
+    this.folder = 'private',
   });
 
   factory EvidenceCard.fromJson(Map<String, Object?> json) {
@@ -156,6 +157,7 @@ class EvidenceCard {
       text: _string(json['text']),
       sourceUrl: _string(json['sourceUrl']),
       docId: json['docId'] as String?,
+      folder: _string(json['folder'], fallback: 'private'),
     );
   }
 
@@ -164,6 +166,9 @@ class EvidenceCard {
   final String text;
   final String sourceUrl;
   final String? docId;
+  final String folder;
+
+  bool get isShared => folder != 'private';
 }
 
 class HistoryFlow {
@@ -451,6 +456,7 @@ class SettingsState {
     required this.githubOwner,
     required this.githubRepo,
     required this.hasGithubToken,
+    this.userId,
   });
 
   const SettingsState.empty()
@@ -460,12 +466,14 @@ class SettingsState {
         hasAiKey = false,
         githubOwner = '',
         githubRepo = '',
-        hasGithubToken = false;
+        hasGithubToken = false,
+        userId = null;
 
   factory SettingsState.fromJson(Map<String, Object?>? json) {
     if (json == null) return const SettingsState.empty();
     return SettingsState(
       userName: _string(json['userName']),
+      userId: json['userId'] as String?,
       aiEndpoint: _string(json['aiEndpoint']),
       aiModel: _string(json['aiModel']),
       hasAiKey: json['hasAiKey'] == true,
@@ -476,6 +484,7 @@ class SettingsState {
   }
 
   final String userName;
+  final String? userId;
   final String aiEndpoint;
   final String aiModel;
   final bool hasAiKey;

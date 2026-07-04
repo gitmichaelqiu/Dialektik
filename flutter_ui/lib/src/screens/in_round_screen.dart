@@ -191,30 +191,31 @@ class _InRoundScreenState extends State<InRoundScreen> {
       }
     }
 
-    // Notify when the host assigns a new active speaker (via sync).
+    // Notify only the selected client when the host assigns a new active speaker.
     if (session.currentSpeakerId != null &&
         session.currentSpeakerId != _previousSpeakerId) {
+      final prevId = _previousSpeakerId;
       _previousSpeakerId = session.currentSpeakerId;
-      final speaker = session.debaters
-          .where((d) => d.id == session.currentSpeakerId)
-          .firstOrNull;
-      if (speaker != null && !session.isHost) {
+      final myUserId = widget.snapshot.settings.userId;
+      if (!session.isHost &&
+          session.currentSpeakerId == myUserId &&
+          prevId != session.currentSpeakerId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               behavior: SnackBarBehavior.fixed,
               backgroundColor: Colors.teal.shade700,
-              content: Row(
+              content: const Row(
                 children: [
-                  const Icon(Icons.mic, color: Colors.white70, size: 20),
-                  const SizedBox(width: 12),
+                  Icon(Icons.mic, color: Colors.white70, size: 20),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text('You are the active speaker!',
-                        style: const TextStyle(color: Colors.white)),
+                        style: TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
-              duration: const Duration(seconds: 3),
+              duration: Duration(seconds: 3),
             ),
           );
         });
@@ -1007,6 +1008,11 @@ class _SpeakerTeamRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    // Use filled chip style for selected with proper contrast in both themes.
+    final selectedColor = isDark ? color.shade200 : color.shade100;
+    final selectedTextColor = isDark ? Colors.black : color.shade900;
     return Row(
       children: [
         SizedBox(
@@ -1015,7 +1021,7 @@ class _SpeakerTeamRow extends StatelessWidget {
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
-                  color: color.shade700)),
+                  color: isDark ? color.shade200 : color.shade700)),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -1033,18 +1039,15 @@ class _SpeakerTeamRow extends StatelessWidget {
                             : d.name,
                         style: TextStyle(
                             fontSize: 12,
-                            color: isHost
-                                ? null
-                                : (d.id == currentSpeakerId
-                                    ? null
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant)),
+                            color: d.id == currentSpeakerId
+                                ? selectedTextColor
+                                : null),
                       ),
                       selected: d.id == currentSpeakerId,
-                      selectedColor: color.shade100,
+                      selectedColor: selectedColor,
                       onSelected: isHost ? (_) => onSelect(d) : null,
                       visualDensity: VisualDensity.compact,
+                      disabledColor: null,
                     ),
                   ),
                 ],
