@@ -99,8 +99,16 @@ class _AppRoot extends StatelessWidget {
 
     final shell = StreamBuilder<AppSnapshot>(
       stream: bridge.snapshots,
-      initialData: initialSnapshot ?? AppSnapshot.initial(),
+      initialData: initialSnapshot,
       builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Theme(
+            data: _appTheme(Brightness.light),
+            child: const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
         final snap = snapshot.data ?? AppSnapshot.initial();
         // Apply theme from the engine-detected systemBrightness. The engine
         // uses window.matchMedia which works in both browser (web) and

@@ -29,6 +29,7 @@ interface DebateDocument {
   id: string; name: string; type: string; content: string;
   lastModified: number; encryptedHash?: string;
   partnerAccess?: string; ownerId?: string; ownerName?: string;
+  contentRevision?: number;
 }
 interface EvidenceCard {
   id: string; title: string; sourceUrl: string; text: string;
@@ -95,8 +96,8 @@ let lastRoomCode = "";
 let lastRoomIsHost = false;
 const rejectedPeers = new Set<string>();
 const peerUserId = new Map<string, string>();
-let aiEndpoint = "https://api.openai.com/v1";
-let aiModel = "gpt-4o";
+let aiEndpoint = "";
+let aiModel = "";
 let aiApiKey = "";
 let hasAiKey = false;
 let aiChats: AiChat[] = [];
@@ -128,6 +129,11 @@ let __latestSnapshot: string | null = null;
 
 function setSnapshot(json: string) {
   __latestSnapshot = json;
+  try {
+    (window as any).FlutterChannel?.postMessage(json);
+  } catch (_) {
+    // Polling via getLatestSnapshot remains the reliable fallback.
+  }
 }
 
 function postSnapshot() {
@@ -172,6 +178,7 @@ async function buildSnapshot() {
       encryptedHash: d.encryptedHash ?? "write",
       ownerId: d.ownerId, ownerName: d.ownerName,
       lastModified: d.lastModified,
+      contentRevision: docRevision(d),
     })),
     cards: cards.map(c => ({
       id: c.id, title: c.title, text: c.text, sourceUrl: c.sourceUrl,
@@ -224,13 +231,18 @@ function applyTextSplice(text: string, edit: TextSplice): string {
   return text.slice(0, start) + edit.insertText + text.slice(end);
 }
 
-async function applyDocumentSplice(id: string, edit: TextSplice) {
+function docRevision(doc: DebateDocument | undefined | null): number {
+  return Math.max(0, Math.trunc(Number(doc?.contentRevision ?? 0)));
+}
+
+async function applyDocumentSplice(id: string, edit: TextSplice, revision?: number) {
   const existing = await db.documents.get(id);
   if (!existing) return null;
+  const nextRevision = revision ?? docRevision(existing) + 1;
   const content = applyTextSplice(existing.content ?? "", edit);
   const lastModified = Date.now();
-  await db.documents.update(id, { content, lastModified });
-  return { ...existing, content, lastModified };
+  await db.documents.update(id, { content, lastModified, contentRevision: nextRevision });
+  return { ...existing, content, lastModified, contentRevision: nextRevision };
 }
 
 function applyHandoutSplice(field: string, edit: TextSplice) {
@@ -455,10 +467,16 @@ async function handlePeerMessage(msg: PeerMessage) {
         const existing = await db.documents.get(doc.id);
         if (existing?.ownerId === userId) continue;
         if (!existing) {
-          await db.documents.put(doc);
+          await db.documents.put({ ...doc, contentRevision: docRevision(doc) });
         } else if (doc.lastModified > existing.lastModified) {
+          const incomingRevision = docRevision(doc);
+          const existingRevision = docRevision(existing);
+          const shouldUpdateContent = incomingRevision >= existingRevision;
           await db.documents.update(doc.id, {
-            name: doc.name, content: doc.content,
+            name: doc.name,
+            ...(shouldUpdateContent
+              ? { content: doc.content, contentRevision: incomingRevision }
+              : {}),
             lastModified: doc.lastModified,
             partnerAccess: doc.partnerAccess,
             encryptedHash: doc.encryptedHash,
@@ -471,10 +489,17 @@ async function handlePeerMessage(msg: PeerMessage) {
     }
 
     case "shared-doc-op": {
-      const { id } = msg.payload || {};
+      const { id, baseRevision, revision } = msg.payload || {};
       const edit = toTextSplice(msg.payload);
       if (typeof id !== "string" || !edit) break;
-      const updated = await applyDocumentSplice(id, edit);
+      const existing = await db.documents.get(id);
+      if (!existing || existing.ownerId === userId) break;
+      const existingRevision = docRevision(existing);
+      const incomingRevision = Math.trunc(Number(revision));
+      const incomingBaseRevision = Math.trunc(Number(baseRevision));
+      if (!Number.isFinite(incomingRevision) || incomingRevision <= existingRevision) break;
+      if (Number.isFinite(incomingBaseRevision) && existingRevision !== incomingBaseRevision) break;
+      const updated = await applyDocumentSplice(id, edit, incomingRevision);
       if (updated?.partnerAccess !== "private") {
         await emitSnapshot();
       }
@@ -635,6 +660,7 @@ async function dispatch(actionJson: string) {
       partnerAccess: payload.folder || "private",
       encryptedHash: payload.mode || "write",
       ownerId: userId, ownerName: userName,
+      contentRevision: 0,
     };
     await db.documents.put(doc);
     if (doc.partnerAccess !== "private") syncPublicDocsToPeers();
@@ -645,7 +671,9 @@ async function dispatch(actionJson: string) {
   if (type === "document.updateContent") {
     const { id, content } = payload;
     if (!id || content === undefined) return;
-    await db.documents.update(id, { content, lastModified: Date.now() });
+    const existing = await db.documents.get(id);
+    const nextRevision = docRevision(existing) + 1;
+    await db.documents.update(id, { content, lastModified: Date.now(), contentRevision: nextRevision });
     const updated = await db.documents.get(id);
     if (updated && updated.partnerAccess !== "private") {
       // Broadcast the change to peers so they see live updates.
@@ -663,12 +691,14 @@ async function dispatch(actionJson: string) {
     const { id } = payload;
     const edit = toTextSplice(payload);
     if (typeof id !== "string" || !edit) return;
-    const updated = await applyDocumentSplice(id, edit);
+    const existing = await db.documents.get(id);
+    const baseRevision = docRevision(existing);
+    const updated = await applyDocumentSplice(id, edit, baseRevision + 1);
     if (updated && updated.partnerAccess !== "private") {
       mesh.broadcast({
         type: "shared-doc-op",
         senderId: mesh.peerId,
-        payload: { id, ...edit },
+        payload: { id, baseRevision, revision: updated.contentRevision, ...edit },
       });
     }
     await emitSnapshot();
@@ -681,6 +711,14 @@ async function dispatch(actionJson: string) {
     const safeName = name.endsWith(".md") ? name : `${name}.md`;
     const finalName = await uniqueDocName(safeName, id);
     await db.documents.update(id, { name: finalName, lastModified: Date.now() });
+    const updated = await db.documents.get(id);
+    if (updated && updated.partnerAccess !== "private") {
+      mesh.broadcast({
+        type: "shared-docs-sync",
+        senderId: mesh.peerId,
+        payload: { docs: [updated], removeIds: [] },
+      });
+    }
     await emitSnapshot();
     return;
   }

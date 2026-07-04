@@ -551,7 +551,6 @@ class _InRoundScreenState extends State<InRoundScreen>
     _initTabController();
     return compact
         ? Scaffold(
-            key: ValueKey('compact_${_savedTabIndex}'),
             appBar: AppBar(
               toolbarHeight: 0,
               bottom: TabBar(

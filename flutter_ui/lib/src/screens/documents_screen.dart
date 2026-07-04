@@ -838,6 +838,7 @@ class _ReadMode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Align(
           alignment: Alignment.centerRight,
@@ -859,9 +860,12 @@ class _ReadMode extends StatelessWidget {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 12),
-            child: SelectableText.rich(
-              _buildDocumentSpan(context),
-              textAlign: TextAlign.start,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SelectableText.rich(
+                _buildDocumentSpan(context),
+                textAlign: TextAlign.start,
+              ),
             ),
           ),
         ),

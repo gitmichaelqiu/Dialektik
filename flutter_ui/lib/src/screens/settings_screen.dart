@@ -132,7 +132,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Reset Workspace'),
-                    content: const Text('Are you sure you want to reset the local workspace? All local documents, custom settings, and history logs will be permanently deleted.'),
+                    content: const Text(
+                        'Are you sure you want to reset the local workspace? All local documents, custom settings, and history logs will be permanently deleted.'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
