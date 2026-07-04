@@ -42,6 +42,7 @@ class AppSnapshot {
     required this.settings,
     this.systemBrightness = _unknownSystemBrightness,
     this.lastRoomCode,
+    this.lastRoomIsHost = false,
   });
 
   factory AppSnapshot.initial() {
@@ -61,6 +62,7 @@ class AppSnapshot {
       activePage: AppPage.fromJson(json['activePage']),
       systemBrightness: _brightnessFromJson(json['systemBrightness']),
       lastRoomCode: _string(json['lastRoomCode'], fallback: ''),
+      lastRoomIsHost: json['lastRoomIsHost'] == true,
       documents: _list(json['documents']).map(DebateDocument.fromJson).toList(),
       cards: _list(json['cards']).map(EvidenceCard.fromJson).toList(),
       history: _list(json['history']).map(HistoryRecord.fromJson).toList(),
@@ -76,6 +78,7 @@ class AppSnapshot {
   final AppPage activePage;
   final Brightness systemBrightness;
   final String? lastRoomCode;
+  final bool lastRoomIsHost;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
   final List<HistoryRecord> history;

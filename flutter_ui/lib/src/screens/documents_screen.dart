@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
@@ -124,6 +125,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final filesPane = _FilesPane(
       documents: widget.snapshot.documents,
       selectedId: selected?.id,
+      myUserId: myUserId,
       newTitleController: _newTitleController,
       newFolder: _newFolder,
       newMode: _newMode,
@@ -354,6 +356,7 @@ class _FilesPane extends StatelessWidget {
     required this.onSelect,
     required this.onDelete,
     required this.onDuplicate,
+    this.myUserId,
   });
 
   final List<DebateDocument> documents;
@@ -367,6 +370,7 @@ class _FilesPane extends StatelessWidget {
   final ValueChanged<DebateDocument> onSelect;
   final ValueChanged<DebateDocument> onDelete;
   final ValueChanged<DebateDocument> onDuplicate;
+  final String? myUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -455,6 +459,7 @@ class _FilesPane extends StatelessWidget {
                                 .where((doc) => doc.folder == folder)
                                 .toList(),
                             selectedId: selectedId,
+                            myUserId: myUserId,
                             onSelect: onSelect,
                             onDelete: onDelete,
                             onDuplicate: onDuplicate,
@@ -477,6 +482,7 @@ class _FolderGroup extends StatelessWidget {
     required this.onSelect,
     required this.onDelete,
     required this.onDuplicate,
+    this.myUserId,
   });
 
   final String title;
@@ -485,6 +491,7 @@ class _FolderGroup extends StatelessWidget {
   final ValueChanged<DebateDocument> onSelect;
   final ValueChanged<DebateDocument> onDelete;
   final ValueChanged<DebateDocument> onDuplicate;
+  final String? myUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -502,16 +509,12 @@ class _FolderGroup extends StatelessWidget {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.copy),
-                      tooltip: 'Duplicate',
-                      onPressed: () => onDuplicate(doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Delete',
-                      onPressed: () => onDelete(doc),
-                    ),
+                    if (myUserId != null && doc.ownerId == myUserId)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        onPressed: () => onDelete(doc),
+                      ),
                   ],
                 ),
                 onTap: () => onSelect(doc),
@@ -734,6 +737,35 @@ class _ReadMode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            tooltip: 'Copy raw text',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: content));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Raw text copied to clipboard'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 12),
+            children: _buildLines(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildLines(BuildContext context) {
     final lines = content.split('\n');
     final children = <Widget>[];
     var inCodeBlock = false;
@@ -752,10 +784,7 @@ class _ReadMode extends StatelessWidget {
         ),
       );
     }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 12),
-      children: children,
-    );
+    return children;
   }
 }
 
@@ -905,8 +934,8 @@ class _InlineMarkdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium;
     final citationParts = _splitCitations(text);
-    return RichText(
-      text: TextSpan(
+    return SelectableText.rich(
+      TextSpan(
         style: baseStyle?.copyWith(
           color: Theme.of(context).colorScheme.onSurface,
           height: 1.45,

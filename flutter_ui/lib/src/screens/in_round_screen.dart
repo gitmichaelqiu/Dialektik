@@ -56,6 +56,7 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
   final Set<String> _shownRequestIds = {};
   final Set<String> _shownDisconnectedIds = {};
   bool _wasPending = false;
+  bool _isJoining = false;
   bool _userInitiatedExit = false;
   bool _showSpeakerPosition = false;
   String? _previousSpeakerId;
@@ -68,7 +69,7 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     super.didUpdateWidget(oldWidget);
     final session = widget.snapshot.session;
     if (session == null) {
-      if (_wasPending && !_userInitiatedExit) {
+      if (_wasPending && !_userInitiatedExit && !_isJoining) {
         // Transitioned from pending_approval → null without user clicking
         // exit: host rejected us.
         _wasPending = false;
@@ -100,6 +101,9 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     }
     if (session.status == 'pending_approval') {
       _wasPending = true;
+      _isJoining = false;
+    } else {
+      _isJoining = false;
     }
     if (_handoutTitleController.text != session.handout.title) {
       _handoutTitleController.text = session.handout.title;
@@ -300,23 +304,36 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
 
     final joinSessionPane = _JoinSessionPane(
       codeController: _joinCodeController,
-      onJoin: () => widget.bridge.dispatch(action('session.join', {
-        'roomCode': _joinCodeController.text.trim().toUpperCase(),
-      })),
+      onJoin: () {
+        _isJoining = true;
+        widget.bridge.dispatch(action('session.join', {
+          'roomCode': _joinCodeController.text.trim().toUpperCase(),
+        }));
+      },
     );
 
     final lastCode = widget.snapshot.lastRoomCode;
+    final wasHost = widget.snapshot.lastRoomIsHost;
     final rejoinButton = lastCode != null && lastCode.isNotEmpty
         ? Padding(
             padding: const EdgeInsets.only(top: 12),
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => widget.bridge.dispatch(
-                  action('session.join', {'roomCode': lastCode}),
-                ),
+                onPressed: () {
+                  _isJoining = true;
+                  if (wasHost) {
+                    widget.bridge.dispatch(
+                      action('session.host', {'matchName': 'Practice Round', 'groupName': 'Dialektik Team', 'teamSize': 1}),
+                    );
+                  } else {
+                    widget.bridge.dispatch(
+                      action('session.join', {'roomCode': lastCode}),
+                    );
+                  }
+                },
                 icon: const Icon(Icons.replay),
-                label: Text('Rejoin last session ($lastCode)'),
+                label: Text(wasHost ? 'Re-host last room' : 'Rejoin last session ($lastCode)'),
               ),
             ),
           )

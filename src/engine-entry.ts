@@ -87,6 +87,7 @@ let userId = "";
 let userName = "";
 let activePage = "inround";
 let lastRoomCode = "";
+let lastRoomIsHost = false;
 const rejectedPeers = new Set<string>();
 const peerUserId = new Map<string, string>();
 let aiEndpoint = "https://api.openai.com/v1";
@@ -159,6 +160,7 @@ async function buildSnapshot() {
     activePage,
     systemBrightness,
     lastRoomCode: session ? "" : lastRoomCode,
+    lastRoomIsHost: session ? false : lastRoomIsHost,
     documents: docs.map(d => ({
       id: d.id, name: d.name, content: d.content,
       partnerAccess: d.partnerAccess ?? "private",
@@ -702,6 +704,7 @@ async function dispatch(actionJson: string) {
     const code = generateRoomCode();
     const participate = payload.participate !== false;
     lastRoomCode = code;
+    lastRoomIsHost = true;
     session = {
       roomCode: code,
       matchName: payload.matchName?.trim() || "Practice Round",
@@ -737,6 +740,7 @@ async function dispatch(actionJson: string) {
     // PeerJS connection metadata (before the data channel opens).
     mesh.connectMeta = { userId, userName };
     lastRoomCode = code;
+    lastRoomIsHost = false;
     session = {
       roomCode: code, matchName: "", groupName: "",
       status: "pending_approval",
@@ -753,6 +757,9 @@ async function dispatch(actionJson: string) {
       // the engine sends the join-request packet automatically via handlePeerMessage.
     } catch (e) {
       console.error("[engine] joinRoom failed:", e);
+      // Host unreachable — clear the session so the client can retry.
+      session = null;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     }
     await emitSnapshot();
     return;
@@ -770,6 +777,19 @@ async function dispatch(actionJson: string) {
     yjsProviders.forEach(p => p.destroy());
     yjsProviders.clear();
     yjsDocs.clear();
+    // Clean up shared files not owned by us — they belong to the session.
+    const allDocs = await db.documents.toArray();
+    for (const d of allDocs) {
+      if (d.ownerId !== userId && d.partnerAccess !== "private") {
+        await db.documents.delete(d.id);
+      }
+    }
+    const allCards = await db.cards.toArray();
+    for (const c of allCards) {
+      if (c.author !== userName && c.folder && c.folder !== "private") {
+        await db.cards.delete(c.id);
+      }
+    }
     await emitSnapshot();
     return;
   }
