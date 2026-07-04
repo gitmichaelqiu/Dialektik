@@ -34,4 +34,6 @@ core-app-shell.md
 # Tauri generated platform project files
 src-tauri/gen/
 src-tauri/patches/
+# Rust/Cargo build artifacts
+src-tauri/target/
 
