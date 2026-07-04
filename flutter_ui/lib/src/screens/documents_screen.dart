@@ -64,6 +64,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   String _newMode = 'write';
   String _newCardFolder = 'private';
   Timer? _docDebounce;
+  /// Tracks the last document content that was synced into controllers.
+  /// Prevents _syncControllers from doing work when only timer values changed
+  /// in the snapshot (which would otherwise trigger unnecessary rebuilds).
+  String? _lastSyncedContent;
 
   List<DebateDocument> _filteredDocs = const [];
 
@@ -80,24 +84,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void didUpdateWidget(covariant DocumentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Switch selection to new document and go to Edit mode upon creation
-    final oldIds = oldWidget.snapshot.documents.map((d) => d.id).toSet();
-    final currentDocs = widget.snapshot.documents;
-    String? newDocId;
-    for (final doc in currentDocs) {
-      if (!oldIds.contains(doc.id)) {
-        newDocId = doc.id;
-        break;
+    // Only search for new documents when the list actually grew.
+    if (widget.snapshot.documents.length > oldWidget.snapshot.documents.length) {
+      final oldIds = oldWidget.snapshot.documents.map((d) => d.id).toSet();
+      final currentDocs = widget.snapshot.documents;
+      String? newDocId;
+      for (final doc in currentDocs) {
+        if (!oldIds.contains(doc.id)) {
+          newDocId = doc.id;
+          break;
+        }
       }
-    }
-    if (newDocId != null) {
-      _selectedId = newDocId;
-      _cachedSelectedId = newDocId;
-      _readMode = false;
-      _cachedReadMode = false;
-      final newDoc = currentDocs.firstWhere((d) => d.id == newDocId);
-      _nameController.text = newDoc.title;
-      _contentController.text = newDoc.content;
+      if (newDocId != null) {
+        _selectedId = newDocId;
+        _cachedSelectedId = newDocId;
+        _readMode = false;
+        _cachedReadMode = false;
+        final newDoc = currentDocs.firstWhere((d) => d.id == newDocId);
+        _nameController.text = newDoc.title;
+        _contentController.text = newDoc.content;
+        _lastSyncedContent = newDoc.content;
+      }
     }
 
     _syncControllers();
@@ -351,6 +358,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _selectedId = doc.id;
       _cachedSelectedId = doc.id;
     }
+
+    // Skip entirely when document content hasn't materially changed since last
+    // sync. Timer-only snapshot updates (every ~500ms from the polling loop)
+    // would otherwise trigger unnecessary controller work and cursor jumps.
+    if (doc.content == _lastSyncedContent) {
+      _maybeUpdateHighlight(doc);
+      return;
+    }
+    _lastSyncedContent = doc.content;
+
     if (_nameController.text != doc.title) _nameController.text = doc.title;
     // Never overwrite the editor while the user is actively typing.
     if (_contentController.text != doc.content &&
@@ -362,8 +379,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _contentController.selection = saved;
       }
     }
-    // Only update visuals when values actually change to avoid resetting
-    // the TextField's internal state (which causes cursor jumps).
+    _maybeUpdateHighlight(doc);
+  }
+
+  /// Update the partner-caret highlight line without touching the text.
+  void _maybeUpdateHighlight(DebateDocument doc) {
     final newLine = _getLineFromCaret(doc.content, doc.partnerCaret);
     if (newLine != _contentController.highlightedLine) {
       _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
