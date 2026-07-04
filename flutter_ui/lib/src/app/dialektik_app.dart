@@ -8,7 +8,7 @@ import '../screens/history_screen.dart';
 import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
 
-class DialektikFlutterApp extends StatelessWidget {
+class DialektikFlutterApp extends StatefulWidget {
   const DialektikFlutterApp({
     super.key,
     required this.bridge,
@@ -19,11 +19,39 @@ class DialektikFlutterApp extends StatelessWidget {
   final AppSnapshot? initialSnapshot;
 
   @override
+  State<DialektikFlutterApp> createState() => _DialektikFlutterAppState();
+}
+
+class _DialektikFlutterAppState extends State<DialektikFlutterApp>
+    with WidgetsBindingObserver {
+  Brightness _brightness = Brightness.light;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    setState(() {
+      _brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     const seedColor = Color(0xff0f766e);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: _brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -54,7 +82,7 @@ class DialektikFlutterApp extends StatelessWidget {
           isDense: true,
         ),
       ),
-      home: _AppRoot(bridge: bridge, initialSnapshot: initialSnapshot),
+      home: _AppRoot(bridge: widget.bridge, initialSnapshot: widget.initialSnapshot),
     );
   }
 }
