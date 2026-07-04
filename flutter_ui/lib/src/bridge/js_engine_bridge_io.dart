@@ -47,10 +47,9 @@ class JsEngineBridge implements EngineBridge {
     if (!_ready || _webView == null) return;
     try {
       final result = await _webView!.evaluateJavascript(
-        source: 'window.dialektikEngine && await window.dialektikEngine.getSnapshot()',
+        source: 'window.dialektikEngine && window.dialektikEngine.getSnapshot()',
       );
-      if (result is String && result.isNotEmpty && result != _lastSnapshotJson) {
-        _lastSnapshotJson = result;
+      if (result is String && result.isNotEmpty) {
         _pushSnapshot(result);
       }
     } catch (_) {}
