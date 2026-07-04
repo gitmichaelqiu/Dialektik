@@ -8,7 +8,27 @@ import '../screens/history_screen.dart';
 import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
 
-class DialektikFlutterApp extends StatefulWidget {
+const Color _seedColor = Color(0xff0f766e);
+
+ThemeData _appTheme(Brightness brightness) {
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      brightness: brightness,
+    ),
+    cardTheme: const CardThemeData(
+      clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      border: OutlineInputBorder(),
+      isDense: true,
+    ),
+  );
+}
+
+class DialektikFlutterApp extends StatelessWidget {
   const DialektikFlutterApp({
     super.key,
     required this.bridge,
@@ -19,76 +39,21 @@ class DialektikFlutterApp extends StatefulWidget {
   final AppSnapshot? initialSnapshot;
 
   @override
-  State<DialektikFlutterApp> createState() => _DialektikFlutterAppState();
-}
-
-class _DialektikFlutterAppState extends State<DialektikFlutterApp>
-    with WidgetsBindingObserver {
-  Brightness _brightness = Brightness.light;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangePlatformBrightness() {
-    setState(() {
-      _brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xff0f766e);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: _brightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.light,
-        ),
-        cardTheme: const CardThemeData(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.zero,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-        cardTheme: const CardThemeData(
-          clipBehavior: Clip.antiAlias,
-          margin: EdgeInsets.zero,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-      ),
-      home: _AppRoot(bridge: widget.bridge, initialSnapshot: widget.initialSnapshot),
+      themeMode: ThemeMode.light,
+      theme: _appTheme(Brightness.light),
+      darkTheme: _appTheme(Brightness.dark),
+      home: _AppRoot(bridge: bridge, initialSnapshot: initialSnapshot),
     );
   }
 }
 
 /// Root widget that mounts the hidden engine WebView (when using JsEngineBridge)
-/// and the real app shell on top of it.
+/// and the real app shell on top of it, while applying the correct theme
+/// based on the system brightness (read from [MediaQuery] which works
+/// reliably on all platforms including macOS desktop).
 class _AppRoot extends StatelessWidget {
   const _AppRoot({required this.bridge, this.initialSnapshot});
 
@@ -97,6 +62,9 @@ class _AppRoot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = MediaQuery.platformBrightnessOf(context);
+    final shellTheme = _appTheme(brightness);
+
     final jsWebView = bridge.buildWebView();
 
     final shell = StreamBuilder<AppSnapshot>(
@@ -110,18 +78,21 @@ class _AppRoot extends StatelessWidget {
       },
     );
 
-    if (jsWebView == null) return shell;
+    Widget body = shell;
+    if (jsWebView != null) {
+      // The engine WebView must be in the widget tree so the WKWebView process
+      // stays alive (WebRTC connection), but it must never be visible.
+      // Give it a real 1×1 frame placed just above the visible area so WKWebView
+      // is active and fires onLoadStop, but users never see it.
+      body = Stack(
+        children: [
+          Positioned(top: -2, left: 0, width: 1, height: 1, child: jsWebView),
+          Positioned.fill(child: shell),
+        ],
+      );
+    }
 
-    // The engine WebView must be in the widget tree so the WKWebView process
-    // stays alive (WebRTC connection), but it must never be visible.
-    // Give it a real 1×1 frame placed just above the visible area so WKWebView
-    // is active and fires onLoadStop, but users never see it.
-    return Stack(
-      children: [
-        Positioned(top: -2, left: 0, width: 1, height: 1, child: jsWebView),
-        Positioned.fill(child: shell),
-      ],
-    );
+    return Theme(data: shellTheme, child: body);
   }
 }
 

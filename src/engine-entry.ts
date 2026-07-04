@@ -300,7 +300,11 @@ async function handlePeerMessage(msg: PeerMessage) {
       if (!mesh.isHost && msg.payload) {
         const incoming = msg.payload as Partial<SessionState>;
         if (session) {
-          // Preserve our local speaker notes and isHost flag
+          // Don't accept broadcast until the host has approved us.
+          // Check if our userId appears in the debaters list.
+          if (incoming.debaters && !incoming.debaters.some(d => d.id === userId)) {
+            break;
+          }
           session = {
             ...incoming as SessionState,
             speakerNotes: session.speakerNotes,

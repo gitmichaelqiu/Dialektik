@@ -879,6 +879,7 @@ class _DebatersPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showPending = session.isHost && session.pendingRequests.isNotEmpty;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -890,11 +891,31 @@ class _DebatersPane extends StatelessWidget {
               subtitle: 'Approve debaters and assign teams',
             ),
             const SizedBox(height: 12),
+            if (showPending) ...[
+              Text('Pending requests',
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelLarge
+                      ?.copyWith(color: Theme.of(context).colorScheme.primary)),
+              const SizedBox(height: 4),
+              for (final req in session.pendingRequests)
+                _PendingRequestTile(
+                  name: req.name,
+                  onApprove: () => bridge.dispatch(
+                      action('session.approveJoin', {'id': req.id})),
+                  onReject: () => bridge.dispatch(
+                      action('session.rejectJoin', {'id': req.id})),
+                ),
+              const Divider(height: 24),
+            ],
             Expanded(
               child: session.debaters.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: Icons.person_add_alt,
-                      message: 'Waiting for debaters.')
+                      message: session.isHost
+                          ? 'Waiting for debaters to join…'
+                          : 'Waiting for host approval…',
+                    )
                   : ListView.builder(
                       itemCount: session.debaters.length,
                       itemBuilder: (context, index) {
@@ -930,6 +951,57 @@ class _DebatersPane extends StatelessWidget {
                         );
                       },
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingRequestTile extends StatelessWidget {
+  const _PendingRequestTile({
+    required this.name,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final String name;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(Icons.person_outline,
+              color: Theme.of(context).colorScheme.primary),
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: onApprove,
+              icon: const Icon(Icons.check, size: 18),
+              label: const Text('Approve'),
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onReject,
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Reject'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ],
         ),
