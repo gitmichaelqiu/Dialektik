@@ -353,8 +353,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _contentController.selection = saved;
       }
     }
-    _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
-    _contentController.highlightedLine = _getLineFromCaret(doc.content, doc.partnerCaret);
+    // Only update visuals when values actually change to avoid resetting
+    // the TextField's internal state (which causes cursor jumps).
+    final newLine = _getLineFromCaret(doc.content, doc.partnerCaret);
+    if (newLine != _contentController.highlightedLine) {
+      _contentController.highlightColor = Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
+      _contentController.highlightedLine = newLine;
+    }
   }
 
   bool get documentHasFocus {
@@ -829,7 +834,10 @@ class _ReadMode extends StatelessWidget {
       if (inCodeBlock) {
         spans.add(TextSpan(
           text: '$line\n',
-          style: const TextStyle(fontFamily: 'monospace'),
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            backgroundColor: Color(0x1A000000),
+          ),
         ));
         continue;
       }
