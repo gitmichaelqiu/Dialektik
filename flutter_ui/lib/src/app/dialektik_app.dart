@@ -10,8 +10,12 @@ import '../screens/settings_screen.dart';
 
 const Color _seedColor = Color(0xff0f766e);
 
+final Map<Brightness, ThemeData> _themeCache = {};
+
 ThemeData _appTheme(Brightness brightness) {
-  return ThemeData(
+  // Cache theme data per brightness — avoids creating a new ThemeData on
+  // every snapshot tick, which would rebuild the entire widget tree.
+  return _themeCache.putIfAbsent(brightness, () => ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
       seedColor: _seedColor,
@@ -25,7 +29,7 @@ ThemeData _appTheme(Brightness brightness) {
       border: OutlineInputBorder(),
       isDense: true,
     ),
-  );
+  ));
 }
 
 class DialektikFlutterApp extends StatelessWidget {
