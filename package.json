@@ -1,5 +1,5 @@
 {
-  "name": "tauri-app",
+  "name": "dialektik-engine",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -12,41 +12,16 @@
     "build": "node scripts/flutter-build.mjs",
     "flutter:build:web": "cd flutter_ui && flutter build web",
     "flutter:build:ios": "cd flutter_ui && flutter build ios",
-    "react:dev": "vite",
-    "react:build": "tsc && vite build",
-    "react:preview": "vite preview",
     "preview": "cd flutter_ui && flutter run -d chrome",
-    "tauri": "tauri",
-    "test": "vitest run",
     "engine:build": "vite build --config vite.config.engine.ts"
   },
   "dependencies": {
-    "@mantine/core": "^7.17.8",
-    "@mantine/hooks": "^7.17.8",
-    "@tailwindcss/vite": "^4.3.2",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
     "dexie": "^4.4.4",
-    "framer-motion": "^12.42.2",
-    "lucide-react": "^0.468.0",
-    "octokit": "^5.0.5",
     "peerjs": "^1.5.5",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "tailwindcss": "^4.3.2",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^4.6.0",
-    "fake-indexeddb": "^6.2.5",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4",
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^4.1.9"
+    "vite": "^7.0.4"
   }
 }
