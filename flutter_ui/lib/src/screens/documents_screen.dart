@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -62,6 +63,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   String _newFolder = 'private';
   String _newMode = 'write';
   String _newCardFolder = 'private';
+  Timer? _docDebounce;
 
   List<DebateDocument> _filteredDocs = const [];
 
@@ -103,6 +105,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   void dispose() {
+    _docDebounce?.cancel();
     _nameController.dispose();
     _contentController.dispose();
     _newTitleController.dispose();
@@ -206,10 +209,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       },
       onChanged: (content) {
         if (selected == null) return;
-        widget.bridge.dispatch(action('document.updateContent', {
-          'id': selected.id,
-          'content': content,
-        }));
+        _docDebounce?.cancel();
+        _docDebounce = Timer(const Duration(milliseconds: 400), () {
+          widget.bridge.dispatch(action('document.updateContent', {
+            'id': selected.id,
+            'content': content,
+          }));
+        });
       },
       onMove: (folder) {
         if (selected == null) return;
@@ -310,7 +316,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         key: _scaffoldKey,
         drawer: Drawer(child: SafeArea(child: filesPane)),
         endDrawer: Drawer(child: SafeArea(child: evidencePane)),
-        body: widget.snapshot.documents.isEmpty ? filesPane : editorPane,
+        body: _filteredDocs.isEmpty ? filesPane : editorPane,
       );
     }
 
@@ -337,10 +343,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       _cachedSelectedId = doc.id;
     }
     if (_nameController.text != doc.title) _nameController.text = doc.title;
-    if (_contentController.text != doc.content && documentHasFocus == false) {
+    // Never overwrite the editor while the user is actively typing.
+    if (_contentController.text != doc.content &&
+        documentHasFocus == false &&
+        _docDebounce?.isActive != true) {
       final saved = _contentController.selection;
       _contentController.text = doc.content;
-      // Restore cursor position if still valid to prevent jumps.
       if (saved.isValid && saved.baseOffset <= doc.content.length) {
         _contentController.selection = saved;
       }
@@ -815,13 +823,6 @@ class _ReadMode extends StatelessWidget {
 
       if (trimmed.startsWith('```')) {
         inCodeBlock = !inCodeBlock;
-        spans.add(TextSpan(
-          text: '$line\n',
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            backgroundColor: Color(0x1A000000),
-          ),
-        ));
         continue;
       }
 
