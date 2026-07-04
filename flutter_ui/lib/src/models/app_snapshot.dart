@@ -160,6 +160,7 @@ class EvidenceCard {
     required this.sourceUrl,
     this.docId,
     this.folder = 'private',
+    this.author = '',
   });
 
   factory EvidenceCard.fromJson(Map<String, Object?> json) {
@@ -170,6 +171,7 @@ class EvidenceCard {
       sourceUrl: _string(json['sourceUrl']),
       docId: json['docId'] as String?,
       folder: _string(json['folder'], fallback: 'private'),
+      author: _string(json['author']),
     );
   }
 
@@ -179,6 +181,7 @@ class EvidenceCard {
   final String sourceUrl;
   final String? docId;
   final String folder;
+  final String author;
 
   bool get isShared => folder != 'private';
 }

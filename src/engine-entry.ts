@@ -182,7 +182,7 @@ async function buildSnapshot() {
     })),
     cards: cards.map(c => ({
       id: c.id, title: c.title, text: c.text, sourceUrl: c.sourceUrl,
-      docId: c.docId, folder: c.folder ?? "private",
+      docId: c.docId, folder: c.folder ?? "private", author: c.author,
     })),
     history: history.map(h => ({
       id: h.id, matchName: h.matchName, opponentName: h.opponentName,
@@ -352,6 +352,7 @@ function setupMeshHandlers() {
   mesh.onConnectionOpen((_peerId, _conn) => {
     emitSnapshot();
     syncPublicDocsToPeers();
+    syncPublicCardsToPeers();
   });
 
   mesh.onConnectionClose((peerId) => {
@@ -404,6 +405,18 @@ async function syncPublicDocsToPeers() {
     type: "shared-docs-sync",
     senderId: mesh.peerId,
     payload: { docs: publicDocs, removeIds: [] },
+  });
+}
+
+async function syncPublicCardsToPeers() {
+  if (mesh.connections.size === 0) return;
+  const all = await db.cards.toArray();
+  const sharedCards = all.filter(c => c.folder === "public" || c.folder === "team");
+  if (sharedCards.length === 0) return;
+  mesh.broadcast({
+    type: "shared-cards-sync",
+    senderId: mesh.peerId,
+    payload: { cards: sharedCards, removeIds: [] },
   });
 }
 
@@ -481,6 +494,31 @@ async function handlePeerMessage(msg: PeerMessage) {
             partnerAccess: doc.partnerAccess,
             encryptedHash: doc.encryptedHash,
             ownerId: doc.ownerId, ownerName: doc.ownerName,
+          });
+        }
+      }
+      await emitSnapshot();
+      break;
+    }
+
+    case "shared-cards-sync": {
+      const { cards = [], removeIds = [] } = msg.payload || {};
+      for (const id of removeIds as string[]) {
+        const existing = await db.cards.get(id);
+        if (existing && existing.author !== userName) {
+          await db.cards.delete(id);
+        }
+      }
+      for (const card of cards as EvidenceCard[]) {
+        const existing = await db.cards.get(card.id);
+        if (existing?.author === userName) continue;
+        if (!existing) {
+          await db.cards.put(card);
+        } else {
+          // Update shared card fields on conflict (trust the sender's version)
+          await db.cards.update(card.id, {
+            title: card.title, text: card.text, sourceUrl: card.sourceUrl,
+            folder: card.folder,
           });
         }
       }
@@ -809,12 +847,25 @@ async function dispatch(actionJson: string) {
       author: userName, docId, folder: folder || "private",
     };
     await db.cards.put(card);
+    // Broadcast shared cards to peers
+    if (card.folder && card.folder !== "private") {
+      syncPublicCardsToPeers();
+    }
     await emitSnapshot();
     return;
   }
 
   if (type === "card.delete") {
+    const existing = await db.cards.get(payload.id);
     await db.cards.delete(payload.id);
+    // Notify peers if the deleted card was shared
+    if (existing && existing.folder && existing.folder !== "private" && mesh.connections.size > 0) {
+      mesh.broadcast({
+        type: "shared-cards-sync",
+        senderId: mesh.peerId,
+        payload: { cards: [], removeIds: [payload.id] },
+      });
+    }
     await emitSnapshot();
     return;
   }

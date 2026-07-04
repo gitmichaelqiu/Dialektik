@@ -276,12 +276,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       isMobile: compact,
     );
 
+    // Filter cards with same team-based visibility rules as documents.
+    final myUserName = widget.snapshot.settings.userName;
+    final filteredCards = widget.snapshot.cards.where((card) {
+      if (card.folder != 'team') return true;
+      if (myTeam == null) return true;
+      // Find the author's team in the session
+      final authorTeam =
+          session?.debaters.where((d) => d.name == card.author).firstOrNull?.team;
+      // Team card is visible if we authored it, or if the author is on our team
+      return card.author == myUserName ||
+          authorTeam == null ||
+          authorTeam == myTeam;
+    }).toList();
+
     final evidencePane = _EvidencePane(
-      cards: widget.snapshot.cards,
+      cards: filteredCards,
       titleController: _cardTitleController,
       sourceController: _cardSourceController,
       textController: _cardTextController,
       cardFolder: _newCardFolder,
+      myUserName: widget.snapshot.settings.userName,
       onCardFolderChanged: (v) {
         if (v != null) setState(() => _newCardFolder = v);
       },
@@ -419,7 +434,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   void _computeFilteredDocs(
     SessionState? session,
     String? myTeam,
-    String myUserId,
+    String? myUserId,
   ) {
     _filteredDocs = widget.snapshot.documents.where((doc) {
       if (doc.folder != 'team') return true;
@@ -1301,6 +1316,7 @@ class _EvidencePane extends StatelessWidget {
     required this.onDelete,
     required this.onInsert,
     this.cardFolder = 'private',
+    this.myUserName = '',
     this.onCardFolderChanged,
   });
 
@@ -1312,6 +1328,7 @@ class _EvidencePane extends StatelessWidget {
   final ValueChanged<EvidenceCard> onDelete;
   final ValueChanged<EvidenceCard>? onInsert;
   final String cardFolder;
+  final String myUserName;
   final ValueChanged<String?>? onCardFolderChanged;
 
   @override
@@ -1396,6 +1413,7 @@ class _EvidencePane extends StatelessWidget {
                               cards: grouped[folder]!,
                               onInsert: onInsert,
                               onDelete: onDelete,
+                              myUserName: myUserName,
                             ),
                       ],
                     ),
@@ -1413,12 +1431,14 @@ class _CardFolderGroup extends StatelessWidget {
     required this.cards,
     required this.onInsert,
     required this.onDelete,
+    this.myUserName = '',
   });
 
   final String title;
   final List<EvidenceCard> cards;
   final ValueChanged<EvidenceCard>? onInsert;
   final ValueChanged<EvidenceCard> onDelete;
+  final String myUserName;
 
   @override
   Widget build(BuildContext context) {
@@ -1442,11 +1462,12 @@ class _CardFolderGroup extends StatelessWidget {
                 tooltip: 'Insert citation',
                 onPressed: onInsert == null ? null : () => onInsert!(card),
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete card',
-                onPressed: () => onDelete(card),
-              ),
+              if (card.author == myUserName || myUserName.isEmpty)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Delete card',
+                  onPressed: () => onDelete(card),
+                ),
             ],
           ),
         );
