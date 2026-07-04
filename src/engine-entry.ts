@@ -85,6 +85,8 @@ let yjsDocs: Map<string, Y.Doc> = new Map();
 let userId = "";
 let userName = "";
 let activePage = "inround";
+const rejectedPeers = new Set<string>();
+const peerUserId = new Map<string, string>();
 let aiEndpoint = "https://api.openai.com/v1";
 let aiModel = "gpt-4o";
 let aiApiKey = "";
@@ -279,14 +281,22 @@ function setupMeshHandlers() {
   });
 
   // Early-connect: when PeerJS relay delivers the connection request
-  // (before WebRTC data channel opens), metadata carries userId/userName.
-  mesh.onPeerConnecting((_peerId, meta) => {
-    if (mesh.isHost && session && meta?.userId && meta?.userName) {
-      const already = session.pendingRequests.some(r => r.id === meta.userId);
+  // (before WebRTC data channel opens). The client embeds userId & userName
+  // in connection metadata. If metadata isn't available (different PeerJS
+  // version), fall back to using the peer ID as a placeholder — the actual
+  // join-request will arrive later via the handshake flow.
+  mesh.onPeerConnecting((peerId, meta) => {
+    if (mesh.isHost && session) {
+      const requesterId = meta?.userId || peerId;
+      const requesterName = meta?.userName || "Connecting…";
+      peerUserId.set(peerId, requesterId);
+      // If this peer was previously rejected, don't add to pending.
+      if (rejectedPeers.has(requesterId)) return;
+      const already = session.pendingRequests.some(r => r.id === requesterId);
       if (!already) {
         session.pendingRequests = [...session.pendingRequests, {
-          id: meta.userId,
-          name: meta.userName,
+          id: requesterId,
+          name: requesterName,
         }];
         emitSnapshot();
       }
@@ -310,6 +320,16 @@ async function handlePeerMessage(msg: PeerMessage) {
   if (!msg?.type) return;
 
   switch (msg.type) {
+    case "join-rejected": {
+      if (!mesh.isHost && session) {
+        // Host rejected our join request — exit the pending state.
+        session = null;
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        await emitSnapshot();
+      }
+      break;
+    }
+
     case "join-request": {
       if (mesh.isHost && session) {
         const payload = msg.payload || {};
@@ -371,6 +391,18 @@ async function handlePeerMessage(msg: PeerMessage) {
     }
 
     case "handshake": {
+      if (mesh.isHost && session) {
+        // If this peer was rejected, notify them over the now-open channel.
+        const uid = peerUserId.get(msg.senderId);
+        if (uid && rejectedPeers.has(uid)) {
+          mesh.sendToPeer(msg.senderId, {
+            type: "join-rejected",
+            senderId: mesh.peerId,
+          });
+          break;
+        }
+        broadcastSessionState();
+      }
       // When a peer connects to us (as client), send our join-request
       if (!mesh.isHost && session) {
         mesh.sendToPeer(msg.senderId, {
@@ -378,10 +410,6 @@ async function handlePeerMessage(msg: PeerMessage) {
           senderId: mesh.peerId,
           payload: { id: userId, name: userName },
         });
-      }
-      // If we're the host, re-broadcast session state to new peer
-      if (mesh.isHost && session) {
-        broadcastSessionState();
       }
       break;
     }
@@ -695,6 +723,8 @@ async function dispatch(actionJson: string) {
   if (type === "session.rejectJoin") {
     if (!session) return;
     session.pendingRequests = session.pendingRequests.filter(r => r.id !== payload.id);
+    const rejectedId = payload.id as string;
+    if (rejectedId) rejectedPeers.add(rejectedId);
     await emitSnapshot();
     return;
   }

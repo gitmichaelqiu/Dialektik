@@ -31,3 +31,7 @@ FRONTEND.md
 PROMPT.md
 core-app-shell.md
 
+# Tauri generated platform project files
+src-tauri/gen/
+src-tauri/patches/
+

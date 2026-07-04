@@ -54,14 +54,41 @@ class _InRoundScreenState extends State<InRoundScreen> {
   }
 
   final Set<String> _shownRequestIds = {};
+  bool _wasPending = false;
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final session = widget.snapshot.session;
     if (session == null) {
+      if (_wasPending) {
+        // Transitioned from pending_approval → null: we were rejected.
+        _wasPending = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.fixed,
+              backgroundColor: Colors.red.shade800,
+              content: const Row(
+                children: [
+                  Icon(Icons.cancel, color: Colors.white70, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Your request was rejected by the host.',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        });
+      }
       _shownRequestIds.clear();
       return;
+    }
+    if (session.status == 'pending_approval') {
+      _wasPending = true;
     }
     if (_handoutTitleController.text != session.handout.title) {
       _handoutTitleController.text = session.handout.title;
