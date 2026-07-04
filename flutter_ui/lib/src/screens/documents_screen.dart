@@ -122,8 +122,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             selected.ownerName!.isNotEmpty &&
             selected.ownerName == widget.snapshot.settings.userName);
 
+    // Determine user's team from session for team-folder filtering.
+    final session = widget.snapshot.session;
+    final myTeam = session?.debaters
+        .where((d) => d.id == myUserId)
+        .firstOrNull
+        ?.team;
+
+    final filteredDocs = widget.snapshot.documents.where((doc) {
+      if (doc.folder != 'team') return true;
+      if (myTeam == null) return true;
+      // Find the owner's team in the session
+      final ownerTeam = session?.debaters
+          .where((d) => d.id == doc.ownerId)
+          .firstOrNull
+          ?.team;
+      // Team doc is visible if we own it, or if the owner is on our team
+      return doc.ownerId == myUserId || ownerTeam == null || ownerTeam == myTeam;
+    }).toList();
+
     final filesPane = _FilesPane(
-      documents: widget.snapshot.documents,
+      documents: filteredDocs,
       selectedId: selected?.id,
       myUserId: myUserId,
       newTitleController: _newTitleController,
@@ -509,6 +528,11 @@ class _FolderGroup extends StatelessWidget {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      icon: const Icon(Icons.copy),
+                      tooltip: 'Duplicate',
+                      onPressed: () => onDuplicate(doc),
+                    ),
                     if (myUserId != null && doc.ownerId == myUserId)
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
@@ -662,6 +686,7 @@ class _EditorPane extends StatelessWidget {
                       documents: documents,
                       cards: cards,
                       onNavigateDoc: onNavigateDoc,
+                      docTitle: doc.title,
                     )
                   : Column(
                       children: [
@@ -699,6 +724,7 @@ class _EditorPane extends StatelessWidget {
                         const SizedBox(height: 8),
                         Expanded(
                           child: TextField(
+                            key: ValueKey('editor_${doc.id}'),
                             controller: contentController,
                             expands: true,
                             maxLines: null,
@@ -728,12 +754,14 @@ class _ReadMode extends StatelessWidget {
     required this.documents,
     required this.cards,
     required this.onNavigateDoc,
+    this.docTitle,
   });
 
   final String content;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
   final ValueChanged<DebateDocument> onNavigateDoc;
+  final String? docTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -745,7 +773,8 @@ class _ReadMode extends StatelessWidget {
             icon: const Icon(Icons.copy_rounded, size: 18),
             tooltip: 'Copy raw text',
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: content));
+              final prefix = docTitle != null ? '# ${docTitle}\n\n' : '';
+              Clipboard.setData(ClipboardData(text: '$prefix$content'));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Raw text copied to clipboard'),
@@ -756,9 +785,11 @@ class _ReadMode extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 12),
-            children: _buildLines(context),
+          child: SelectionArea(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 12),
+              children: _buildLines(context),
+            ),
           ),
         ),
       ],

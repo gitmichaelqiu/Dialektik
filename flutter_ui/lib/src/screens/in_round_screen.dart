@@ -62,12 +62,16 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
   String? _previousSpeakerId;
   bool _speakerInitialized = false;
   TabController? _tabController;
-  int _savedTabIndex = 0;
+  static int _savedTabIndex = 0;
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final session = widget.snapshot.session;
+    if (_isJoining && session != null && session.status != 'pending_approval') {
+      // Join completed — clear the guard flag.
+      _isJoining = false;
+    }
     if (session == null) {
       if (_wasPending && !_userInitiatedExit && !_isJoining) {
         // Transitioned from pending_approval → null without user clicking
@@ -94,6 +98,7 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
         });
       }
       _wasPending = false;
+      _isJoining = false;
       _userInitiatedExit = false;
       _speakerInitialized = false;
       _shownRequestIds.clear();
@@ -101,9 +106,6 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     }
     if (session.status == 'pending_approval') {
       _wasPending = true;
-      _isJoining = false;
-    } else {
-      _isJoining = false;
     }
     if (_handoutTitleController.text != session.handout.title) {
       _handoutTitleController.text = session.handout.title;
