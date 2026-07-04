@@ -316,6 +316,22 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         key: _scaffoldKey,
         drawer: Drawer(child: SafeArea(child: filesPane)),
         endDrawer: Drawer(child: SafeArea(child: evidencePane)),
+        appBar: AppBar(
+          toolbarHeight: 36,
+          actions: [
+            IconButton.outlined(
+              icon: const Icon(Icons.folder_open, size: 18),
+              tooltip: 'Files',
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            ),
+            const SizedBox(width: 4),
+            IconButton.outlined(
+              icon: const Icon(Icons.style, size: 18),
+              tooltip: 'Evidence',
+              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+            ),
+          ],
+        ),
         body: _filteredDocs.isEmpty ? filesPane : editorPane,
       );
     }

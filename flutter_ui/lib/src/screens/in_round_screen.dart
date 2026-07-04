@@ -110,7 +110,8 @@ class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateM
     }
     // Don't overwrite actively-edited text fields with stale snapshot data.
     final isEditing =
-        FocusManager.instance.primaryFocus?.context?.widget is EditableText;
+        FocusManager.instance.primaryFocus?.context?.widget is EditableText ||
+        _handoutDebounce?.isActive == true;
     if (!isEditing) {
       if (_handoutTitleController.text != session.handout.title) {
         _handoutTitleController.text = session.handout.title;

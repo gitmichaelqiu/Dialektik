@@ -70,6 +70,8 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void _pushSnapshot(String json) {
+    if (json == _lastSnapshotJson) return;
+    _lastSnapshotJson = json;
     try {
       final map = (jsonDecode(json) as Map).cast<String, Object?>();
       final snapshot = AppSnapshot.fromJson(map);

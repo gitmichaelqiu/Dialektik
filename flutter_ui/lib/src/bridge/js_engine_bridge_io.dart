@@ -57,6 +57,9 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void _pushSnapshot(String json) {
+    // Deduplicate — skip unchanged JSON to prevent StreamBuilder rebuilds.
+    if (json == _lastSnapshotJson) return;
+    _lastSnapshotJson = json;
     try {
       final map = (jsonDecode(json) as Map).cast<String, Object?>();
       final snapshot = AppSnapshot.fromJson(map);
@@ -95,8 +98,7 @@ class JsEngineBridge implements EngineBridge {
         );
         // Only push when the snapshot actually changed — prevents
         // unnecessary StreamBuilder rebuilds that reset TextField cursors.
-        if (result is String && result.isNotEmpty && result != _lastSnapshotJson) {
-          _lastSnapshotJson = result;
+        if (result is String && result.isNotEmpty) {
           _pushSnapshot(result);
         }
       } catch (_) {}
