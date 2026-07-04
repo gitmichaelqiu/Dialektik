@@ -25,6 +25,7 @@ dist-ssr
 
 # Project custom files to ignore in git history
 AGENTS.md
+CLAUDE.md
 DESIGN.md
 DESIGN_v2.md
 FRONTEND.md
