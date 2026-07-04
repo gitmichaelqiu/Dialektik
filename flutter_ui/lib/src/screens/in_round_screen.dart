@@ -19,7 +19,7 @@ class InRoundScreen extends StatefulWidget {
   State<InRoundScreen> createState() => _InRoundScreenState();
 }
 
-class _InRoundScreenState extends State<InRoundScreen> with SingleTickerProviderStateMixin {
+class _InRoundScreenState extends State<InRoundScreen> with TickerProviderStateMixin {
   final _matchController = TextEditingController();
   final _groupController = TextEditingController();
   final _joinCodeController = TextEditingController();
@@ -232,8 +232,20 @@ class _InRoundScreenState extends State<InRoundScreen> with SingleTickerProvider
     }
   }
 
+  void _initTabController() {
+    if (_tabController != null && _tabController!.length == 3) return;
+    _tabController?.dispose();
+    _tabController = TabController(length: 3, vsync: this, initialIndex: _savedTabIndex);
+    _tabController!.addListener(() {
+      if (!_tabController!.indexIsChanging) {
+        _savedTabIndex = _tabController!.index;
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _tabController?.dispose();
     _matchController.dispose();
     _groupController.dispose();
     _joinCodeController.dispose();
@@ -471,17 +483,8 @@ class _InRoundScreenState extends State<InRoundScreen> with SingleTickerProvider
             session: session,
           );
 
-    _tabController?.dispose();
-    _tabController = TabController(
-      length: 3,
-      vsync: this,
-      initialIndex: _savedTabIndex,
-    );
-    _tabController?.addListener(() {
-      if (_tabController != null && !_tabController!.indexIsChanging) {
-        _savedTabIndex = _tabController!.index;
-      }
-    });
+    // Ensure tab controller exists (created once, updated on rebuild).
+    _initTabController();
     return compact
         ? Scaffold(
             key: ValueKey('compact_${_savedTabIndex}'),
