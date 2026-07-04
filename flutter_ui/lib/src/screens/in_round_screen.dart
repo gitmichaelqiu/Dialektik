@@ -57,6 +57,8 @@ class _InRoundScreenState extends State<InRoundScreen> {
   final Set<String> _shownDisconnectedIds = {};
   bool _wasPending = false;
   bool _userInitiatedExit = false;
+  bool _showSpeakerPosition = false;
+  String? _previousSpeakerId;
 
   @override
   void didUpdateWidget(covariant InRoundScreen oldWidget) {
@@ -186,6 +188,36 @@ class _InRoundScreenState extends State<InRoundScreen> {
             );
           });
         }
+      }
+    }
+
+    // Notify when the host assigns a new active speaker (via sync).
+    if (session.currentSpeakerId != null &&
+        session.currentSpeakerId != _previousSpeakerId) {
+      _previousSpeakerId = session.currentSpeakerId;
+      final speaker = session.debaters
+          .where((d) => d.id == session.currentSpeakerId)
+          .firstOrNull;
+      if (speaker != null && !session.isHost) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.fixed,
+              backgroundColor: Colors.teal.shade700,
+              content: Row(
+                children: [
+                  const Icon(Icons.mic, color: Colors.white70, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('You are the active speaker!',
+                        style: const TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        });
       }
     }
   }
@@ -368,6 +400,13 @@ class _InRoundScreenState extends State<InRoundScreen> {
       session: session,
       customNameController: _customTimerNameController,
       customDurationController: _customTimerDurationController,
+      showPosition: _showSpeakerPosition,
+      onSpeakerSelected: active
+          ? (debater) {
+              widget.bridge.dispatch(
+                  action('session.selectSpeaker', {'id': debater.id}));
+            }
+          : null,
     );
 
     final debatersOrNotesPane = active
@@ -377,8 +416,6 @@ class _InRoundScreenState extends State<InRoundScreen> {
             controller: _notesController,
             onSpeakerSelected: (debater) {
               setState(() => _localActiveSpeakerId = debater.id);
-              widget.bridge.dispatch(
-                  action('session.selectSpeaker', {'id': debater.id}));
             },
             onNotesChanged: (text) {
               if (activeSpeakerId == null) return;
@@ -387,6 +424,9 @@ class _InRoundScreenState extends State<InRoundScreen> {
                 'text': text,
               }));
             },
+            showPosition: _showSpeakerPosition,
+            onTogglePosition: () =>
+                setState(() => _showSpeakerPosition = !_showSpeakerPosition),
             onSaveRound: (winner) async {
               final confirm = await _confirmAction(
                 context,
@@ -794,12 +834,16 @@ class _TimersPane extends StatelessWidget {
     required this.session,
     required this.customNameController,
     required this.customDurationController,
+    this.showPosition = false,
+    this.onSpeakerSelected,
   });
 
   final EngineBridge bridge;
   final SessionState session;
   final TextEditingController customNameController;
   final TextEditingController customDurationController;
+  final bool showPosition;
+  final ValueChanged<Debater>? onSpeakerSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -901,9 +945,114 @@ class _TimersPane extends StatelessWidget {
                       },
                     ),
             ),
+            if (onSpeakerSelected != null && session.debaters.isNotEmpty) ...[
+              const Divider(height: 16),
+              Text('Active speaker',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              // Affirmative row
+              _SpeakerTeamRow(
+                label: 'Affirmative',
+                color: Colors.teal,
+                debaters: session.debaters
+                    .where((d) => !d.disconnected && d.team == 'affirmative')
+                    .toList(),
+                currentSpeakerId: session.currentSpeakerId,
+                showPosition: showPosition,
+                isHost: session.isHost,
+                onSelect: onSpeakerSelected!,
+              ),
+              const SizedBox(height: 6),
+              // Negative row
+              _SpeakerTeamRow(
+                label: 'Negative',
+                color: Colors.deepOrange,
+                debaters: session.debaters
+                    .where((d) => !d.disconnected && d.team == 'negative')
+                    .toList(),
+                currentSpeakerId: session.currentSpeakerId,
+                showPosition: showPosition,
+                isHost: session.isHost,
+                onSelect: onSpeakerSelected!,
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SpeakerTeamRow extends StatelessWidget {
+  const _SpeakerTeamRow({
+    required this.label,
+    required this.color,
+    required this.debaters,
+    required this.currentSpeakerId,
+    required this.showPosition,
+    required this.isHost,
+    required this.onSelect,
+  });
+
+  final String label;
+  final MaterialColor color;
+  final List<Debater> debaters;
+  final String? currentSpeakerId;
+  final bool showPosition;
+  final bool isHost;
+  final ValueChanged<Debater> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(label,
+              style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  color: color.shade700)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final d in debaters) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        showPosition
+                            ? '${d.team == 'affirmative' ? 'AFF' : 'NEG'} ${d.position ?? '-'}'
+                            : d.name,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isHost
+                                ? null
+                                : (d.id == currentSpeakerId
+                                    ? null
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant)),
+                      ),
+                      selected: d.id == currentSpeakerId,
+                      selectedColor: color.shade100,
+                      onSelected: isHost ? (_) => onSelect(d) : null,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1126,6 +1275,8 @@ class _NotesPane extends StatelessWidget {
     required this.onNotesChanged,
     required this.onSaveRound,
     required this.onExit,
+    this.showPosition = false,
+    this.onTogglePosition,
   });
 
   final SessionState session;
@@ -1135,6 +1286,8 @@ class _NotesPane extends StatelessWidget {
   final ValueChanged<String> onNotesChanged;
   final ValueChanged<String> onSaveRound;
   final VoidCallback onExit;
+  final bool showPosition;
+  final VoidCallback? onTogglePosition;
 
   @override
   Widget build(BuildContext context) {
@@ -1149,6 +1302,17 @@ class _NotesPane extends StatelessWidget {
               subtitle: activeSpeaker == null
                   ? 'Select a speaker'
                   : 'Active: ${activeSpeaker!.name}',
+              trailing: onTogglePosition != null
+                  ? IconButton(
+                      icon: Icon(showPosition
+                          ? Icons.person
+                          : Icons.badge),
+                      tooltip: showPosition
+                          ? 'Show name'
+                          : 'Show position',
+                      onPressed: onTogglePosition,
+                    )
+                  : null,
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -1157,7 +1321,11 @@ class _NotesPane extends StatelessWidget {
               children: [
                 for (final debater in session.debaters.isEmpty ? [const Debater(id: 'general', name: 'General Notes', status: 'approved')] : session.debaters)
                   ChoiceChip(
-                    label: Text(debater.name),
+                    label: Text(
+                      showPosition && debater.id != 'general'
+                          ? '${debater.team == 'affirmative' ? 'AFF' : 'NEG'} • ${debater.position ?? '-'}'
+                          : debater.name,
+                    ),
                     selected: activeSpeaker?.id == debater.id,
                     onSelected: (_) => onSpeakerSelected(debater),
                   ),

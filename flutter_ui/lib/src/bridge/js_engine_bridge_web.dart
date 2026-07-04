@@ -27,7 +27,6 @@ class JsEngineBridge implements EngineBridge {
   bool _ready = false;
   final _pendingActions = <String>[];
   bool _initStarted = false;
-  Timer? _pollTimer;
 
   @override
   Stream<AppSnapshot> get snapshots => _controller.stream;
@@ -44,23 +43,6 @@ class JsEngineBridge implements EngineBridge {
 
   @override
   Widget? buildWebView() => null;
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      if (!_ready) return;
-      try {
-        final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
-        if (engine == null) return;
-        final json = await js_util.promiseToFuture(
-          js_util.callMethod(engine, 'getSnapshot', []),
-        );
-        if (json is String && json.isNotEmpty) {
-          _onMessage(json);
-        }
-      } catch (_) {}
-    });
-  }
 
   void _callDispatch(String jsonStr) {
     final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
@@ -87,7 +69,6 @@ class JsEngineBridge implements EngineBridge {
       _callDispatch(pending);
     }
     _pendingActions.clear();
-    _startPolling();
   }
 
   Future<void> _init() async {
@@ -123,7 +104,6 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void dispose() {
-    _pollTimer?.cancel();
     _controller.close();
     _ready = false;
   }
