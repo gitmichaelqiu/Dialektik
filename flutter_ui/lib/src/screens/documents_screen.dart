@@ -117,7 +117,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _syncControllers();
     final selected = _selectedDocument;
     final compact = MediaQuery.sizeOf(context).width < 840;
 
@@ -319,12 +318,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         appBar: AppBar(
           toolbarHeight: 36,
           actions: [
-            IconButton.outlined(
-              icon: const Icon(Icons.folder_open, size: 18),
-              tooltip: 'Files',
-              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-            ),
-            const SizedBox(width: 4),
             IconButton.outlined(
               icon: const Icon(Icons.style, size: 18),
               tooltip: 'Evidence',
