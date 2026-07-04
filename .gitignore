@@ -37,3 +37,5 @@ src-tauri/patches/
 # Rust/Cargo build artifacts
 src-tauri/target/
 
+.vscode/
+.claude/
