@@ -2,23 +2,33 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../models/app_snapshot.dart';
 import 'engine_bridge.dart';
 
 /// Production [EngineBridge] that delegates to the bundled JS engine
-/// running inside a hidden [InAppWebView].
+/// running inside a [HeadlessInAppWebView].
+///
+/// Uses a headless WKWebView (no platform view in the widget tree) to avoid
+/// iOS Hybrid Composition rendering conflicts that cause white screens.
 ///
 /// Architecture:
 ///   Flutter dispatch(action) → evaluateJavascript → JS engine
-///   JS engine state change → window.FlutterChannel.postMessage → Dart stream
+///   JS engine state change → polling getLatestSnapshot() → Dart stream
 class JsEngineBridge implements EngineBridge {
-  JsEngineBridge();
+  JsEngineBridge() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initWebView();
+    });
+  }
 
   final _controller = StreamController<AppSnapshot>.broadcast();
+  HeadlessInAppWebView? _headless;
   InAppWebViewController? _webView;
   bool _ready = false;
+  bool _initializing = false;
   final _pendingActions = <String>[];
   Timer? _pollTimer;
   String? _lastSnapshotJson;
@@ -33,9 +43,6 @@ class JsEngineBridge implements EngineBridge {
       await _webView!.evaluateJavascript(
         source: 'window.dialektikEngine && window.dialektikEngine.dispatch(${jsonEncode(json)});',
       );
-      // After dispatch, explicitly pull the snapshot so Flutter always gets
-      // the latest state — the push path (FlutterChannel.postMessage) can be
-      // lossy, especially for event-driven updates like onPeerConnecting.
       await _pullSnapshot();
     } else {
       _pendingActions.add(json);
@@ -43,9 +50,6 @@ class JsEngineBridge implements EngineBridge {
   }
 
   /// Calls getLatestSnapshot() on the engine and pushes the result into the stream.
-  /// Uses the synchronous getLatestSnapshot() rather than the async
-  /// getSnapshot() because evaluateJavascript doesn't resolve Promise
-  /// return values in this WKWebView version.
   Future<void> _pullSnapshot() async {
     if (!_ready || _webView == null) return;
     try {
@@ -59,7 +63,6 @@ class JsEngineBridge implements EngineBridge {
   }
 
   void _pushSnapshot(String json) {
-    // Deduplicate — skip unchanged JSON to prevent StreamBuilder rebuilds.
     if (json == _lastSnapshotJson) return;
     _lastSnapshotJson = json;
     try {
@@ -73,12 +76,6 @@ class JsEngineBridge implements EngineBridge {
     }
   }
 
-  /// Called by [JsEngineWebView] when the WebView controller is ready.
-  void _attach(InAppWebViewController controller) {
-    _webView = controller;
-  }
-
-  /// Called by [JsEngineWebView] when the engine has bootstrapped.
   void _onReady() {
     _ready = true;
     for (final pending in _pendingActions) {
@@ -98,8 +95,6 @@ class JsEngineBridge implements EngineBridge {
         final result = await _webView!.evaluateJavascript(
           source: 'window.dialektikEngine && window.dialektikEngine.getLatestSnapshot()',
         );
-        // Only push when the snapshot actually changed — prevents
-        // unnecessary StreamBuilder rebuilds that reset TextField cursors.
         if (result is String && result.isNotEmpty) {
           _pushSnapshot(result);
         }
@@ -107,7 +102,6 @@ class JsEngineBridge implements EngineBridge {
     });
   }
 
-  /// Called by [JsEngineWebView] when the FlutterChannel receives a message.
   void _onMessage(String json) {
     _pushSnapshot(json);
   }
@@ -115,27 +109,20 @@ class JsEngineBridge implements EngineBridge {
   void dispose() {
     _pollTimer?.cancel();
     _controller.close();
+    _headless?.dispose();
   }
 
-  /// Returns a zero-size widget that mounts the hidden WebView in the tree.
+  /// No platform view needed — the engine runs headlessly.
   @override
-  Widget buildWebView() => _JsEngineWebView(bridge: this);
-}
+  Widget? buildWebView() => null;
 
-/// Zero-size hidden WebView widget that hosts the JS engine.
-class _JsEngineWebView extends StatefulWidget {
-  const _JsEngineWebView({required this.bridge});
+  /// Boots the headless WKWebView and injects the JS engine.
+  Future<void> _initWebView() async {
+    if (_initializing || _ready) return;
+    _initializing = true;
 
-  final JsEngineBridge bridge;
-
-  @override
-  State<_JsEngineWebView> createState() => _JsEngineWebViewState();
-}
-
-class _JsEngineWebViewState extends State<_JsEngineWebView> {
-  @override
-  Widget build(BuildContext context) {
-    return InAppWebView(
+    _headless = HeadlessInAppWebView(
+      initialSize: const Size(1, 1),
       initialData: InAppWebViewInitialData(
         data: _engineHtml,
         mimeType: 'text/html',
@@ -146,24 +133,21 @@ class _JsEngineWebViewState extends State<_JsEngineWebView> {
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,
         mediaPlaybackRequiresUserGesture: false,
-        transparentBackground: true,
-        disableVerticalScroll: true,
-        disableHorizontalScroll: true,
       ),
       onWebViewCreated: (controller) {
-        widget.bridge._attach(controller);
+        _webView = controller;
         controller.addJavaScriptHandler(
           handlerName: 'FlutterChannel',
           callback: (args) {
             final msg = args.isNotEmpty ? args[0].toString() : '';
-            widget.bridge._onMessage(msg);
+            _onMessage(msg);
             return null;
           },
         );
       },
       onLoadStop: (controller, _) async {
         try {
-          final js = await DefaultAssetBundle.of(context).loadString('assets/engine.js');
+          final js = await rootBundle.loadString('assets/engine.js');
           await controller.evaluateJavascript(source: '''
             window.FlutterChannel = {
               postMessage: function(msg) {
@@ -173,19 +157,27 @@ class _JsEngineWebViewState extends State<_JsEngineWebView> {
           ''');
           await controller.evaluateJavascript(source: js);
           await Future.delayed(const Duration(milliseconds: 500));
-          widget.bridge._onReady();
+          _onReady();
         } catch (e) {
-          debugPrint('[JsEngineWebView] engine load error: $e');
+          _initializing = false;
+          debugPrint('[JsEngineBridge] engine load error: $e');
         }
       },
       onConsoleMessage: (_, msg) {
         debugPrint('[engine console] ${msg.messageLevel}: ${msg.message}');
       },
     );
+
+    try {
+      await _headless!.run();
+    } catch (e) {
+      _initializing = false;
+      debugPrint('[JsEngineBridge] headless WebView init error: $e');
+    }
   }
 }
 
-/// Minimal HTML page loaded by the WebView before the engine.js is injected.
+/// Minimal HTML page loaded by the headless WebView before engine.js is injected.
 const _engineHtml = '''<!DOCTYPE html>
 <html><head><meta charset="UTF-8"/></head>
 <body style="margin:0;background:transparent;"></body>
