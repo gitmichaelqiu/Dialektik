@@ -260,7 +260,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           widget.bridge.dispatch(action('card.delete', {'id': card.id}));
         }
       },
-      onInsert: _readMode ? null : (card) {
+      onInsert: (_readMode || (selected != null && !selected.isWritable && !isOwner)) ? null : (card) {
         final selectedDoc = _selectedDocument;
         if (selectedDoc == null) return;
         final selection = _contentController.selection;
@@ -567,6 +567,9 @@ class _EditorPane extends StatelessWidget {
       );
     }
 
+    // Third parties with read-only documents are forced into Read mode.
+    final forceRead = !isOwner && !doc.isWritable;
+    final effectiveReadMode = readMode || forceRead;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -624,8 +627,10 @@ class _EditorPane extends StatelessWidget {
                         label: Text('Read'),
                         icon: Icon(Icons.visibility_outlined)),
                   ],
-                  selected: {readMode},
-                  onSelectionChanged: (value) => onToggleReadMode(value.first),
+                  selected: {effectiveReadMode},
+                  onSelectionChanged: forceRead
+                      ? null
+                      : (value) => onToggleReadMode(value.first),
                 ),
                 if (isMobile) ...[
                   IconButton.outlined(
@@ -643,7 +648,7 @@ class _EditorPane extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: readMode
+              child: effectiveReadMode
                   ? _ReadMode(
                       content: doc.content,
                       documents: documents,
@@ -894,7 +899,7 @@ class _InlineMarkdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium;
-    final parts = _splitCitations(text);
+    final citationParts = _splitCitations(text);
     return RichText(
       text: TextSpan(
         style: baseStyle?.copyWith(
@@ -902,7 +907,7 @@ class _InlineMarkdown extends StatelessWidget {
           height: 1.45,
         ),
         children: [
-          for (final part in parts)
+          for (final part in citationParts)
             if (part.isCitation)
               WidgetSpan(
                 alignment: PlaceholderAlignment.middle,
@@ -914,10 +919,94 @@ class _InlineMarkdown extends StatelessWidget {
                 ),
               )
             else
-              TextSpan(text: _stripInlineMarkdown(part.text)),
+              ..._parseInline(part.text, baseStyle!, context),
         ],
       ),
     );
+  }
+
+  /// Parse inline markdown syntax into styled [TextSpan]s.
+  List<InlineSpan> _parseInline(String text, TextStyle base, BuildContext context) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(
+      r'`([^`]+)`'                                      // inline code
+      r'|\*\*([^*]+)\*\*'                                // **bold**
+      r'|__([^_]+)__'                                    // __bold__
+      r'|\*([^*]+)\*'                                    // *italic*
+      r'|_([^_]+)_'                                      // _italic_
+      r'|\[([^\]]+)\]\(([^)]+)\)'                         // [text](url)
+      r'|~~([^~]+)~~'                                    // ~~strikethrough~~
+      r'|==([^=]+)=='                                    // ==highlight==
+    );
+
+    var lastEnd = 0;
+    for (final match in regex.allMatches(text)) {
+      // Plain text before this match
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      lastEnd = match.end;
+
+      // Determine which group matched
+      final code = match.group(1);
+      final bold1 = match.group(2);
+      final bold2 = match.group(3);
+      final italic1 = match.group(4);
+      final italic2 = match.group(5);
+      final linkText = match.group(6);
+      final linkUrl = match.group(7);
+      final strike = match.group(8);
+      final highlight = match.group(9);
+
+      if (code != null) {
+        spans.add(TextSpan(
+          text: code,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          ),
+        ));
+      } else if (bold1 != null || bold2 != null) {
+        spans.add(TextSpan(
+          text: bold1 ?? bold2,
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ));
+      } else if (italic1 != null || italic2 != null) {
+        spans.add(TextSpan(
+          text: italic1 ?? italic2,
+          style: TextStyle(fontStyle: FontStyle.italic),
+        ));
+      } else if (linkText != null && linkUrl != null) {
+        spans.add(TextSpan(
+          text: linkText,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
+        ));
+      } else if (strike != null) {
+        spans.add(TextSpan(
+          text: strike,
+          style: TextStyle(decoration: TextDecoration.lineThrough),
+        ));
+      } else if (highlight != null) {
+        spans.add(TextSpan(
+          text: highlight,
+          style: TextStyle(
+            backgroundColor: Colors.yellow.shade200,
+            color: Colors.black87,
+          ),
+        ));
+      }
+    }
+
+    // Remaining text after last match
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    // If no matches found, return plain text
+    return spans.isEmpty ? [TextSpan(text: text)] : spans;
   }
 }
 
@@ -1184,17 +1273,6 @@ List<_TextPart> _splitCitations(String text) {
   return parts;
 }
 
-String _stripInlineMarkdown(String text) {
-  return text
-      .replaceAllMapped(RegExp(r'`([^`]+)`'), (match) => match.group(1) ?? '')
-      .replaceAllMapped(
-          RegExp(r'\*\*([^*]+)\*\*'), (match) => match.group(1) ?? '')
-      .replaceAllMapped(RegExp(r'__([^_]+)__'), (match) => match.group(1) ?? '')
-      .replaceAllMapped(RegExp(r'\*([^*]+)\*'), (match) => match.group(1) ?? '')
-      .replaceAllMapped(RegExp(r'_([^_]+)_'), (match) => match.group(1) ?? '')
-      .replaceAllMapped(
-          RegExp(r'\[([^\]]+)\]\([^)]+\)'), (match) => match.group(1) ?? '');
-}
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;

@@ -367,10 +367,16 @@ class _InRoundScreenState extends State<InRoundScreen> {
       );
     }
 
-    final activeSpeakerId = _activeSpeakerId(session);
-    final activeSpeaker = session.debaters
-        .where((debater) => debater.id == activeSpeakerId)
-        .firstOrNull ?? (activeSpeakerId == 'general' ? const Debater(id: 'general', name: 'General Notes', status: 'approved') : null);
+    // The host-set active speaker (for display) vs the locally-selected
+    // notes speaker (for writing notes).
+    final hostSpeakerId = session.currentSpeakerId;
+    final hostSpeaker = hostSpeakerId != null
+        ? session.debaters.where((d) => d.id == hostSpeakerId).firstOrNull
+        : null;
+    final notesSpeakerId = _activeSpeakerId(session);
+    final notesSpeaker = session.debaters
+        .where((debater) => debater.id == notesSpeakerId)
+        .firstOrNull ?? (notesSpeakerId == 'general' ? const Debater(id: 'general', name: 'General Notes', status: 'approved') : null);
     final active = session.status == 'active';
 
     final handoutPane = active
@@ -413,15 +419,16 @@ class _InRoundScreenState extends State<InRoundScreen> {
     final debatersOrNotesPane = active
         ? _NotesPane(
             session: session,
-            activeSpeaker: activeSpeaker,
+            hostSpeaker: hostSpeaker,
+            notesSpeaker: notesSpeaker,
             controller: _notesController,
             onSpeakerSelected: (debater) {
               setState(() => _localActiveSpeakerId = debater.id);
             },
             onNotesChanged: (text) {
-              if (activeSpeakerId == null) return;
+              if (notesSpeakerId == null) return;
               widget.bridge.dispatch(action('session.updateNotes', {
-                'speakerId': activeSpeakerId,
+                'speakerId': notesSpeakerId,
                 'text': text,
               }));
             },
@@ -1272,7 +1279,8 @@ class _PendingRequestTile extends StatelessWidget {
 class _NotesPane extends StatelessWidget {
   const _NotesPane({
     required this.session,
-    required this.activeSpeaker,
+    required this.hostSpeaker,
+    required this.notesSpeaker,
     required this.controller,
     required this.onSpeakerSelected,
     required this.onNotesChanged,
@@ -1283,7 +1291,8 @@ class _NotesPane extends StatelessWidget {
   });
 
   final SessionState session;
-  final Debater? activeSpeaker;
+  final Debater? hostSpeaker;
+  final Debater? notesSpeaker;
   final TextEditingController controller;
   final ValueChanged<Debater> onSpeakerSelected;
   final ValueChanged<String> onNotesChanged;
@@ -1294,6 +1303,9 @@ class _NotesPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = hostSpeaker != null
+        ? 'Active: ${hostSpeaker!.name}'
+        : (notesSpeaker != null ? 'Notes: ${notesSpeaker!.name}' : 'Select a speaker');
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1302,9 +1314,7 @@ class _NotesPane extends StatelessWidget {
           children: [
             SectionHeader(
               title: 'Speaker notes',
-              subtitle: activeSpeaker == null
-                  ? 'Select a speaker'
-                  : 'Active: ${activeSpeaker!.name}',
+              subtitle: subtitle,
               trailing: onTogglePosition != null
                   ? IconButton(
                       icon: Icon(showPosition
@@ -1329,7 +1339,7 @@ class _NotesPane extends StatelessWidget {
                           ? '${debater.team == 'affirmative' ? 'AFF' : 'NEG'} • ${debater.position ?? '-'}'
                           : debater.name,
                     ),
-                    selected: activeSpeaker?.id == debater.id,
+                    selected: notesSpeaker?.id == debater.id,
                     onSelected: (_) => onSpeakerSelected(debater),
                   ),
               ],
