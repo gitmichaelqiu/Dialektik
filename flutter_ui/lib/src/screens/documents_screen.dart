@@ -256,8 +256,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _cachedSelectedId = doc.id;
       }),
       isMobile: compact,
-      onOpenFiles: () => _scaffoldKey.currentState?.openDrawer(),
-      onOpenEvidence: () => _scaffoldKey.currentState?.openEndDrawer(),
     );
 
     final evidencePane = _EvidencePane(
@@ -617,8 +615,6 @@ class _EditorPane extends StatelessWidget {
     required this.onInsertCitation,
     required this.onNavigateDoc,
     this.isMobile = false,
-    this.onOpenFiles,
-    this.onOpenEvidence,
   });
 
   final DebateDocument? document;
@@ -636,8 +632,6 @@ class _EditorPane extends StatelessWidget {
   final ValueChanged<String> onInsertCitation;
   final ValueChanged<DebateDocument> onNavigateDoc;
   final bool isMobile;
-  final VoidCallback? onOpenFiles;
-  final VoidCallback? onOpenEvidence;
 
   @override
   Widget build(BuildContext context) {
@@ -716,18 +710,6 @@ class _EditorPane extends StatelessWidget {
                       ? null
                       : (value) => onToggleReadMode(value.first),
                 ),
-                if (isMobile) ...[
-                  IconButton.outlined(
-                    onPressed: onOpenFiles,
-                    icon: const Icon(Icons.folder_open),
-                    tooltip: 'Files',
-                  ),
-                  IconButton.outlined(
-                    onPressed: onOpenEvidence,
-                    icon: const Icon(Icons.style),
-                    tooltip: 'Evidence',
-                  ),
-                ],
               ],
             ),
             const SizedBox(height: 12),
