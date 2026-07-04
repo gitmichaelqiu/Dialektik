@@ -278,7 +278,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         key: _scaffoldKey,
         drawer: Drawer(child: SafeArea(child: filesPane)),
         endDrawer: Drawer(child: SafeArea(child: evidencePane)),
-        body: editorPane,
+        body: widget.snapshot.documents.isEmpty ? filesPane : editorPane,
       );
     }
 

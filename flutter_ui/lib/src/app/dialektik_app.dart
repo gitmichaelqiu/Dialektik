@@ -20,13 +20,30 @@ class DialektikFlutterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const seedColor = Color(0xff0f766e);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.system,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff0f766e),
+          seedColor: seedColor,
           brightness: Brightness.light,
+        ),
+        cardTheme: const CardThemeData(
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
         ),
         cardTheme: const CardThemeData(
           clipBehavior: Clip.antiAlias,
