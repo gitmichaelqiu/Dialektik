@@ -205,6 +205,7 @@ async function emitSnapshot() {
 function startTimerLoop() {
   if (timerInterval) return;
   lastTick = Date.now();
+  let heartbeatTick = 0;
   timerInterval = setInterval(() => {
     const now = Date.now();
     const elapsed = now - lastTick;
@@ -229,7 +230,14 @@ function startTimerLoop() {
       return { ...t, remainingMs: next, running: next > 0 };
     });
 
-    if (changed) emitSnapshot();
+    // Emit on timer changes, and also emit a heartbeat every ~1 s to flush
+    // any pending state (e.g. pendingRequests) to Flutter even when the
+    // first emitSnapshot from an event handler was missed by the stream.
+    heartbeatTick += elapsed;
+    if (changed || heartbeatTick >= 1000) {
+      heartbeatTick = 0;
+      emitSnapshot();
+    }
   }, 250);
 }
 
