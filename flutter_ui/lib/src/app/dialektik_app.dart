@@ -15,21 +15,23 @@ final Map<Brightness, ThemeData> _themeCache = {};
 ThemeData _appTheme(Brightness brightness) {
   // Cache theme data per brightness — avoids creating a new ThemeData on
   // every snapshot tick, which would rebuild the entire widget tree.
-  return _themeCache.putIfAbsent(brightness, () => ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _seedColor,
-      brightness: brightness,
-    ),
-    cardTheme: const CardThemeData(
-      clipBehavior: Clip.antiAlias,
-      margin: EdgeInsets.zero,
-    ),
-    inputDecorationTheme: const InputDecorationTheme(
-      border: OutlineInputBorder(),
-      isDense: true,
-    ),
-  ));
+  return _themeCache.putIfAbsent(
+      brightness,
+      () => ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: _seedColor,
+              brightness: brightness,
+            ),
+            cardTheme: const CardThemeData(
+              clipBehavior: Clip.antiAlias,
+              margin: EdgeInsets.zero,
+            ),
+            inputDecorationTheme: const InputDecorationTheme(
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ));
 }
 
 class DialektikFlutterApp extends StatelessWidget {
@@ -49,7 +51,34 @@ class DialektikFlutterApp extends StatelessWidget {
       themeMode: ThemeMode.light,
       theme: _appTheme(Brightness.light),
       darkTheme: _appTheme(Brightness.dark),
+      builder: (context, child) => _KeyboardDismissRegion(child: child),
       home: _AppRoot(bridge: bridge, initialSnapshot: initialSnapshot),
+    );
+  }
+}
+
+class _KeyboardDismissRegion extends StatelessWidget {
+  const _KeyboardDismissRegion({required this.child});
+
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        final focus = FocusManager.instance.primaryFocus;
+        final focusContext = focus?.context;
+        if (focus == null || focusContext == null) return;
+
+        final renderObject = focusContext.findRenderObject();
+        if (renderObject is RenderBox) {
+          final localPosition = renderObject.globalToLocal(event.position);
+          if (renderObject.size.contains(localPosition)) return;
+        }
+        focus.unfocus();
+      },
+      child: child ?? const SizedBox.shrink(),
     );
   }
 }

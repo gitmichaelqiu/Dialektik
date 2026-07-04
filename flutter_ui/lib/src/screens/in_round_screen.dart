@@ -732,30 +732,33 @@ class _JoinSessionPane extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionHeader(
-              title: 'Join room',
-              subtitle: 'Request access using the host room code',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: codeController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(labelText: 'Room code'),
-              onSubmitted: (_) => onJoin(),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onJoin,
-                icon: const Icon(Icons.login),
-                label: const Text('Join'),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(
+                title: 'Join room',
+                subtitle: 'Request access using the host room code',
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: codeController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Room code'),
+                onSubmitted: (_) => onJoin(),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onJoin,
+                  icon: const Icon(Icons.login),
+                  label: const Text('Join'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -789,106 +792,137 @@ class _LobbyHandoutPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final header = <Widget>[
+      SectionHeader(
+        title: 'Debate handout',
+        subtitle: 'Draft the resolution',
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Room Code: ${session.roomCode}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            constraints: const BoxConstraints(),
+            padding: EdgeInsets.zero,
+            iconSize: 16,
+            icon: const Icon(Icons.copy),
+            tooltip: 'Copy Room Code',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: session.roomCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Room code copied to clipboard!'),
+                    duration: Duration(seconds: 1)),
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    final fields = <Widget>[
+      TextField(
+        controller: titleController,
+        focusNode: titleFocusNode,
+        enabled: session.isHost,
+        decoration: const InputDecoration(labelText: 'Title'),
+        onChanged: (_) => onChanged(),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: problemController,
+        focusNode: problemFocusNode,
+        enabled: session.isHost,
+        minLines: 4,
+        maxLines: 7,
+        decoration: const InputDecoration(
+          labelText: 'Resolution or problem',
+          alignLabelWithHint: true,
+        ),
+        onChanged: (_) => onChanged(),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: detailsController,
+        focusNode: detailsFocusNode,
+        enabled: session.isHost,
+        minLines: 3,
+        maxLines: 6,
+        decoration: const InputDecoration(
+          labelText: 'Context',
+          alignLabelWithHint: true,
+        ),
+        onChanged: (_) => onChanged(),
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: session.isHost ? onStart : null,
+          icon: const Icon(Icons.play_arrow),
+          label: Text(
+              session.isHost ? 'Start debate' : 'Waiting for host to start...'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: onCancel,
+          icon: const Icon(Icons.cancel_outlined),
+          label: Text(session.isHost ? 'Cancel session' : 'Exit session'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
+          ),
+        ),
+      ),
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              title: 'Debate handout',
-              subtitle: 'Draft the resolution',
-            ),
-            const SizedBox(height: 8),
-            Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (!constraints.hasBoundedHeight) {
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [...header, const SizedBox(height: 12), ...fields],
+                ),
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                ...header,
+                const SizedBox(height: 12),
                 Expanded(
-                  child: Text(
-                    'Room Code: ${session.roomCode}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                    overflow: TextOverflow.ellipsis,
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: fields,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
-                  iconSize: 16,
-                  icon: const Icon(Icons.copy),
-                  tooltip: 'Copy Room Code',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: session.roomCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Room code copied to clipboard!'),
-                          duration: Duration(seconds: 1)),
-                    );
-                  },
-                ),
               ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: titleController,
-              focusNode: titleFocusNode,
-              enabled: session.isHost,
-              decoration: const InputDecoration(labelText: 'Title'),
-              onChanged: (_) => onChanged(),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: problemController,
-              focusNode: problemFocusNode,
-              enabled: session.isHost,
-              minLines: 4,
-              maxLines: 7,
-              decoration: const InputDecoration(
-                labelText: 'Resolution or problem',
-                alignLabelWithHint: true,
-              ),
-              onChanged: (_) => onChanged(),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: detailsController,
-              focusNode: detailsFocusNode,
-              enabled: session.isHost,
-              minLines: 3,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: 'Context',
-                alignLabelWithHint: true,
-              ),
-              onChanged: (_) => onChanged(),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: session.isHost ? onStart : null,
-                icon: const Icon(Icons.play_arrow),
-                label: Text(session.isHost
-                    ? 'Start debate'
-                    : 'Waiting for host to start...'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onCancel,
-                icon: const Icon(Icons.cancel_outlined),
-                label: Text(session.isHost ? 'Cancel session' : 'Exit session'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -905,64 +939,63 @@ class _HandoutReadPane extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              title: session.handout.title.isEmpty
-                  ? session.matchName
-                  : session.handout.title,
-              subtitle: session.groupName,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Room Code: ${session.roomCode}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
-                  iconSize: 16,
-                  icon: const Icon(Icons.copy),
-                  tooltip: 'Copy Room Code',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: session.roomCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Room code copied to clipboard!'),
-                          duration: Duration(seconds: 1)),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text('Debate resolution',
-                style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Text(session.handout.problem.isEmpty
-                ? 'No resolution entered.'
-                : session.handout.problem),
-            const Divider(height: 32),
-            Text('Context', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Text(session.handout.details.isEmpty
-                    ? 'No additional context.'
-                    : session.handout.details),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(
+                title: session.handout.title.isEmpty
+                    ? session.matchName
+                    : session.handout.title,
+                subtitle: session.groupName,
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Room Code: ${session.roomCode}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                    iconSize: 16,
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Copy Room Code',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: session.roomCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Room code copied to clipboard!'),
+                            duration: Duration(seconds: 1)),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('Debate resolution',
+                  style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 6),
+              Text(session.handout.problem.isEmpty
+                  ? 'No resolution entered.'
+                  : session.handout.problem),
+              const Divider(height: 32),
+              Text('Context', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 6),
+              Text(session.handout.details.isEmpty
+                  ? 'No additional context.'
+                  : session.handout.details),
+            ],
+          ),
         ),
       ),
     );
@@ -991,153 +1024,157 @@ class _TimersPane extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              title: 'Round timers',
-              subtitle: 'Speech, prep, and custom timers',
-              trailing: session.isHost
-                  ? IconButton(
-                      onPressed: () =>
-                          bridge.dispatch(action('timer.resetAll')),
-                      icon: const Icon(Icons.restart_alt),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            _TimerTile(
-              name: 'Speech',
-              remainingMs: session.speechRemainingMs,
-              running: session.speechRunning,
-              enabled: session.isHost,
-              durationMs: 240000,
-              onDurationChanged: session.isHost
-                  ? (ms) => bridge.dispatch(action('timer.action', {
-                        'timerType': 'speech',
-                        'action': 'reset',
-                        'durationSeconds': (ms / 1000).round(),
-                      }))
-                  : null,
-              onAction: (timerAction) =>
-                  bridge.dispatch(action('timer.action', {
-                'timerType': 'speech',
-                'action': timerAction,
-              })),
-            ),
-            _TimerTile(
-              name: 'Prep',
-              remainingMs: session.prepRemainingMs,
-              running: session.prepRunning,
-              enabled: session.isHost,
-              durationMs: 180000,
-              onDurationChanged: session.isHost
-                  ? (ms) => bridge.dispatch(action('timer.action', {
-                        'timerType': 'prep',
-                        'action': 'reset',
-                        'durationSeconds': (ms / 1000).round(),
-                      }))
-                  : null,
-              onAction: (timerAction) =>
-                  bridge.dispatch(action('timer.action', {
-                'timerType': 'prep',
-                'action': timerAction,
-              })),
-            ),
-            const Divider(height: 24),
-            if (session.isHost) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: customNameController,
-                      decoration:
-                          const InputDecoration(labelText: 'Custom timer'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 96,
-                    child: TextField(
-                      controller: customDurationController,
-                      decoration: const InputDecoration(labelText: 'MM:SS'),
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      if (customNameController.text.trim().isEmpty) return;
-                      bridge.dispatch(action('customTimer.create', {
-                        'name': customNameController.text.trim(),
-                        'duration': customDurationController.text.trim(),
-                      }));
-                      customNameController.clear();
-                    },
-                    icon: const Icon(Icons.add),
-                  ),
-                ],
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(
+                title: 'Round timers',
+                subtitle: 'Speech, prep, and custom timers',
+                trailing: session.isHost
+                    ? IconButton(
+                        onPressed: () =>
+                            bridge.dispatch(action('timer.resetAll')),
+                        icon: const Icon(Icons.restart_alt),
+                      )
+                    : null,
               ),
-              const SizedBox(height: 8),
-            ],
-            Expanded(
-              child: session.customTimers.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.timer_outlined, message: 'No custom timers.')
-                  : ListView.builder(
-                      itemCount: session.customTimers.length,
-                      itemBuilder: (context, index) {
-                        final timer = session.customTimers[index];
-                        return _TimerTile(
-                          name: timer.name,
-                          remainingMs: timer.remainingMs,
-                          running: timer.running,
-                          removable: true,
-                          enabled: session.isHost,
-                          onRemove: () => bridge.dispatch(
-                              action('customTimer.delete', {'id': timer.id})),
-                          onAction: (timerAction) =>
-                              bridge.dispatch(action('customTimer.action', {
-                            'id': timer.id,
-                            'action': timerAction,
-                          })),
-                        );
+              const SizedBox(height: 12),
+              _TimerTile(
+                name: 'Speech',
+                remainingMs: session.speechRemainingMs,
+                running: session.speechRunning,
+                enabled: session.isHost,
+                durationMs: 240000,
+                onDurationChanged: session.isHost
+                    ? (ms) => bridge.dispatch(action('timer.action', {
+                          'timerType': 'speech',
+                          'action': 'reset',
+                          'durationSeconds': (ms / 1000).round(),
+                        }))
+                    : null,
+                onAction: (timerAction) =>
+                    bridge.dispatch(action('timer.action', {
+                  'timerType': 'speech',
+                  'action': timerAction,
+                })),
+              ),
+              _TimerTile(
+                name: 'Prep',
+                remainingMs: session.prepRemainingMs,
+                running: session.prepRunning,
+                enabled: session.isHost,
+                durationMs: 180000,
+                onDurationChanged: session.isHost
+                    ? (ms) => bridge.dispatch(action('timer.action', {
+                          'timerType': 'prep',
+                          'action': 'reset',
+                          'durationSeconds': (ms / 1000).round(),
+                        }))
+                    : null,
+                onAction: (timerAction) =>
+                    bridge.dispatch(action('timer.action', {
+                  'timerType': 'prep',
+                  'action': timerAction,
+                })),
+              ),
+              const Divider(height: 24),
+              if (session.isHost) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: customNameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Custom timer'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 96,
+                      child: TextField(
+                        controller: customDurationController,
+                        decoration: const InputDecoration(labelText: 'MM:SS'),
+                      ),
+                    ),
+                    IconButton.filledTonal(
+                      onPressed: () {
+                        if (customNameController.text.trim().isEmpty) return;
+                        bridge.dispatch(action('customTimer.create', {
+                          'name': customNameController.text.trim(),
+                          'duration': customDurationController.text.trim(),
+                        }));
+                        customNameController.clear();
                       },
+                      icon: const Icon(Icons.add),
                     ),
-            ),
-            if (onSpeakerSelected != null && session.debaters.isNotEmpty) ...[
-              const Divider(height: 16),
-              Text('Active speaker',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              // Affirmative row
-              _SpeakerTeamRow(
-                label: 'Affirmative',
-                color: Colors.teal,
-                debaters: session.debaters
-                    .where((d) => !d.disconnected && d.team == 'affirmative')
-                    .toList(),
-                currentSpeakerId: session.currentSpeakerId,
-                showPosition: showPosition,
-                isHost: session.isHost,
-                onSelect: onSpeakerSelected!,
-              ),
-              const SizedBox(height: 6),
-              // Negative row
-              _SpeakerTeamRow(
-                label: 'Negative',
-                color: Colors.deepOrange,
-                debaters: session.debaters
-                    .where((d) => !d.disconnected && d.team == 'negative')
-                    .toList(),
-                currentSpeakerId: session.currentSpeakerId,
-                showPosition: showPosition,
-                isHost: session.isHost,
-                onSelect: onSpeakerSelected!,
-              ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (session.customTimers.isEmpty)
+                const EmptyState(
+                    icon: Icons.timer_outlined, message: 'No custom timers.')
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: session.customTimers.length,
+                  itemBuilder: (context, index) {
+                    final timer = session.customTimers[index];
+                    return _TimerTile(
+                      name: timer.name,
+                      remainingMs: timer.remainingMs,
+                      running: timer.running,
+                      removable: true,
+                      enabled: session.isHost,
+                      onRemove: () => bridge.dispatch(
+                          action('customTimer.delete', {'id': timer.id})),
+                      onAction: (timerAction) =>
+                          bridge.dispatch(action('customTimer.action', {
+                        'id': timer.id,
+                        'action': timerAction,
+                      })),
+                    );
+                  },
+                ),
+              if (onSpeakerSelected != null && session.debaters.isNotEmpty) ...[
+                const Divider(height: 16),
+                Text('Active speaker',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                // Affirmative row
+                _SpeakerTeamRow(
+                  label: 'Affirmative',
+                  color: Colors.teal,
+                  debaters: session.debaters
+                      .where((d) => !d.disconnected && d.team == 'affirmative')
+                      .toList(),
+                  currentSpeakerId: session.currentSpeakerId,
+                  showPosition: showPosition,
+                  isHost: session.isHost,
+                  onSelect: onSpeakerSelected!,
+                ),
+                const SizedBox(height: 6),
+                // Negative row
+                _SpeakerTeamRow(
+                  label: 'Negative',
+                  color: Colors.deepOrange,
+                  debaters: session.debaters
+                      .where((d) => !d.disconnected && d.team == 'negative')
+                      .toList(),
+                  currentSpeakerId: session.currentSpeakerId,
+                  showPosition: showPosition,
+                  isHost: session.isHost,
+                  onSelect: onSpeakerSelected!,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
