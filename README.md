@@ -8,8 +8,6 @@ A local-first, serverless portal for National Speech and Debate Association (NSD
 
 Licensed under [MIT License](LICENSE).
 
----
-
 ## Installation
 
 Download the latest release for your platform:
@@ -119,8 +117,6 @@ cd flutter_ui && flutter build apk --release
 cd flutter_ui && flutter build appbundle --release  # Play Store
 ```
 
----
-
 ## Architecture
 
 ```
@@ -138,8 +134,6 @@ Flutter UI ──EngineBridge──> Hidden WebView ──> engine.js (TypeScrip
 - **Platform-dependent bridge**: `EngineBridge` has two implementations — `JsEngineBridge` (native) uses a hidden `HeadlessInAppWebView` with the compiled `engine.js` bundle; `JsEngineBridge` (web) uses `dart:js_util` to call `window.dialektikEngine` directly.
 - **Poll-based sync**: The bridge polls `getLatestSnapshot()` every 500ms (synchronous read of a cached `__latestSnapshot` string) to catch dropped messages.
 - **Snapshot model**: Immutable `AppSnapshot` Dart classes parsed from JSON with top-level fields `activePage`, `documents`, `cards`, `history`, `session`, `ai`, and `settings`.
-
----
 
 ## Source Structure
 
@@ -167,8 +161,6 @@ Flutter UI ──EngineBridge──> Hidden WebView ──> engine.js (TypeScrip
 │   └── flutter-build.mjs             # Production build launcher
 └── vite.config.engine.ts             # Vite config for engine.js IIFE bundle
 ```
-
----
 
 ## Local Multi-Peer Testing (Single Machine)
 
