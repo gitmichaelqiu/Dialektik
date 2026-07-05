@@ -85,8 +85,12 @@ Output: `build/web/` — open `index.html` in a browser to launch.
 
 The release zip (`Dialektik-web-v0.1.0.zip`) extracts to a `Dialektik/` folder. To serve it:
 
-- **Locally:** Open `Dialektik/index.html` directly in Chrome.
-- **Self-host:** Upload the `Dialektik/` folder to any static web server or CDN.
+- **Locally:** Flutter web requires a local server (opening `index.html` directly via `file://` will show a blank page):
+  ```bash
+  cd Dialektik && python3 -m http.server 8080
+  # Then open http://localhost:8080
+  ```
+- **Self-host:** Upload the `Dialektik/` folder to any static web server.
 - **Cloudflare Pages / Vercel:** Point the deployment to the `Dialektik/` folder — they auto-detect the static site.
 
 **Note:** P2P WebRTC connections on web may be limited compared to native builds (some browsers restrict WebRTC data channel reliability).
