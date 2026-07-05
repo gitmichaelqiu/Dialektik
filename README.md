@@ -37,6 +37,9 @@ Flutter web requires a local server — opening `index.html` directly will show 
 
 > **Note:** P2P WebRTC on web may be limited compared to native builds. For full functionality, use the macOS or iOS app.
 
+> [!NOTE]
+> You don't need to read the sections below if you are not a developer ☺️.
+
 ---
 
 ## Building from Source
