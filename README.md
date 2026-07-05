@@ -1,4 +1,8 @@
-# Dialektik
+<h1 align="center">
+  <img src="./DialektikIcon.png" width="25%" alt=""/>  
+  <p></p>
+  <p align="center">Dialektik</p>
+</h1>
 
 A local-first, serverless portal for National Speech and Debate Association (NSDA) clubs. Manages debate rounds with P2P WebRTC connections, collaborative Yjs/CRDT document editing, AI coaching, evidence cards, and round history. All data is stored locally in IndexedDB (via Dexie.js) — no backend server required.
 
