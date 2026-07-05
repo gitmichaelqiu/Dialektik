@@ -23,7 +23,7 @@ Download the latest release for your platform:
 > [!NOTE]
 > Because I do **NOT** have an Apple developer account for the app releases, you may receive alerts such as "Developer is not verified" on macOS.
 >
-> To resolve this, go to System Settings → the bottom of Privacy & Security → Open DesktopRenamer.
+> To resolve this, go to System Settings → the bottom of Privacy & Security → Open Dialektik.
 
 ### Web quick start
 
