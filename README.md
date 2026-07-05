@@ -81,8 +81,15 @@ The same build targets both iPhone and iPad.
 # Prerequisites: None (builds on macOS, Windows, Linux)
 cd flutter_ui && flutter build web --release
 ```
-Output: `build/web/` — static files deployable to any web server or CDN.
-**Note:** P2P WebRTC connections on web may be limited compared to native builds.
+Output: `build/web/` — open `index.html` in a browser to launch.
+
+The release zip (`Dialektik-web-v0.1.0.zip`) extracts to a `Dialektik/` folder. To serve it:
+
+- **Locally:** Open `Dialektik/index.html` directly in Chrome.
+- **Self-host:** Upload the `Dialektik/` folder to any static web server or CDN.
+- **Cloudflare Pages / Vercel:** Point the deployment to the `Dialektik/` folder — they auto-detect the static site.
+
+**Note:** P2P WebRTC connections on web may be limited compared to native builds (some browsers restrict WebRTC data channel reliability).
 
 ### Windows (requires a Windows machine)
 ```bash
