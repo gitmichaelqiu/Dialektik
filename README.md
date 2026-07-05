@@ -65,7 +65,7 @@ All builds require `npm run engine:build` first. Artifacts are output to `releas
 flutter build macos --release
 ```
 Output: `build/macos/Build/Products/Release/Dialektik.app`
-Package as `.dmg` with: `hdiutil create -volname "Dialektik" -srcfolder build/macos/Build/Products/Release/Dialektik.app -ov -format UDZO Dialektik-macOS-v0.1.0.dmg`
+Package as `.dmg` with: `npx create-dmg build/macos/Build/Products/Release/Dialektik.app Dialektik_macOS_v0.1.0.dmg`
 
 ### iOS & iPadOS
 ```bash
@@ -83,7 +83,7 @@ cd flutter_ui && flutter build web --release
 ```
 Output: `build/web/` — open `index.html` in a browser to launch.
 
-The release zip (`Dialektik-web-v0.1.0.zip`) extracts to a `Dialektik/` folder. To serve it:
+The release zip (`Dialektik_web_v0.1.0.zip`) extracts to a `Dialektik/` folder. To serve it:
 
 - **Locally:** Flutter web requires a local server (opening `index.html` directly via `file://` will show a blank page):
   ```bash
