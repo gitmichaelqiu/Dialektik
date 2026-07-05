@@ -55,6 +55,52 @@ npm run engine:build && npm run flutter:web
 
 ---
 
+## Building for Production
+
+All builds require `npm run engine:build` first. Artifacts are output to `releases/v0.1.0/`.
+
+### macOS
+```bash
+# Prerequisites: Xcode
+flutter build macos --release
+```
+Output: `build/macos/Build/Products/Release/Dialektik.app`
+Package as `.dmg` with: `hdiutil create -volname "Dialektik" -srcfolder build/macos/Build/Products/Release/Dialektik.app -ov -format UDZO Dialektik-macOS-v0.1.0.dmg`
+
+### iOS & iPadOS
+```bash
+# Prerequisites: Xcode, Apple Developer account (for device deployment)
+flutter build ios --release
+```
+Output: `build/ios/iphoneos/Runner.app`
+Package as `.ipa` by copying the app into a `Payload/` directory and zipping.
+The same build targets both iPhone and iPad.
+
+### Web (current cross-platform fallback)
+```bash
+# Prerequisites: None (builds on macOS, Windows, Linux)
+cd flutter_ui && flutter build web --release
+```
+Output: `build/web/` — static files deployable to any web server or CDN.
+**Note:** P2P WebRTC connections on web may be limited compared to native builds.
+
+### Windows (requires a Windows machine)
+```bash
+# Prerequisites: Windows 10+, Visual Studio 2022 with "Desktop development with C++"
+cd flutter_ui && flutter build windows --release
+```
+Output: `build/windows/runner/Release/Dialektik.exe` + DLL dependencies.
+Set `FLUTTER_ROOT` and run `flutter config --enable-windows-desktop` before the first build.
+
+### Android (requires Android Studio setup on any platform)
+```bash
+# Prerequisites: Android Studio, Android SDK, accept licenses
+cd flutter_ui && flutter build apk --release    # direct install
+cd flutter_ui && flutter build appbundle --release  # Play Store
+```
+
+---
+
 ## Architecture
 
 ```
