@@ -40,3 +40,4 @@ src-tauri/target/
 
 .vscode/
 .claude/
+releases/
