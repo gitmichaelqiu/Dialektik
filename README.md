@@ -20,6 +20,11 @@ Download the latest release for your platform:
 | **iOS & iPadOS** | `Dialektik_iOS_iPadOS_v0.1.0.ipa` — install via TestFlight or sideload |
 | **Web** | `Dialektik_web_v0.1.0.zip` — extract and serve the `Dialektik/` folder |
 
+> [!NOTE]
+> Because I do **NOT** have an Apple developer account for the app releases, you may receive alerts such as "Developer is not verified" on macOS.
+>
+> To resolve this, go to System Settings → the bottom of Privacy & Security → Open DesktopRenamer.
+
 ### Web quick start
 
 ```bash
