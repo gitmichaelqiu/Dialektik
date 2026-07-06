@@ -507,6 +507,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 }
 
 class _FilesPane extends StatelessWidget {
+  void _handleCreate(BuildContext context) {
+    if (newTitleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a document name.')),
+      );
+      return;
+    }
+    onCreate();
+  }
+
   const _FilesPane({
     required this.documents,
     required this.selectedId,
@@ -551,7 +561,7 @@ class _FilesPane extends StatelessWidget {
               title: 'Documents',
               subtitle: 'Private, team, and public files',
               trailing: IconButton.filledTonal(
-                onPressed: onCreate,
+                onPressed: () => _handleCreate(context),
                 icon: const Icon(Icons.add),
                 tooltip: 'Create document',
               ),
@@ -560,7 +570,7 @@ class _FilesPane extends StatelessWidget {
             TextField(
               controller: newTitleController,
               decoration: const InputDecoration(labelText: 'New document'),
-              onSubmitted: (_) => onCreate(),
+              onSubmitted: (_) => _handleCreate(context),
             ),
             const SizedBox(height: 8),
             LayoutBuilder(
@@ -620,7 +630,7 @@ class _FilesPane extends StatelessWidget {
                       icon: Icons.article_outlined,
                       message: 'No documents yet.',
                       action: FilledButton.icon(
-                        onPressed: onCreate,
+                        onPressed: () => _handleCreate(context),
                         icon: const Icon(Icons.add),
                         label: const Text('Create'),
                       ),
