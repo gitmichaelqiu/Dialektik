@@ -41,7 +41,7 @@ interface TournamentRecord {
   sides: string; opponentName: string; winLoss: string;
   flows: { speechId: string; notes: string }[]; tag: string; timestamp: number;
 }
-interface AiChat { id: string; title: string; messages: { role: string; text: string; timestamp: number }[] }
+interface AiChat { id: string; title: string; messages: { role: string; text: string; thinking?: string; timestamp: number }[] }
 interface TextSplice {
   index: number;
   deleteCount: number;
@@ -103,6 +103,7 @@ let hasAiKey = false;
 let aiChats: AiChat[] = [];
 let activeAiChatId: string | null = null;
 let aiLoading = false;
+let citedDocIds: string[] = [];
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let lastTick = Date.now();
 let systemBrightness: "light" | "dark" = "light";
@@ -193,6 +194,7 @@ async function buildSnapshot() {
       chats: aiChats.map(c => ({ id: c.id, title: c.title, messages: c.messages })),
       activeChatId: activeAiChatId,
       loading: aiLoading,
+      citedDocIds,
     },
     settings: {
       userId,
@@ -1145,6 +1147,18 @@ async function dispatch(actionJson: string) {
   }
 
   // ── AI ────────────────────────────────────
+  if (type === "ai.toggleCitation") {
+    const { id, selected } = payload;
+    if (!id) return;
+    if (selected) {
+      if (!citedDocIds.includes(id)) citedDocIds.push(id);
+    } else {
+      citedDocIds = citedDocIds.filter(cid => cid !== id);
+    }
+    await emitSnapshot();
+    return;
+  }
+
   if (type === "ai.newChat") {
     const chat: AiChat = {
       id: `chat-${Date.now()}`, title: "New Chat",
@@ -1204,6 +1218,14 @@ async function dispatch(actionJson: string) {
       const chat = aiChats.find(c => c.id === chatId)!;
       const ai = new AIService({ apiKey: aiApiKey, endpoint: aiEndpoint, model: aiModel });
       const history = chat.messages.map(m => ({ role: m.role, text: m.text }));
+
+      // Include cited document content as context
+      const citedDocs = (await Promise.all(citedDocIds.map(id => db.documents.get(id)))).filter(Boolean) as DebateDocument[];
+      if (citedDocs.length > 0) {
+        const contextBlock = "--- Cited Documents ---\n" + citedDocs.map(d => `${d.name}:\n${d.content}`).join("\n\n") + "\n\n--- End Cited Documents ---";
+        history.unshift({ role: "system", text: contextBlock });
+      }
+
       const topic = session?.handout?.title || "NSDA debate";
       const response = await ai.sparringPartner(topic, "affirmative", history);
       aiChats = aiChats.map(c => {

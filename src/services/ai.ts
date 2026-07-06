@@ -81,7 +81,10 @@ export class AIService {
     const opponentSide = side === "affirmative" ? "negative" : "affirmative";
     const systemPrompt = `You are a world-class debate sparring partner. The topic is "${topic}". The user is debating on the ${side} side, and you are debating on the ${opponentSide} side. Analyze the user's latest speech and output your constructive or rebuttal counter-speech. Keep your speech concise, analytical, and structured, targeting their main points.`;
 
-    const chatHistory = history.map(m => `${m.role === "user" ? "User (Debater)" : "AI (Sparring Partner)"}: ${m.text}`).join("\n\n");
+    const chatHistory = history.map(m => {
+      if (m.role === "system") return `[System Context]\n${m.text}`;
+      return `${m.role === "user" ? "User (Debater)" : "AI (Sparring Partner)"}: ${m.text}`;
+    }).join("\n\n");
     return this.chatCompletion(systemPrompt, `Debate History:\n${chatHistory}\n\nGenerate your response.`);
   }
 
