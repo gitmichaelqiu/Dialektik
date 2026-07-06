@@ -234,7 +234,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed: () async {
                       final nav = Navigator.of(context);
                       final confirm = await _confirmAction(
@@ -255,9 +255,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
                       side: BorderSide(color: Theme.of(context).colorScheme.error),
+                      visualDensity: VisualDensity.compact,
                     ),
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    label: const Text('Delete log'),
+                    child: const Text('Delete log'),
                   ),
                 ],
               ),
