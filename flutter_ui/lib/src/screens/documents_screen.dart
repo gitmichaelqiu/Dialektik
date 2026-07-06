@@ -303,6 +303,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       onCreate: () {
         if (_cardTitleController.text.trim().isEmpty ||
             _cardTextController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a citation title and evidence text.')),
+          );
           return;
         }
         widget.bridge.dispatch(action('card.create', {
