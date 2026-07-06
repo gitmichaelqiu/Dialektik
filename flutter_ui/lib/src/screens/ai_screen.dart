@@ -122,6 +122,7 @@ class _AiScreenState extends State<AiScreen> {
 
     final citedFilesPane = _CitedFilesPane(
       documents: widget.snapshot.documents,
+      citedDocIds: widget.snapshot.ai.citedDocIds,
       onToggle: (doc, value) =>
           widget.bridge.dispatch(action('ai.toggleCitation', {
         'id': doc.id,
@@ -328,27 +329,85 @@ class _ChatPane extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final message = chat.messages[index];
                         final mine = message.role == 'user';
+                        final showThinking = !mine &&
+                            message.thinking != null &&
+                            message.thinking!.isNotEmpty;
                         return Align(
                           alignment: mine
                               ? Alignment.centerRight
                               : Alignment.centerLeft,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 560),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: mine
-                                    ? Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer
-                                    : Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Text(message.text),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: mine
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (showThinking)
+                                  _ThinkingSection(
+                                      thinking: message.thinking!),
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: mine
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _ChatMarkdown(message.text),
+                                        const SizedBox(height: 6),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              onTap: () {
+                                                Clipboard.setData(
+                                                  ClipboardData(
+                                                      text: message.text),
+                                                );
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Copied to clipboard',
+                                                    ),
+                                                    duration:
+                                                        Duration(seconds: 1),
+                                                  ),
+                                                );
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(4),
+                                                child: Icon(
+                                                  Icons.content_copy,
+                                                  size: 14,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -376,8 +435,8 @@ class _ChatPane extends StatelessWidget {
                       return KeyEventResult.ignored;
                     },
                     child: Shortcuts(
-                      shortcuts: {
-                        const SingleActivator(LogicalKeyboardKey.enter): const SendIntent(),
+                      shortcuts: const {
+                        SingleActivator(LogicalKeyboardKey.enter): SendIntent(),
                       },
                       child: Actions(
                       actions: {
@@ -419,10 +478,12 @@ class _ChatPane extends StatelessWidget {
 class _CitedFilesPane extends StatelessWidget {
   const _CitedFilesPane({
     required this.documents,
+    required this.citedDocIds,
     required this.onToggle,
   });
 
   final List<DebateDocument> documents;
+  final List<String> citedDocIds;
   final void Function(DebateDocument doc, bool selected) onToggle;
 
   @override
@@ -448,8 +509,9 @@ class _CitedFilesPane extends StatelessWidget {
                       itemCount: documents.length,
                       itemBuilder: (context, index) {
                         final doc = documents[index];
+                        final isCited = citedDocIds.contains(doc.id);
                         return CheckboxListTile(
-                          value: doc.isShared || doc.folder == 'private',
+                          value: isCited,
                           onChanged: (value) => onToggle(doc, value ?? false),
                           title: Text(doc.title),
                           subtitle: Text(
@@ -466,6 +528,260 @@ class _CitedFilesPane extends StatelessWidget {
   }
 }
 
+/// An expandable section that shows AI thinking/reasoning content.
+class _ThinkingSection extends StatefulWidget {
+  const _ThinkingSection({required this.thinking});
+
+  final String thinking;
+
+  @override
+  State<_ThinkingSection> createState() => _ThinkingSectionState();
+}
+
+class _ThinkingSectionState extends State<_ThinkingSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _expanded ? 'Hide reasoning' : 'Show reasoning',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ],
+                ),
+                if (_expanded) ...[
+                  const SizedBox(height: 8),
+                  _ChatMarkdown(widget.thinking),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class SendIntent extends Intent {
   const SendIntent();
+}
+
+/// Renders markdown text as rich TextSpans with inline formatting.
+class _ChatMarkdown extends StatelessWidget {
+  const _ChatMarkdown(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+    return SelectableText.rich(
+      _buildSpans(context),
+      style: baseStyle?.copyWith(height: 1.45),
+    );
+  }
+
+  TextSpan _buildSpans(BuildContext context) {
+    final lines = text.split('\n');
+    final children = <InlineSpan>[];
+    var inCodeBlock = false;
+    var codeBlockContent = <String>[];
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmed = line.trimRight();
+      final isLast = i == lines.length - 1;
+
+      if (trimmed.startsWith('```')) {
+        if (inCodeBlock) {
+          // End code block
+          final codeBg = Theme.of(context).colorScheme.surfaceContainerHighest;
+          children.add(WidgetSpan(
+            alignment: PlaceholderAlignment.top,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: codeBg,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: SelectableText(
+                codeBlockContent.join('\n'),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: baseStyle?.fontSize != null
+                      ? baseStyle!.fontSize! - 1
+                      : 13,
+                ),
+              ),
+            ),
+          ));
+          codeBlockContent.clear();
+        }
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBlockContent.add(line);
+        continue;
+      }
+
+      if (trimmed.isEmpty) {
+        children.add(const TextSpan(text: '\n'));
+        continue;
+      }
+
+      // Heading
+      final heading = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(trimmed);
+      if (heading != null) {
+        final level = heading.group(1)!.length;
+        final text2 = heading.group(2)!;
+        final style = switch (level) {
+          1 => Theme.of(context).textTheme.titleLarge,
+          2 => Theme.of(context).textTheme.titleMedium,
+          _ => Theme.of(context).textTheme.titleSmall,
+        };
+        children.add(TextSpan(
+          text: '$text2${isLast ? '' : '\n'}',
+          style: style?.copyWith(fontWeight: FontWeight.w700),
+        ));
+        continue;
+      }
+
+      // Blockquote
+      final quote = RegExp(r'^>\s?(.+)$').firstMatch(trimmed);
+      if (quote != null) {
+        children.add(TextSpan(
+          text: '${quote.group(1)}${isLast ? '' : '\n'}',
+          style: TextStyle(
+            fontStyle: FontStyle.italic,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ));
+        continue;
+      }
+
+      // Unordered list
+      final unordered = RegExp(r'^\s*[-*+]\s+(.+)$').firstMatch(trimmed);
+      if (unordered != null) {
+        children.add(TextSpan(
+          text: '\u{2022} ${unordered.group(1)}${isLast ? '' : '\n'}',
+        ));
+        continue;
+      }
+
+      // Regular inline text
+      children.addAll(_parseInline(trimmed, baseStyle!, isLast, context));
+    }
+
+    return TextSpan(
+      style: baseStyle?.copyWith(height: 1.45),
+      children: children,
+    );
+  }
+
+  List<InlineSpan> _parseInline(
+      String text, TextStyle base, bool isLast, BuildContext context) {
+    final spans = <InlineSpan>[];
+    final regex = RegExp(
+      r'`([^`]+)`' // inline code
+      r'|\*\*([^*]+)\*\*' // **bold**
+      r'|__([^_]+)__' // __bold__
+      r'|\*([^*]+)\*' // *italic*
+      r'|_([^_]+)_' // _italic_
+      r'|~~([^~]+)~~' // ~~strikethrough~~
+      r'|==([^=]+)==', // ==highlight==
+    );
+
+    var lastEnd = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      lastEnd = match.end;
+
+      final code = match.group(1);
+      final bold1 = match.group(2);
+      final bold2 = match.group(3);
+      final italic1 = match.group(4);
+      final italic2 = match.group(5);
+      final strike = match.group(6);
+      final highlight = match.group(7);
+
+      if (code != null) {
+        spans.add(TextSpan(
+          text: code,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+          ),
+        ));
+      } else if (bold1 != null || bold2 != null) {
+        spans.add(TextSpan(
+          text: bold1 ?? bold2,
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ));
+      } else if (italic1 != null || italic2 != null) {
+        spans.add(TextSpan(
+          text: italic1 ?? italic2,
+          style: const TextStyle(fontStyle: FontStyle.italic),
+        ));
+      } else if (strike != null) {
+        spans.add(TextSpan(
+          text: strike,
+          style: const TextStyle(decoration: TextDecoration.lineThrough),
+        ));
+      } else if (highlight != null) {
+        spans.add(TextSpan(
+          text: highlight,
+          style: TextStyle(
+            backgroundColor: Colors.yellow.shade200,
+            color: Colors.black87,
+          ),
+        ));
+      }
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+    if (spans.isEmpty) spans.add(TextSpan(text: text));
+    if (!isLast) spans.add(const TextSpan(text: '\n'));
+    return spans;
+  }
 }
