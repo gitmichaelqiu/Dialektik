@@ -564,44 +564,40 @@ class _FilesPane extends StatelessWidget {
             LayoutBuilder(
               builder: (context, constraints) {
                 final useRow = constraints.maxWidth >= 320;
-                final folder = Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: newFolder,
-                    decoration: const InputDecoration(labelText: 'Folder'),
-                    isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'private', child: Text('Private')),
-                      DropdownMenuItem(value: 'team', child: Text('Team')),
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) onFolderChanged(value);
-                    },
-                  ),
+                final folder = DropdownButtonFormField<String>(
+                  value: newFolder,
+                  decoration: const InputDecoration(labelText: 'Folder'),
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'private', child: Text('Private')),
+                    DropdownMenuItem(value: 'team', child: Text('Team')),
+                    DropdownMenuItem(value: 'public', child: Text('Public')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) onFolderChanged(value);
+                  },
                 );
-                final mode = Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: newFolder == 'private' ? 'write' : newMode,
-                    decoration: const InputDecoration(labelText: 'Mode'),
-                    isExpanded: true,
-                    items: const [
-                      DropdownMenuItem(value: 'write', child: Text('Writable')),
-                      DropdownMenuItem(value: 'read', child: Text('Read-only')),
-                    ],
-                    onChanged: newFolder == 'private'
-                        ? null
-                        : (value) {
-                            if (value != null) onModeChanged(value);
-                          },
-                  ),
+                final mode = DropdownButtonFormField<String>(
+                  value: newFolder == 'private' ? 'write' : newMode,
+                  decoration: const InputDecoration(labelText: 'Mode'),
+                  isExpanded: true,
+                  items: const [
+                    DropdownMenuItem(value: 'write', child: Text('Writable')),
+                    DropdownMenuItem(value: 'read', child: Text('Read-only')),
+                  ],
+                  onChanged: newFolder == 'private'
+                      ? null
+                      : (value) {
+                          if (value != null) onModeChanged(value);
+                        },
                 );
                 if (useRow) {
                   return Row(
                     children: [
-                      folder,
+                      Expanded(child: folder),
                       const SizedBox(width: 8),
-                      mode,
+                      Expanded(child: mode),
                     ],
                   );
                 }
