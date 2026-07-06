@@ -402,12 +402,14 @@ class AiState {
     required this.chats,
     required this.activeChatId,
     required this.loading,
+    this.citedDocIds = const [],
   });
 
   const AiState.empty()
       : chats = const [],
         activeChatId = null,
-        loading = false;
+        loading = false,
+        citedDocIds = const [];
 
   factory AiState.fromJson(Map<String, Object?>? json) {
     if (json == null) return const AiState.empty();
@@ -415,12 +417,14 @@ class AiState {
       chats: AppSnapshot._list(json['chats']).map(AiChat.fromJson).toList(),
       activeChatId: json['activeChatId'] as String?,
       loading: json['loading'] == true,
+      citedDocIds: (json['citedDocIds'] as List?)?.cast<String>() ?? const [],
     );
   }
 
   final List<AiChat> chats;
   final String? activeChatId;
   final bool loading;
+  final List<String> citedDocIds;
 }
 
 class AiChat {
@@ -448,17 +452,20 @@ class AiMessage {
   const AiMessage({
     required this.role,
     required this.text,
+    this.thinking,
   });
 
   factory AiMessage.fromJson(Map<String, Object?> json) {
     return AiMessage(
       role: _string(json['role'], fallback: 'assistant'),
       text: _string(json['text']),
+      thinking: json['thinking'] as String?,
     );
   }
 
   final String role;
   final String text;
+  final String? thinking;
 }
 
 class SettingsState {
