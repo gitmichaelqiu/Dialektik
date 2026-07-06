@@ -1468,7 +1468,7 @@ class _CardFolderGroup extends StatelessWidget {
             card.folder == 'private' ? Icons.lock_outline : Icons.public,
             size: 18,
           ),
-          title: Text(card.title),
+          title: Text(card.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle:
               Text(card.text, maxLines: 2, overflow: TextOverflow.ellipsis),
           trailing: Wrap(
