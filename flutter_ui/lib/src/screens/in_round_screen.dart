@@ -778,7 +778,15 @@ class _JoinSessionPane extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: onJoin,
+                  onPressed: () {
+                    if (codeController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a room code.')),
+                      );
+                      return;
+                    }
+                    onJoin();
+                  },
                   icon: const Icon(Icons.login),
                   label: const Text('Join'),
                 ),
