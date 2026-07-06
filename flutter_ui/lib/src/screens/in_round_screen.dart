@@ -1153,7 +1153,12 @@ class _TimersPane extends StatelessWidget {
                     ),
                     IconButton.filledTonal(
                       onPressed: () {
-                        if (customNameController.text.trim().isEmpty) return;
+                        if (customNameController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a timer name.')),
+                          );
+                          return;
+                        }
                         bridge.dispatch(action('customTimer.create', {
                           'name': customNameController.text.trim(),
                           'duration': customDurationController.text.trim(),
