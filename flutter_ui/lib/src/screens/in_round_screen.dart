@@ -1284,7 +1284,9 @@ class _TimerTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       title: Row(
         children: [
-          Text(name),
+          Flexible(
+            child: Text(name, overflow: TextOverflow.ellipsis),
+          ),
           if (onDurationChanged != null && durationMs != null) ...[
             const SizedBox(width: 8),
             SizedBox(
