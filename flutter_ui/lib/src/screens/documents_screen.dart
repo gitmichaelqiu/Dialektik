@@ -825,7 +825,6 @@ class _EditorPane extends StatelessWidget {
                   onSelectionChanged: forceRead
                       ? null
                       : (value) => onToggleReadMode(value.first),
-                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
