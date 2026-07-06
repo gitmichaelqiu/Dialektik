@@ -760,8 +760,8 @@ class _EditorPane extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                SizedBox(
-                  width: 240,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
                   child: TextField(
                     controller: nameController,
                     enabled: isOwner,
@@ -799,17 +799,16 @@ class _EditorPane extends StatelessWidget {
                   segments: const [
                     ButtonSegment(
                         value: false,
-                        label: Text('Edit'),
-                        icon: Icon(Icons.edit_outlined)),
+                        label: Text('Edit')),
                     ButtonSegment(
                         value: true,
-                        label: Text('Read'),
-                        icon: Icon(Icons.visibility_outlined)),
+                        label: Text('Read')),
                   ],
                   selected: {effectiveReadMode},
                   onSelectionChanged: forceRead
                       ? null
                       : (value) => onToggleReadMode(value.first),
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
