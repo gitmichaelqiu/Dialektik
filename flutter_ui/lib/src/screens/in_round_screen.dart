@@ -585,17 +585,23 @@ class _InRoundScreenState extends State<InRoundScreen>
             body: TabBarView(
               controller: _tabController,
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: handoutPane,
+                FocusTraversalGroup(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: handoutPane,
+                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: timersPane,
+                FocusTraversalGroup(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: timersPane,
+                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: debatersOrNotesPane,
+                FocusTraversalGroup(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: debatersOrNotesPane,
+                  ),
                 ),
               ],
             ),
@@ -603,9 +609,9 @@ class _InRoundScreenState extends State<InRoundScreen>
         : ResponsivePane(
             cacheKey: 'in_round_active',
             children: [
-              handoutPane,
-              timersPane,
-              debatersOrNotesPane,
+              FocusTraversalGroup(child: handoutPane),
+              FocusTraversalGroup(child: timersPane),
+              FocusTraversalGroup(child: debatersOrNotesPane),
             ],
           );
   }

@@ -141,9 +141,9 @@ class _AiScreenState extends State<AiScreen> {
     return ResponsivePane(
       cacheKey: 'ai',
       children: [
-        chatListPane,
-        chatPane,
-        citedFilesPane,
+        FocusTraversalGroup(child: chatListPane),
+        FocusTraversalGroup(child: chatPane),
+        FocusTraversalGroup(child: citedFilesPane),
       ],
     );
   }

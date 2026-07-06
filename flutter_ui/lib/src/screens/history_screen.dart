@@ -447,13 +447,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return ResponsivePane(
       cacheKey: 'history',
       children: [
-        SizedBox(width: 320, child: historyListPane),
-        Column(
-          children: [
-            buildStatsCard(),
-            const SizedBox(height: 16),
-            Expanded(child: buildDetailsPane(selectedRecord, false)),
-          ],
+        FocusTraversalGroup(child: SizedBox(width: 320, child: historyListPane)),
+        FocusTraversalGroup(
+          child: Column(
+            children: [
+              buildStatsCard(),
+              const SizedBox(height: 16),
+              Expanded(child: buildDetailsPane(selectedRecord, false)),
+            ],
+          ),
         ),
       ],
     );

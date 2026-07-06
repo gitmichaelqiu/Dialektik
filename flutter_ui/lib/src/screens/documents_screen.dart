@@ -379,9 +379,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     return ResponsivePane(
       cacheKey: 'documents',
       children: [
-        filesPane,
-        editorPane,
-        evidencePane,
+        FocusTraversalGroup(child: filesPane),
+        FocusTraversalGroup(child: editorPane),
+        FocusTraversalGroup(child: evidencePane),
       ],
     );
   }
