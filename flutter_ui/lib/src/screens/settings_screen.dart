@@ -160,6 +160,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _save() {
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a user name.')),
+      );
+      return;
+    }
     widget.bridge.dispatch(action('settings.save', {
       'userName': _nameController.text.trim(),
       'aiEndpoint': _aiEndpointController.text.trim(),
