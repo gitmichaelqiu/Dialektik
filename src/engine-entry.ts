@@ -335,7 +335,7 @@ async function loadConfig() {
   if (aiChats.length === 0) {
     const initChat: AiChat = {
       id: `chat-${Date.now()}`, title: "New Chat",
-      messages: [{ role: "assistant", text: "I can help prepare blocks, summaries, and weighing.", timestamp: Date.now() }],
+      messages: [],
     };
     await db.aiChats.put(initChat);
     aiChats = [initChat];
@@ -1148,7 +1148,7 @@ async function dispatch(actionJson: string) {
   if (type === "ai.newChat") {
     const chat: AiChat = {
       id: `chat-${Date.now()}`, title: "New Chat",
-      messages: [{ role: "assistant", text: "I can help prepare blocks, summaries, and weighing.", timestamp: Date.now() }],
+      messages: [],
     };
     await db.aiChats.put(chat);
     aiChats = [...aiChats, chat];
