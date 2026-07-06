@@ -359,11 +359,27 @@ class _ChatPane extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Shortcuts(
-                    shortcuts: {
-                      const SingleActivator(LogicalKeyboardKey.enter): const SendIntent(),
+                  child: Focus(
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.tab &&
+                          !HardwareKeyboard.instance.isShiftPressed) {
+                        final sel = controller.selection;
+                        if (sel.isValid && sel.start >= 0) {
+                          final text = controller.text;
+                          final newText = '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
+                          controller.text = newText;
+                          controller.selection = TextSelection.collapsed(offset: sel.start + 4);
+                        }
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
                     },
-                    child: Actions(
+                    child: Shortcuts(
+                      shortcuts: {
+                        const SingleActivator(LogicalKeyboardKey.enter): const SendIntent(),
+                      },
+                      child: Actions(
                       actions: {
                         SendIntent: CallbackAction<SendIntent>(
                           onInvoke: (intent) {
@@ -383,6 +399,7 @@ class _ChatPane extends StatelessWidget {
                             const InputDecoration(hintText: 'Message AI Coach'),
                       ),
                     ),
+                  ),
                   ),
                 ),
                 const SizedBox(width: 8),

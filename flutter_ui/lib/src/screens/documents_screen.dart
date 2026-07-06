@@ -651,6 +651,7 @@ class _FilesPane extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -871,7 +872,24 @@ class _EditorPane extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: TextField(
+                          child: Focus(
+                            onKeyEvent: (node, event) {
+                              if (event is KeyDownEvent &&
+                                  event.logicalKey == LogicalKeyboardKey.tab &&
+                                  !HardwareKeyboard.instance.isShiftPressed) {
+                                final sel = contentController.selection;
+                                if (sel.isValid && sel.start >= 0) {
+                                  final text = contentController.text;
+                                  final newText = '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
+                                  contentController.text = newText;
+                                  contentController.selection = TextSelection.collapsed(offset: sel.start + 4);
+                                  onChanged(newText);
+                                }
+                                return KeyEventResult.handled;
+                              }
+                              return KeyEventResult.ignored;
+                            },
+                            child: TextField(
                             key: ValueKey('editor_${doc.id}'),
                             controller: contentController,
                             focusNode: contentFocusNode,
@@ -885,6 +903,7 @@ class _EditorPane extends StatelessWidget {
                               alignLabelWithHint: true,
                             ),
                             onChanged: onChanged,
+                          ),
                           ),
                         ),
                       ],
