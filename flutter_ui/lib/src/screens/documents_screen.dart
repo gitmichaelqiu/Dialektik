@@ -561,9 +561,10 @@ class _FilesPane extends StatelessWidget {
               onSubmitted: (_) => onCreate(),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final useRow = constraints.maxWidth >= 320;
+                final folder = Expanded(
                   child: DropdownButtonFormField<String>(
                     value: newFolder,
                     decoration: const InputDecoration(labelText: 'Folder'),
@@ -578,9 +579,8 @@ class _FilesPane extends StatelessWidget {
                       if (value != null) onFolderChanged(value);
                     },
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
+                );
+                final mode = Expanded(
                   child: DropdownButtonFormField<String>(
                     value: newFolder == 'private' ? 'write' : newMode,
                     decoration: const InputDecoration(labelText: 'Mode'),
@@ -595,8 +595,25 @@ class _FilesPane extends StatelessWidget {
                             if (value != null) onModeChanged(value);
                           },
                   ),
-                ),
-              ],
+                );
+                if (useRow) {
+                  return Row(
+                    children: [
+                      folder,
+                      const SizedBox(width: 8),
+                      mode,
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    folder,
+                    const SizedBox(height: 8),
+                    mode,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             Expanded(
