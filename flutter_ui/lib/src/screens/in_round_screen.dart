@@ -727,7 +727,15 @@ class _StartSessionPane extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: onHost,
+                  onPressed: () {
+                    if (matchController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a match name.')),
+                      );
+                      return;
+                    }
+                    onHost();
+                  },
                   icon: const Icon(Icons.add),
                   label: const Text('Host room'),
                 ),
