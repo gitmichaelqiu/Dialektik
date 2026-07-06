@@ -1478,23 +1478,21 @@ class _PendingRequestTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FilledButton.tonalIcon(
+            FilledButton.tonal(
               onPressed: onApprove,
-              icon: const Icon(Icons.check, size: 18),
-              label: const Text('Approve'),
               style: FilledButton.styleFrom(
                 visualDensity: VisualDensity.compact,
               ),
+              child: const Text('Approve'),
             ),
             const SizedBox(width: 8),
-            OutlinedButton.icon(
+            OutlinedButton(
               onPressed: onReject,
-              icon: const Icon(Icons.close, size: 18),
-              label: const Text('Reject'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.red,
                 visualDensity: VisualDensity.compact,
               ),
+              child: const Text('Reject'),
             ),
           ],
         ),
