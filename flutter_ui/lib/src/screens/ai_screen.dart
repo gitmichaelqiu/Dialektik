@@ -31,7 +31,10 @@ class _AiScreenState extends State<AiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasAi = widget.snapshot.settings.hasAiKey;
+    final settings = widget.snapshot.settings;
+    final hasAi = settings.hasAiKey &&
+        settings.aiEndpoint.trim().isNotEmpty &&
+        settings.aiModel.trim().isNotEmpty;
     if (!hasAi) {
       return Padding(
         padding: const EdgeInsets.all(24),
@@ -56,7 +59,7 @@ class _AiScreenState extends State<AiScreen> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'To use the AI prep coach, please configure your OpenAI-compatible API key and endpoint in the Settings screen.',
+                      'To use the AI prep coach, please configure an API endpoint, model, and API key in the Settings screen.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
