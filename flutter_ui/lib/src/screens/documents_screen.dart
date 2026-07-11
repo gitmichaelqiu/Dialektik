@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -246,6 +249,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             action('document.setMode', {'id': selected.id, 'mode': mode}));
       },
       onInsertCitation: (citation) {
+        if (selected != null && _isSelfCitation(selected, citation)) return;
         final selection = _contentController.selection;
         final insertAt = selection.isValid
             ? selection.baseOffset
@@ -293,7 +297,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }).toList();
 
     final evidencePane = _EvidencePane(
-      cards: filteredCards,
+      cards: filteredCards.where((card) => card.docId != selected?.id).toList(),
       titleController: _cardTitleController,
       sourceController: _cardSourceController,
       textController: _cardTextController,
@@ -392,6 +396,17 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         FocusTraversalGroup(child: evidencePane),
       ],
     );
+  }
+
+  bool _isSelfCitation(DebateDocument document, String citation) {
+    final card =
+        widget.snapshot.cards.where((item) => item.id == citation).firstOrNull;
+    if (card != null) return card.docId == document.id;
+
+    final parts = citation.split('/');
+    return parts.length == 2 &&
+        parts[0] == document.folder &&
+        parts[1] == document.title;
   }
 
   int? _getLineFromCaret(String text, int? caret) {
@@ -867,14 +882,16 @@ class _EditorPane extends StatelessWidget {
                             },
                             menuChildren: [
                               for (final target in documents)
-                                MenuItemButton(
-                                  leadingIcon:
-                                      const Icon(Icons.description_outlined),
-                                  child: Text(target.title),
-                                  onPressed: () => onInsertCitation(
-                                      '${target.folder}/${target.title}'),
-                                ),
-                              for (final card in cards)
+                                if (target.id != doc.id)
+                                  MenuItemButton(
+                                    leadingIcon:
+                                        const Icon(Icons.description_outlined),
+                                    child: Text(target.title),
+                                    onPressed: () => onInsertCitation(
+                                        '${target.folder}/${target.title}'),
+                                  ),
+                              for (final card in cards
+                                  .where((card) => card.docId != doc.id))
                                 MenuItemButton(
                                   leadingIcon:
                                       const Icon(Icons.fact_check_outlined),
@@ -1073,7 +1090,11 @@ class _ReadMode extends StatelessWidget {
 
       // Regular line — parse inline formatting (bold, italic, code, etc.)
       final lineStyle = Theme.of(context).textTheme.bodyMedium;
-      final inlineSpans = _parseInlineMarkdown(trimmed, lineStyle!);
+      final inlineSpans = _parseInlineMarkdownWithCitations(
+        trimmed,
+        lineStyle!,
+        context,
+      );
       spans.addAll(inlineSpans);
       if (!isLast) spans.add(const TextSpan(text: '\n'));
     }
@@ -1081,6 +1102,32 @@ class _ReadMode extends StatelessWidget {
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
       children: spans,
     );
+  }
+
+  List<InlineSpan> _parseInlineMarkdownWithCitations(
+    String text,
+    TextStyle base,
+    BuildContext context,
+  ) {
+    final spans = <InlineSpan>[];
+    for (final part in _splitCitations(text)) {
+      if (part.isCitation) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _CitationLink(
+              citation: part.text,
+              documents: documents,
+              cards: cards,
+              onNavigateDoc: onNavigateDoc,
+            ),
+          ),
+        );
+      } else {
+        spans.addAll(_parseInlineMarkdown(part.text, base));
+      }
+    }
+    return spans;
   }
 
   /// Parse inline markdown syntax into styled [TextSpan]s.
@@ -1280,7 +1327,7 @@ class _InlineMarkdown extends StatelessWidget {
   }
 }
 
-class _CitationLink extends StatelessWidget {
+class _CitationLink extends StatefulWidget {
   const _CitationLink({
     required this.citation,
     required this.documents,
@@ -1294,46 +1341,61 @@ class _CitationLink extends StatelessWidget {
   final ValueChanged<DebateDocument> onNavigateDoc;
 
   @override
-  Widget build(BuildContext context) {
-    final card = citation.startsWith('card-')
-        ? cards.where((item) => item.id == citation).firstOrNull
-        : null;
-    final doc = _resolveDocument();
-    final exists = card != null || doc != null;
-    final title = card?.title ?? doc?.title ?? 'File does not exist: $citation';
+  State<_CitationLink> createState() => _CitationLinkState();
+}
 
-    return Tooltip(
-      richMessage: TextSpan(
-        text: title,
-        children: [
-          TextSpan(
-              text: exists
-                  ? '\n${card?.text ?? doc?.content}'
-                  : '\nMissing citation'),
-        ],
-      ),
+class _CitationLinkState extends State<_CitationLink> {
+  OverlayEntry? _previewEntry;
+  Timer? _hideTimer;
+
+  DebateDocument? get _document => _resolveDocument();
+
+  EvidenceCard? get _card => widget.citation.startsWith('card-')
+      ? widget.cards.where((item) => item.id == widget.citation).firstOrNull
+      : null;
+
+  bool get _exists => _card != null || _document != null;
+
+  String get _title =>
+      _card?.title ??
+      _document?.title ??
+      'File does not exist: ${widget.citation}';
+
+  String get _content => _card?.text ?? _document?.content ?? '';
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _removePreview();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final doc = _document;
+    final color =
+        _exists ? Colors.green.shade700 : Theme.of(context).colorScheme.error;
+
+    return MouseRegion(
+      onEnter: (_) => _showPreview(),
+      onExit: (_) => _scheduleHide(),
       child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: doc == null ? null : () => onNavigateDoc(doc),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: exists
-                ? Theme.of(context).colorScheme.primaryContainer
-                : Theme.of(context).colorScheme.error,
-            borderRadius: BorderRadius.circular(6),
-          ),
+        borderRadius: BorderRadius.circular(4),
+        onTap: doc == null
+            ? null
+            : () {
+                _removePreview();
+                widget.onNavigateDoc(doc);
+              },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 1),
           child: Text(
-            title,
+            _title,
             style: TextStyle(
-              color: exists
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onError,
+              color: color,
               decoration:
-                  exists ? TextDecoration.underline : TextDecoration.none,
-              decorationColor:
-                  exists ? Theme.of(context).colorScheme.primary : null,
+                  _exists ? TextDecoration.underline : TextDecoration.none,
+              decorationColor: _exists ? color : null,
             ),
           ),
         ),
@@ -1341,15 +1403,115 @@ class _CitationLink extends StatelessWidget {
     );
   }
 
+  void _showPreview() {
+    _hideTimer?.cancel();
+    if (!_exists || _previewEntry != null) return;
+
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final linkBox = context.findRenderObject() as RenderBox?;
+    final overlayBox = overlay.context.findRenderObject() as RenderBox?;
+    if (linkBox == null || overlayBox == null || !linkBox.hasSize) return;
+
+    final globalTopLeft = linkBox.localToGlobal(Offset.zero);
+    final localTopLeft = overlayBox.globalToLocal(globalTopLeft);
+    final overlaySize = overlayBox.size;
+    const margin = 8.0;
+    final previewWidth = math.min(320.0, overlaySize.width - margin * 2);
+    final previewHeight = math.min(220.0, overlaySize.height * 0.36);
+    if (previewWidth <= 0 || previewHeight <= 0) return;
+
+    final below =
+        overlaySize.height - (localTopLeft.dy + linkBox.size.height) - margin;
+    final above = localTopLeft.dy - margin;
+    final showAbove = below < previewHeight && above > below;
+    final rawTop = showAbove
+        ? localTopLeft.dy - previewHeight - margin
+        : localTopLeft.dy + linkBox.size.height + margin;
+    final rawLeft = localTopLeft.dx;
+    final top = rawTop
+        .clamp(margin,
+            math.max(margin, overlaySize.height - previewHeight - margin))
+        .toDouble();
+    final left = rawLeft
+        .clamp(
+            margin, math.max(margin, overlaySize.width - previewWidth - margin))
+        .toDouble();
+
+    final previewText = _content.split('\n').take(5).join('\n');
+    final entry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: left,
+        top: top,
+        width: previewWidth,
+        height: previewHeight,
+        child: MouseRegion(
+          onEnter: (_) => _hideTimer?.cancel(),
+          onExit: (_) => _scheduleHide(),
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            color: Theme.of(context).colorScheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Divider(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: _InlineMarkdown(
+                        text: previewText.isEmpty
+                            ? 'No content available.'
+                            : previewText,
+                        documents: widget.documents,
+                        cards: widget.cards,
+                        onNavigateDoc: widget.onNavigateDoc,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    _previewEntry = entry;
+    overlay.insert(entry);
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 180), _removePreview);
+  }
+
+  void _removePreview() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    _previewEntry?.remove();
+    _previewEntry = null;
+  }
+
   DebateDocument? _resolveDocument() {
-    if (citation.startsWith('card-')) {
-      final card = cards.where((item) => item.id == citation).firstOrNull;
-      if (card?.docId == null) return null;
-      return documents.where((doc) => doc.id == card!.docId).firstOrNull;
+    if (widget.citation.startsWith('card-')) {
+      if (_card?.docId == null) return null;
+      return widget.documents
+          .where((doc) => doc.id == _card!.docId)
+          .firstOrNull;
     }
-    final parts = citation.split('/');
+    final parts = widget.citation.split('/');
     if (parts.length != 2) return null;
-    return documents
+    return widget.documents
         .where((doc) => doc.folder == parts[0] && doc.title == parts[1])
         .firstOrNull;
   }
