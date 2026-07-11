@@ -44,11 +44,15 @@ class _AiScreenState extends State<AiScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.auto_awesome, size: 48, color: Colors.grey),
+                    const Icon(Icons.auto_awesome,
+                        size: 48, color: Colors.grey),
                     const SizedBox(height: 16),
                     Text(
                       'AI Coach Not Configured',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -58,7 +62,8 @@ class _AiScreenState extends State<AiScreen> {
                     const SizedBox(height: 24),
                     FilledButton.icon(
                       onPressed: () {
-                        widget.bridge.dispatch(action('app.setActivePage', {'page': 'settings'}));
+                        widget.bridge.dispatch(
+                            action('app.setActivePage', {'page': 'settings'}));
                       },
                       icon: const Icon(Icons.settings),
                       label: const Text('Go to Settings'),
@@ -84,7 +89,8 @@ class _AiScreenState extends State<AiScreen> {
       chats: widget.snapshot.ai.chats,
       activeChatId: activeChat.id,
       onNewChat: () {
-        if (activeChat.messages.isEmpty && widget.snapshot.ai.chats.isNotEmpty) {
+        if (activeChat.messages.isEmpty &&
+            widget.snapshot.ai.chats.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('You are already in a new chat.')),
           );
@@ -141,6 +147,7 @@ class _AiScreenState extends State<AiScreen> {
 
     return ResponsivePane(
       cacheKey: 'ai',
+      mainPaneIndex: 1,
       children: [
         FocusTraversalGroup(child: chatListPane),
         FocusTraversalGroup(child: chatPane),
@@ -345,8 +352,7 @@ class _ChatPane extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (showThinking)
-                                  _ThinkingSection(
-                                      thinking: message.thinking!),
+                                  _ThinkingSection(thinking: message.thinking!),
                                 DecoratedBox(
                                   decoration: BoxDecoration(
                                     color: mine
@@ -426,9 +432,11 @@ class _ChatPane extends StatelessWidget {
                         final sel = controller.selection;
                         if (sel.isValid && sel.start >= 0) {
                           final text = controller.text;
-                          final newText = '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
+                          final newText =
+                              '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
                           controller.text = newText;
-                          controller.selection = TextSelection.collapsed(offset: sel.start + 4);
+                          controller.selection =
+                              TextSelection.collapsed(offset: sel.start + 4);
                         }
                         return KeyEventResult.handled;
                       }
@@ -439,26 +447,26 @@ class _ChatPane extends StatelessWidget {
                         SingleActivator(LogicalKeyboardKey.enter): SendIntent(),
                       },
                       child: Actions(
-                      actions: {
-                        SendIntent: CallbackAction<SendIntent>(
-                          onInvoke: (intent) {
-                            if (controller.text.trim().isNotEmpty) {
-                              onSend();
-                            }
-                            return null;
-                          },
+                        actions: {
+                          SendIntent: CallbackAction<SendIntent>(
+                            onInvoke: (intent) {
+                              if (controller.text.trim().isNotEmpty) {
+                                onSend();
+                              }
+                              return null;
+                            },
+                          ),
+                        },
+                        child: TextField(
+                          controller: controller,
+                          minLines: 1,
+                          maxLines: 5,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                              hintText: 'Message AI Coach'),
                         ),
-                      },
-                      child: TextField(
-                        controller: controller,
-                        minLines: 1,
-                        maxLines: 5,
-                        textInputAction: TextInputAction.newline,
-                        decoration:
-                            const InputDecoration(hintText: 'Message AI Coach'),
                       ),
                     ),
-                  ),
                   ),
                 ),
                 const SizedBox(width: 8),

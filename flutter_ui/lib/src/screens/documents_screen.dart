@@ -282,8 +282,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       if (card.folder != 'team') return true;
       if (myTeam == null) return true;
       // Find the author's team in the session
-      final authorTeam =
-          session?.debaters.where((d) => d.name == card.author).firstOrNull?.team;
+      final authorTeam = session?.debaters
+          .where((d) => d.name == card.author)
+          .firstOrNull
+          ?.team;
       // Team card is visible if we authored it, or if the author is on our team
       return card.author == myUserName ||
           authorTeam == null ||
@@ -304,7 +306,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         if (_cardTitleController.text.trim().isEmpty ||
             _cardTextController.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please enter a citation title and evidence text.')),
+            const SnackBar(
+                content:
+                    Text('Please enter a citation title and evidence text.')),
           );
           return;
         }
@@ -381,6 +385,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     return ResponsivePane(
       cacheKey: 'documents',
+      mainPaneIndex: 1,
       children: [
         FocusTraversalGroup(child: filesPane),
         FocusTraversalGroup(child: editorPane),
@@ -560,110 +565,110 @@ class _FilesPane extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            SectionHeader(
-              title: 'Documents',
-              subtitle: 'Private, team, and public files',
-              trailing: IconButton.filledTonal(
-                onPressed: () => _handleCreate(context),
-                icon: const Icon(Icons.add),
-                tooltip: 'Create document',
+              SectionHeader(
+                title: 'Documents',
+                subtitle: 'Private, team, and public files',
+                trailing: IconButton.filledTonal(
+                  onPressed: () => _handleCreate(context),
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Create document',
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: newTitleController,
-              decoration: const InputDecoration(labelText: 'New document'),
-              onSubmitted: (_) => _handleCreate(context),
-            ),
-            const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final useRow = constraints.maxWidth >= 320;
-                final folder = DropdownButtonFormField<String>(
-                  value: newFolder,
-                  decoration: const InputDecoration(labelText: 'Folder'),
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'private', child: Text('Private')),
-                    DropdownMenuItem(value: 'team', child: Text('Team')),
-                    DropdownMenuItem(value: 'public', child: Text('Public')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) onFolderChanged(value);
-                  },
-                );
-                final mode = DropdownButtonFormField<String>(
-                  value: newFolder == 'private' ? 'write' : newMode,
-                  decoration: const InputDecoration(labelText: 'Mode'),
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'write', child: Text('Writable')),
-                    DropdownMenuItem(value: 'read', child: Text('Read-only')),
-                  ],
-                  onChanged: newFolder == 'private'
-                      ? null
-                      : (value) {
-                          if (value != null) onModeChanged(value);
-                        },
-                );
-                if (useRow) {
-                  return Row(
+              const SizedBox(height: 12),
+              TextField(
+                controller: newTitleController,
+                decoration: const InputDecoration(labelText: 'New document'),
+                onSubmitted: (_) => _handleCreate(context),
+              ),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final useRow = constraints.maxWidth >= 320;
+                  final folder = DropdownButtonFormField<String>(
+                    value: newFolder,
+                    decoration: const InputDecoration(labelText: 'Folder'),
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'private', child: Text('Private')),
+                      DropdownMenuItem(value: 'team', child: Text('Team')),
+                      DropdownMenuItem(value: 'public', child: Text('Public')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) onFolderChanged(value);
+                    },
+                  );
+                  final mode = DropdownButtonFormField<String>(
+                    value: newFolder == 'private' ? 'write' : newMode,
+                    decoration: const InputDecoration(labelText: 'Mode'),
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'write', child: Text('Writable')),
+                      DropdownMenuItem(value: 'read', child: Text('Read-only')),
+                    ],
+                    onChanged: newFolder == 'private'
+                        ? null
+                        : (value) {
+                            if (value != null) onModeChanged(value);
+                          },
+                  );
+                  if (useRow) {
+                    return Row(
+                      children: [
+                        Expanded(child: folder),
+                        const SizedBox(width: 8),
+                        Expanded(child: mode),
+                      ],
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(child: folder),
-                      const SizedBox(width: 8),
-                      Expanded(child: mode),
+                      folder,
+                      const SizedBox(height: 8),
+                      mode,
                     ],
                   );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    folder,
-                    const SizedBox(height: 8),
-                    mode,
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: documents.isEmpty
-                  ? EmptyState(
-                      icon: Icons.article_outlined,
-                      message: 'No documents yet.',
-                      action: FilledButton.icon(
-                        onPressed: () => _handleCreate(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create'),
+                },
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: documents.isEmpty
+                    ? EmptyState(
+                        icon: Icons.article_outlined,
+                        message: 'No documents yet.',
+                        action: FilledButton.icon(
+                          onPressed: () => _handleCreate(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create'),
+                        ),
+                      )
+                    : ListView(
+                        children: [
+                          for (final folder in const [
+                            'private',
+                            'team',
+                            'public'
+                          ])
+                            _FolderGroup(
+                              title:
+                                  '${folder[0].toUpperCase()}${folder.substring(1)}',
+                              documents: documents
+                                  .where((doc) => doc.folder == folder)
+                                  .toList(),
+                              selectedId: selectedId,
+                              myUserId: myUserId,
+                              myUserName: myUserName,
+                              onSelect: onSelect,
+                              onDelete: onDelete,
+                              onDuplicate: onDuplicate,
+                            ),
+                        ],
                       ),
-                    )
-                  : ListView(
-                      children: [
-                        for (final folder in const [
-                          'private',
-                          'team',
-                          'public'
-                        ])
-                          _FolderGroup(
-                            title:
-                                '${folder[0].toUpperCase()}${folder.substring(1)}',
-                            documents: documents
-                                .where((doc) => doc.folder == folder)
-                                .toList(),
-                            selectedId: selectedId,
-                            myUserId: myUserId,
-                            myUserName: myUserName,
-                            onSelect: onSelect,
-                            onDelete: onDelete,
-                            onDuplicate: onDuplicate,
-                          ),
-                      ],
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -826,12 +831,8 @@ class _EditorPane extends StatelessWidget {
                 ),
                 SegmentedButton<bool>(
                   segments: const [
-                    ButtonSegment(
-                        value: false,
-                        label: Text('Edit')),
-                    ButtonSegment(
-                        value: true,
-                        label: Text('Read')),
+                    ButtonSegment(value: false, label: Text('Edit')),
+                    ButtonSegment(value: true, label: Text('Read')),
                   ],
                   selected: {effectiveReadMode},
                   onSelectionChanged: forceRead
@@ -893,9 +894,12 @@ class _EditorPane extends StatelessWidget {
                                 final sel = contentController.selection;
                                 if (sel.isValid && sel.start >= 0) {
                                   final text = contentController.text;
-                                  final newText = '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
+                                  final newText =
+                                      '${text.substring(0, sel.start)}    ${text.substring(sel.end)}';
                                   contentController.text = newText;
-                                  contentController.selection = TextSelection.collapsed(offset: sel.start + 4);
+                                  contentController.selection =
+                                      TextSelection.collapsed(
+                                          offset: sel.start + 4);
                                   onChanged(newText);
                                 }
                                 return KeyEventResult.handled;
@@ -903,20 +907,20 @@ class _EditorPane extends StatelessWidget {
                               return KeyEventResult.ignored;
                             },
                             child: TextField(
-                            key: ValueKey('editor_${doc.id}'),
-                            controller: contentController,
-                            focusNode: contentFocusNode,
-                            expands: true,
-                            maxLines: null,
-                            minLines: null,
-                            readOnly: !doc.isWritable && !isOwner,
-                            textAlignVertical: TextAlignVertical.top,
-                            decoration: const InputDecoration(
-                              labelText: 'Markdown',
-                              alignLabelWithHint: true,
+                              key: ValueKey('editor_${doc.id}'),
+                              controller: contentController,
+                              focusNode: contentFocusNode,
+                              expands: true,
+                              maxLines: null,
+                              minLines: null,
+                              readOnly: !doc.isWritable && !isOwner,
+                              textAlignVertical: TextAlignVertical.top,
+                              decoration: const InputDecoration(
+                                labelText: 'Markdown',
+                                alignLabelWithHint: true,
+                              ),
+                              onChanged: onChanged,
                             ),
-                            onChanged: onChanged,
-                          ),
                           ),
                         ),
                       ],

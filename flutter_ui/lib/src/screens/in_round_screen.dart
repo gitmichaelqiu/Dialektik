@@ -409,6 +409,7 @@ class _InRoundScreenState extends State<InRoundScreen>
       }
       return ResponsivePane(
         cacheKey: 'in_round_setup',
+        mainPaneIndex: 0,
         children: [
           startSessionPane,
           joinSessionPane,
@@ -611,6 +612,7 @@ class _InRoundScreenState extends State<InRoundScreen>
           )
         : ResponsivePane(
             cacheKey: 'in_round_active',
+            mainPaneIndex: 0,
             children: [
               FocusTraversalGroup(child: handoutPane),
               FocusTraversalGroup(child: timersPane),

@@ -76,10 +76,12 @@ class ResponsivePane extends StatefulWidget {
     super.key,
     required this.children,
     this.cacheKey,
+    this.mainPaneIndex = 1,
   });
 
   final List<Widget> children;
   final String? cacheKey;
+  final int mainPaneIndex;
 
   @override
   State<ResponsivePane> createState() => _ResponsivePaneState();
@@ -87,7 +89,8 @@ class ResponsivePane extends StatefulWidget {
 
 class _ResponsivePaneState extends State<ResponsivePane> {
   static final Map<String, List<double>> _fractionsCache = {};
-  static final File _cacheFile = File('${Directory.systemTemp.path}/dialektik_layout_cache.json');
+  static final File _cacheFile =
+      File('${Directory.systemTemp.path}/dialektik_layout_cache.json');
   static bool _cacheLoaded = false;
 
   static void _loadCache() {
@@ -99,7 +102,8 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         final json = jsonDecode(content) as Map<String, dynamic>;
         json.forEach((key, value) {
           if (value is List) {
-            _fractionsCache[key] = value.map((e) => (e as num).toDouble()).toList();
+            _fractionsCache[key] =
+                value.map((e) => (e as num).toDouble()).toList();
           }
         });
       }
@@ -114,6 +118,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   }
 
   List<double> _fractions = const [];
+  final Set<int> _collapsedPanes = {};
 
   @override
   void initState() {
@@ -152,8 +157,24 @@ class _ResponsivePaneState extends State<ResponsivePane> {
             .clamp(0.0, double.infinity)
             .toDouble();
         final minWidth = (availableWidth / count * 0.55).clamp(180.0, 280.0);
-        final widths =
-            _fractions.map((fraction) => fraction * availableWidth).toList();
+        const collapsedWidth = 48.0;
+        final collapsedCount = _collapsedPanes.length;
+        final expandedAvailableWidth =
+            (availableWidth - collapsedWidth * collapsedCount)
+                .clamp(0.0, double.infinity)
+                .toDouble();
+        final expandedFractionTotal = _fractions
+            .asMap()
+            .entries
+            .where((entry) => !_collapsedPanes.contains(entry.key))
+            .fold<double>(0, (total, entry) => total + entry.value);
+        final widths = _fractions.asMap().entries.map((entry) {
+          if (_collapsedPanes.contains(entry.key)) return collapsedWidth;
+          if (expandedFractionTotal == 0) {
+            return expandedAvailableWidth;
+          }
+          return entry.value / expandedFractionTotal * expandedAvailableWidth;
+        }).toList();
 
         return Padding(
           padding: const EdgeInsets.all(outerPadding),
@@ -161,16 +182,26 @@ class _ResponsivePaneState extends State<ResponsivePane> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 0; i < count; i++) ...[
-                SizedBox(width: widths[i], child: widget.children[i]),
+                _buildPane(
+                  index: i,
+                  width: widths[i],
+                  child: widget.children[i],
+                ),
                 if (i != count - 1)
                   _PaneDivider(
                     width: dividerWidth,
-                    onDrag: (delta) => _resize(
-                      index: i,
-                      delta: delta,
-                      availableWidth: availableWidth,
-                      minWidth: minWidth,
-                    ),
+                    onDrag: (delta) {
+                      if (_collapsedPanes.contains(i) ||
+                          _collapsedPanes.contains(i + 1)) {
+                        return;
+                      }
+                      _resize(
+                        index: i,
+                        delta: delta,
+                        availableWidth: availableWidth,
+                        minWidth: minWidth,
+                      );
+                    },
                   ),
               ],
             ],
@@ -181,6 +212,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   }
 
   void _ensureFractions(int count) {
+    _collapsedPanes.removeWhere((index) => index >= count);
     final key = widget.cacheKey;
     if (key != null && _fractionsCache.containsKey(key)) {
       final cached = _fractionsCache[key]!;
@@ -195,6 +227,34 @@ class _ResponsivePaneState extends State<ResponsivePane> {
       _fractionsCache[key] = _fractions;
       _saveCache();
     }
+  }
+
+  Widget _buildPane({
+    required int index,
+    required double width,
+    required Widget child,
+  }) {
+    final isMain = index == widget.mainPaneIndex;
+    final isCollapsed = _collapsedPanes.contains(index);
+    final canCollapse = !isMain;
+
+    return SizedBox(
+      width: width,
+      child: _PaneFrame(
+        collapsed: isCollapsed,
+        canCollapse: canCollapse,
+        onToggle: canCollapse
+            ? () => setState(() {
+                  if (isCollapsed) {
+                    _collapsedPanes.remove(index);
+                  } else {
+                    _collapsedPanes.add(index);
+                  }
+                })
+            : null,
+        child: child,
+      ),
+    );
   }
 
   void _resize({
@@ -249,6 +309,56 @@ class _PaneDivider extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PaneFrame extends StatelessWidget {
+  const _PaneFrame({
+    required this.child,
+    required this.collapsed,
+    required this.canCollapse,
+    this.onToggle,
+  });
+
+  final Widget child;
+  final bool collapsed;
+  final bool canCollapse;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canCollapse) return child;
+
+    if (collapsed) {
+      return Center(
+        child: IconButton(
+          onPressed: onToggle,
+          icon: const Icon(Icons.keyboard_double_arrow_right),
+          tooltip: 'Expand panel',
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          top: 4,
+          right: 4,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface.withAlpha(235),
+            shape: const CircleBorder(),
+            elevation: 2,
+            child: IconButton(
+              onPressed: onToggle,
+              icon: const Icon(Icons.keyboard_double_arrow_left, size: 18),
+              tooltip: 'Collapse panel',
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
