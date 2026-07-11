@@ -503,7 +503,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       ),
     );
     if (folder == null || folder == card.folder) return;
-    widget.bridge.dispatch(action('card.update', {
+    widget.bridge.dispatch(action('card.move', {
       'id': card.id,
       'folder': folder,
     }));

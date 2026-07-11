@@ -293,6 +293,19 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'card.move') {
+      final id = payload['id'];
+      final folder = payload['folder'];
+      if (id is! String || folder is! String) return;
+      if (!const {'private', 'team', 'public'}.contains(folder)) return;
+      final cards = _cardsJson.map((card) {
+        if (card['id'] != id) return card;
+        return {...card, 'folder': folder};
+      }).toList();
+      _patch({'cards': cards});
+      return;
+    }
+
     if (type == 'card.delete') {
       final id = payload['id'];
       if (id is! String) return;

@@ -892,6 +892,25 @@ async function dispatch(actionJson: string) {
     return;
   }
 
+  if (type === "card.move") {
+    const existing = await db.cards.get(payload.id);
+    if (!existing || existing.author !== userName) return;
+    const folder = payload.folder;
+    if (!["private", "team", "public"].includes(folder)) return;
+    await db.cards.update(existing.id, { folder });
+    if (existing.folder !== "private" && folder === "private") {
+      mesh.broadcast({
+        type: "shared-cards-sync",
+        senderId: mesh.peerId,
+        payload: { cards: [], removeIds: [existing.id] },
+      });
+    } else if (folder !== "private") {
+      syncPublicCardsToPeers();
+    }
+    await emitSnapshot();
+    return;
+  }
+
   if (type === "card.delete") {
     const existing = await db.cards.get(payload.id);
     await db.cards.delete(payload.id);
