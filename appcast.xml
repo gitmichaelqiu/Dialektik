@@ -7,34 +7,26 @@
     <description>Updates for Dialektik desktop applications</description>
     <language>en</language>
 
-    <!--
-      Add one item per release after packaging the macOS and Windows artifacts.
-
-      <item>
-        <title>Dialektik 0.2.0</title>
-        <description><![CDATA[Release notes go here.]]></description>
-        <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
-        <sparkle:version>2</sparkle:version>
-        <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
-        <enclosure
-          url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/dialektik-0.2.0-macos.zip"
-          sparkle:edSignature="REPLACE_WITH_SPARKLE_SIGNATURE"
-          sparkle:os="macos"
-          length="0"
-          type="application/octet-stream" />
-      </item>
-      <item>
-        <title>Dialektik 0.2.0</title>
-        <description><![CDATA[Release notes go here.]]></description>
-        <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
-        <sparkle:version>0.2.0</sparkle:version>
-        <enclosure
-          url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/dialektik-0.2.0-windows-setup.exe"
-          sparkle:dsaSignature="REPLACE_WITH_WINDOWS_SIGNATURE"
-          sparkle:os="windows"
-          length="0"
-          type="application/octet-stream" />
-      </item>
-    -->
+    <item>
+      <title>Dialektik 0.1.1</title>
+      <description><![CDATA[
+        <h2>Dialektik 0.1.1</h2>
+        <ul>
+          <li>Improved panel collapsing and expansion behavior.</li>
+          <li>Added document and evidence-card editing improvements.</li>
+          <li>Added automatic update support and release information in Settings.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Sat, 11 Jul 2026 15:18:51 GMT</pubDate>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/gitmichaelqiu/Dialektik/releases/tag/v0.1.1</sparkle:releaseNotesLink>
+      <enclosure
+        url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.1.1/Dialektik%200.1.1.dmg"
+        sparkle:edSignature="Cp6Hdtpk2VVsuCk7fkm8i29SZL+jZUOMzxk97ybObCiUP/Zq+Hkc+X5YeCIILPsGEZiBJdq1OC9GJg3qemk8Cw=="
+        sparkle:os="macos"
+        length="22681883"
+        type="application/octet-stream" />
+    </item>
   </channel>
 </rss>
