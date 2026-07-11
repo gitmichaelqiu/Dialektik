@@ -16,6 +16,18 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final paneControl = _PaneControlScope.maybeOf(context);
+    final trailingWidgets = <Widget>[
+      if (trailing != null) trailing!,
+      if (paneControl != null)
+        IconButton(
+          onPressed: paneControl.onToggle,
+          icon: Icon(paneControl.collapseIcon),
+          tooltip: 'Collapse panel',
+          visualDensity: VisualDensity.compact,
+        ),
+    ];
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,10 +43,39 @@ class SectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) trailing!,
+        if (trailingWidgets.isNotEmpty)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: trailingWidgets,
+          ),
       ],
     );
   }
+}
+
+class _PaneControlScope extends InheritedWidget {
+  const _PaneControlScope({
+    super.key,
+    required this.isRightOfMain,
+    required this.onToggle,
+    required super.child,
+  });
+
+  final bool isRightOfMain;
+  final VoidCallback onToggle;
+
+  IconData get collapseIcon => isRightOfMain
+      ? Icons.keyboard_double_arrow_right
+      : Icons.keyboard_double_arrow_left;
+
+  static _PaneControlScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<_PaneControlScope>();
+  }
+
+  @override
+  bool updateShouldNotify(_PaneControlScope oldWidget) =>
+      isRightOfMain != oldWidget.isRightOfMain ||
+      onToggle != oldWidget.onToggle;
 }
 
 class EmptyState extends StatelessWidget {
@@ -91,6 +132,7 @@ class ResponsivePane extends StatefulWidget {
 
 class _ResponsivePaneState extends State<ResponsivePane> {
   static final Map<String, List<double>> _fractionsCache = {};
+  static final Map<String, Set<int>> _collapsedPanesCache = {};
   static final File _cacheFile =
       File('${Directory.systemTemp.path}/dialektik_layout_cache.json');
   static bool _cacheLoaded = false;
@@ -120,12 +162,16 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   }
 
   List<double> _fractions = const [];
-  final Set<int> _collapsedPanes = {};
+  Set<int> _collapsedPanes = {};
 
   @override
   void initState() {
     super.initState();
     _loadCache();
+    final key = widget.cacheKey;
+    if (key != null) {
+      _collapsedPanes = {...?_collapsedPanesCache[key]};
+    }
   }
 
   @override
@@ -240,22 +286,26 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     final isCollapsed = _collapsedPanes.contains(index);
     final canCollapse = _canCollapse(index);
 
-    return AnimatedContainer(
+    return SizedBox(
       width: width,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeInOut,
       child: _PaneFrame(
         collapsed: isCollapsed,
         canCollapse: canCollapse,
         isRightOfMain: index > widget.mainPaneIndex,
         onToggle: canCollapse
-            ? () => setState(() {
+            ? () {
+                setState(() {
                   if (isCollapsed) {
                     _collapsedPanes.remove(index);
                   } else {
                     _collapsedPanes.add(index);
                   }
-                })
+                });
+                final key = widget.cacheKey;
+                if (key != null) {
+                  _collapsedPanesCache[key] = {..._collapsedPanes};
+                }
+              }
             : null,
         child: child,
       ),
@@ -342,45 +392,29 @@ class _PaneFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!canCollapse) return child;
 
-    final collapseIcon = isRightOfMain
-        ? Icons.keyboard_double_arrow_right
-        : Icons.keyboard_double_arrow_left;
     final expandIcon = isRightOfMain
         ? Icons.keyboard_double_arrow_left
         : Icons.keyboard_double_arrow_right;
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 36,
-          child: Align(
-            alignment: collapsed
-                ? Alignment.center
-                : isRightOfMain
-                    ? Alignment.centerLeft
-                    : Alignment.centerRight,
-            child: IconButton(
-              onPressed: onToggle,
-              icon: Icon(collapsed ? expandIcon : collapseIcon),
-              tooltip: collapsed ? 'Expand panel' : 'Collapse panel',
-              visualDensity: VisualDensity.compact,
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: collapsed
+          ? Center(
+              key: const ValueKey('collapsed'),
+              child: IconButton(
+                onPressed: onToggle,
+                icon: Icon(expandIcon),
+                tooltip: 'Expand panel',
+              ),
+            )
+          : _PaneControlScope(
+              key: const ValueKey('expanded'),
+              isRightOfMain: isRightOfMain,
+              onToggle: onToggle!,
+              child: child,
             ),
-          ),
-        ),
-        Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: collapsed
-                ? const SizedBox.expand(key: ValueKey('collapsed'))
-                : KeyedSubtree(
-                    key: const ValueKey('expanded'),
-                    child: child,
-                  ),
-          ),
-        ),
-      ],
     );
   }
 }
