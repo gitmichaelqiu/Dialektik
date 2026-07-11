@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
@@ -66,6 +67,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _buildAboutCard(context),
+        const SizedBox(height: 16),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -118,58 +121,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionHeader(
-                  title: 'About Dialektik',
-                  subtitle: 'A local-first workspace for debate teams',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Dialektik helps debate teams prepare cases, organize evidence, '
-                  'manage rounds, and collaborate directly between devices. Your '
-                  'workspace is stored locally, with shared data synchronized '
-                  'peer-to-peer when you choose to connect.',
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Version 0.1.0',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: AutoUpdateService.isSupportedDesktop &&
-                          !_checkingForUpdates
-                      ? _checkForUpdates
-                      : null,
-                  icon: _checkingForUpdates
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.system_update_outlined),
-                  label: Text(_checkingForUpdates
-                      ? 'Checking for updates...'
-                      : 'Check for updates'),
-                ),
-                if (!AutoUpdateService.isSupportedDesktop) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Updates are available on macOS and Windows desktop builds.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -243,6 +194,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _checkingForUpdates = false);
+    }
+  }
+
+  Widget _buildAboutCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(
+              title: 'About Dialektik',
+              subtitle: 'A local-first workspace for debate teams',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Dialektik helps debate teams prepare cases, organize evidence, '
+              'manage rounds, and collaborate directly between devices. Your '
+              'workspace is stored locally, with shared data synchronized '
+              'peer-to-peer when you choose to connect.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Version 0.1.0',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  onPressed: AutoUpdateService.isSupportedDesktop &&
+                          !_checkingForUpdates
+                      ? _checkForUpdates
+                      : null,
+                  icon: _checkingForUpdates
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.system_update_outlined),
+                  label: Text(_checkingForUpdates
+                      ? 'Checking for updates...'
+                      : 'Check for updates'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _openRepository,
+                  icon: const Icon(Icons.code),
+                  label: const Text('Open GitHub repository'),
+                ),
+              ],
+            ),
+            if (!AutoUpdateService.isSupportedDesktop) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Updates are available on macOS and Windows desktop builds.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openRepository() async {
+    final launched = await launchUrl(
+      Uri.parse('https://github.com/gitmichaelqiu/Dialektik'),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open the GitHub repository.')),
+      );
     }
   }
 }
