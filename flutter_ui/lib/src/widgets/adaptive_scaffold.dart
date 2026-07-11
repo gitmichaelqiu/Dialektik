@@ -181,7 +181,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
 
   List<double> _fractions = const [];
   Set<int> _collapsedPanes = {};
-  final Set<int> _pendingExpansions = {};
+  final Set<int> _expandingPanes = {};
   Timer? _paneAnimationTimer;
   bool _animatePaneWidths = false;
 
@@ -200,7 +200,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   @override
   void dispose() {
     _paneAnimationTimer?.cancel();
-    _finishPendingExpansions();
+    _finishExpansions();
     super.dispose();
   }
 
@@ -236,8 +236,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
             .toDouble();
         final minWidth = (availableWidth / count * 0.55).clamp(180.0, 280.0);
         const collapsedWidth = 48.0;
-        final animatedCollapsedPanes = {..._collapsedPanes}
-          ..removeAll(_pendingExpansions);
+        final animatedCollapsedPanes = _collapsedPanes;
         final collapsedCount = animatedCollapsedPanes.length;
         final expandedAvailableWidth =
             (availableWidth - collapsedWidth * collapsedCount)
@@ -327,6 +326,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         curve: Curves.easeInOutCubic,
         child: _PaneFrame(
           collapsed: isCollapsed,
+          expanding: _expandingPanes.contains(index),
           canCollapse: canCollapse,
           isRightOfMain: index > widget.mainPaneIndex,
           onToggle: canCollapse ? () => _togglePane(index) : null,
@@ -338,26 +338,29 @@ class _ResponsivePaneState extends State<ResponsivePane> {
 
   void _togglePane(int index) {
     if (_collapsedPanes.contains(index)) {
-      _pendingExpansions.add(index);
+      _collapsedPanes.remove(index);
+      _expandingPanes.add(index);
+      _animatePaneWidths = false;
     } else {
       _collapsedPanes.add(index);
-      _persistCollapsedPanes();
+      _expandingPanes.remove(index);
+      _animatePaneWidths = true;
     }
+    _persistCollapsedPanes();
     _paneAnimationTimer?.cancel();
-    setState(() => _animatePaneWidths = true);
+    setState(() {});
     _paneAnimationTimer = Timer(_paneAnimationDuration, () {
       if (!mounted) return;
       setState(() {
-        _finishPendingExpansions();
+        _finishExpansions();
         _animatePaneWidths = false;
       });
       _persistCollapsedPanes();
     });
   }
 
-  void _finishPendingExpansions() {
-    _collapsedPanes.removeAll(_pendingExpansions);
-    _pendingExpansions.clear();
+  void _finishExpansions() {
+    _expandingPanes.clear();
   }
 
   void _persistCollapsedPanes() {
@@ -368,9 +371,9 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   }
 
   void _stopPaneAnimationForResize() {
-    if (!_animatePaneWidths && _pendingExpansions.isEmpty) return;
+    if (!_animatePaneWidths && _expandingPanes.isEmpty) return;
     _paneAnimationTimer?.cancel();
-    _finishPendingExpansions();
+    _finishExpansions();
     _animatePaneWidths = false;
     _persistCollapsedPanes();
   }
@@ -441,6 +444,7 @@ class _PaneFrame extends StatelessWidget {
   const _PaneFrame({
     required this.child,
     required this.collapsed,
+    required this.expanding,
     required this.canCollapse,
     required this.isRightOfMain,
     this.onToggle,
@@ -448,6 +452,7 @@ class _PaneFrame extends StatelessWidget {
 
   final Widget child;
   final bool collapsed;
+  final bool expanding;
   final bool canCollapse;
   final bool isRightOfMain;
   final VoidCallback? onToggle;
@@ -460,37 +465,47 @@ class _PaneFrame extends StatelessWidget {
         ? Icons.keyboard_double_arrow_left
         : Icons.keyboard_double_arrow_right;
 
-    if (collapsed) {
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Semantics(
-          button: true,
-          label: 'Expand panel',
-          child: Material(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: InkWell(
-              onTap: onToggle,
-              child: SizedBox.expand(
-                child: Center(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: Icon(
-                      expandIcon,
-                      key: ValueKey(expandIcon),
+    final expandedChild = _PaneControlScope(
+      isRightOfMain: isRightOfMain,
+      onToggle: onToggle!,
+      child: child,
+    );
+
+    return AnimatedSwitcher(
+      duration: expanding ? const Duration(milliseconds: 220) : Duration.zero,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.98, end: 1).animate(animation),
+          child: child,
+        ),
+      ),
+      child: collapsed
+          ? MouseRegion(
+              key: const ValueKey('collapsed'),
+              cursor: SystemMouseCursors.click,
+              child: Semantics(
+                button: true,
+                label: 'Expand panel',
+                child: Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: InkWell(
+                    onTap: onToggle,
+                    child: SizedBox.expand(
+                      child: Center(
+                        child: Icon(expandIcon),
+                      ),
                     ),
                   ),
                 ),
               ),
+            )
+          : KeyedSubtree(
+              key: const ValueKey('expanded'),
+              child: expandedChild,
             ),
-          ),
-        ),
-      );
-    }
-
-    return _PaneControlScope(
-      isRightOfMain: isRightOfMain,
-      onToggle: onToggle!,
-      child: child,
     );
   }
 }
