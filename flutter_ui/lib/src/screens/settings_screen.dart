@@ -27,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _aiKeyController;
   bool _saved = false;
   bool _checkingForUpdates = false;
+  bool _hasSavedApiKey = false;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController = TextEditingController(text: settings.aiEndpoint);
     _aiModelController = TextEditingController(text: settings.aiModel);
     _aiKeyController = TextEditingController();
+    _hasSavedApiKey = settings.hasAiKey;
   }
 
   @override
@@ -50,6 +52,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (oldWidget.snapshot.settings.aiModel != settings.aiModel) {
       _aiModelController.text = settings.aiModel;
+    }
+    if (settings.hasAiKey) {
+      _hasSavedApiKey = true;
+    } else if (oldWidget.snapshot.settings.hasAiKey) {
+      _hasSavedApiKey = false;
     }
   }
 
@@ -115,12 +122,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _aiKeyController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'API key'),
+                  decoration: InputDecoration(
+                    labelText: 'API key',
+                    hintText: _hasSavedApiKey ? '••••••••' : null,
+                  ),
                 ),
               ],
             ),
           ),
         ),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -170,12 +181,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       return;
     }
-    widget.bridge.dispatch(action('settings.save', {
+    final payload = <String, Object?>{
       'userName': _nameController.text.trim(),
       'aiEndpoint': _aiEndpointController.text.trim(),
       'aiModel': _aiModelController.text.trim(),
-      'aiApiKey': _aiKeyController.text.trim(),
-    }));
+    };
+    final apiKey = _aiKeyController.text.trim();
+    if (apiKey.isNotEmpty) {
+      payload['aiApiKey'] = apiKey;
+      _hasSavedApiKey = true;
+    }
+    widget.bridge.dispatch(action('settings.save', payload));
+    _aiKeyController.clear();
     setState(() => _saved = true);
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _saved = false);
