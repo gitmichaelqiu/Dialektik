@@ -547,6 +547,7 @@ async function handlePeerMessage(msg: PeerMessage) {
     }
 
     case "handout-op": {
+      if (mesh.isHost || !msg.senderId.endsWith("-host")) break;
       const { field } = msg.payload || {};
       const edit = toTextSplice(msg.payload);
       if (typeof field !== "string" || !edit) break;
@@ -1007,7 +1008,7 @@ async function dispatch(actionJson: string) {
 
   // ── Session: Update handout ───────────────
   if (type === "session.updateHandout") {
-    if (!session) return;
+    if (!session || !mesh.isHost) return;
     session.handout = {
       title: payload.title || "", problem: payload.problem || "", details: payload.details || "",
     };
@@ -1017,6 +1018,7 @@ async function dispatch(actionJson: string) {
   }
 
   if (type === "session.spliceHandout") {
+    if (!session || !mesh.isHost) return;
     const { field } = payload;
     const edit = toTextSplice(payload);
     if (typeof field !== "string" || !edit) return;

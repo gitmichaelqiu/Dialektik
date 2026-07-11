@@ -454,6 +454,7 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.updateHandout') {
+      if (!((_sessionJson['isHost'] as bool?) ?? false)) return;
       _patchSession({
         'handout': {
           'title': payload['title'] ?? '',
@@ -465,6 +466,7 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.spliceHandout') {
+      if (!((_sessionJson['isHost'] as bool?) ?? false)) return;
       final field = payload['field'];
       final index = payload['index'];
       final deleteCount = payload['deleteCount'];

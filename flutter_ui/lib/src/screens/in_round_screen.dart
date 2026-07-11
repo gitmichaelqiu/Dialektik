@@ -476,7 +476,10 @@ class _InRoundScreenState extends State<InRoundScreen>
     final active = session.status == 'active';
 
     final handoutPane = active
-        ? _HandoutReadPane(session: session)
+        ? _HandoutReadPane(
+            session: session,
+            onEdit: session.isHost ? () => _editHandout(session) : null,
+          )
         : _LobbyHandoutPane(
             session: session,
             titleController: _handoutTitleController,
@@ -643,6 +646,83 @@ class _InRoundScreenState extends State<InRoundScreen>
     _lastLocalHandoutDetails = _handoutDetailsController.text;
   }
 
+  Future<void> _editHandout(SessionState session) async {
+    final titleController = TextEditingController(text: session.handout.title);
+    final problemController =
+        TextEditingController(text: session.handout.problem);
+    final detailsController =
+        TextEditingController(text: session.handout.details);
+
+    final handout = await showDialog<HandoutState>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit debate handout'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: problemController,
+                  minLines: 4,
+                  maxLines: 7,
+                  decoration: const InputDecoration(
+                    labelText: 'Resolution or problem',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: detailsController,
+                  minLines: 3,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Context',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              context,
+              HandoutState(
+                title: titleController.text,
+                problem: problemController.text,
+                details: detailsController.text,
+              ),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    titleController.dispose();
+    problemController.dispose();
+    detailsController.dispose();
+
+    if (handout == null || !mounted) return;
+    widget.bridge.dispatch(action('session.updateHandout', {
+      'title': handout.title,
+      'problem': handout.problem,
+      'details': handout.details,
+    }));
+  }
+
   void _dispatchHandoutEdit({
     required String field,
     required String previous,
@@ -730,7 +810,8 @@ class _StartSessionPane extends StatelessWidget {
                   onPressed: () {
                     if (matchController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a match name.')),
+                        const SnackBar(
+                            content: Text('Please enter a match name.')),
                       );
                       return;
                     }
@@ -789,7 +870,8 @@ class _JoinSessionPane extends StatelessWidget {
                   onPressed: () {
                     if (codeController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a room code.')),
+                        const SnackBar(
+                            content: Text('Please enter a room code.')),
                       );
                       return;
                     }
@@ -983,9 +1065,10 @@ class _LobbyHandoutPane extends StatelessWidget {
 }
 
 class _HandoutReadPane extends StatelessWidget {
-  const _HandoutReadPane({required this.session});
+  const _HandoutReadPane({required this.session, this.onEdit});
 
   final SessionState session;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1002,6 +1085,13 @@ class _HandoutReadPane extends StatelessWidget {
                     ? session.matchName
                     : session.handout.title,
                 subtitle: session.groupName,
+                trailing: onEdit == null
+                    ? null
+                    : IconButton(
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit handout',
+                      ),
               ),
               const SizedBox(height: 8),
               Row(
@@ -1155,7 +1245,8 @@ class _TimersPane extends StatelessWidget {
                       onPressed: () {
                         if (customNameController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter a timer name.')),
+                            const SnackBar(
+                                content: Text('Please enter a timer name.')),
                           );
                           return;
                         }
