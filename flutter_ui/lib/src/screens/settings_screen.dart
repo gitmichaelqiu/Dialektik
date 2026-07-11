@@ -220,8 +220,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _handleApiKeyFocus() {
     if (!_aiKeyFocusNode.hasFocus || !_apiKeyPlaceholderActive) return;
-    _apiKeyPlaceholderActive = false;
-    _aiKeyController.clear();
+    _selectMaskedApiKey();
+  }
+
+  void _selectMaskedApiKey() {
+    _aiKeyController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _aiKeyController.text.length,
+    );
   }
 
   void _showMaskedApiKey() {
