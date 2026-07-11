@@ -268,9 +268,28 @@ class PreviewEngineBridge implements EngineBridge {
                 payload['sourceUrl'] is String ? payload['sourceUrl'] : '',
             'text': text.trim(),
             'docId': payload['docId'],
+            'folder':
+                payload['folder'] is String ? payload['folder'] : 'private',
           },
         ],
       });
+      return;
+    }
+
+    if (type == 'card.update') {
+      final id = payload['id'];
+      if (id is! String) return;
+      final cards = _cardsJson.map((card) {
+        if (card['id'] != id) return card;
+        return {
+          ...card,
+          if (payload['title'] is String) 'title': payload['title'],
+          if (payload['text'] is String) 'text': payload['text'],
+          if (payload['sourceUrl'] is String) 'sourceUrl': payload['sourceUrl'],
+          if (payload['folder'] is String) 'folder': payload['folder'],
+        };
+      }).toList();
+      _patch({'cards': cards});
       return;
     }
 

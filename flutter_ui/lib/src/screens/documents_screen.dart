@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../widgets/adaptive_scaffold.dart';
+
+enum _CardMenuAction { edit, move, delete }
 
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({
@@ -328,14 +329,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _cardTextController.clear();
         if (compact) _scaffoldKey.currentState?.closeEndDrawer();
       },
-      onDelete: (card) async {
-        final confirm = await _confirmAction(
-          context,
-          title: 'Delete Card',
-          content: 'Are you sure you want to delete card "${card.title}"?',
-        );
-        if (confirm) {
-          widget.bridge.dispatch(action('card.delete', {'id': card.id}));
+      onMenu: (card, action) async {
+        switch (action) {
+          case _CardMenuAction.edit:
+            await _editCard(card);
+          case _CardMenuAction.move:
+            await _moveCard(card);
+          case _CardMenuAction.delete:
+            await _deleteCard(card);
         }
       },
       onInsert:
@@ -408,6 +409,115 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     return parts.length == 2 &&
         parts[0] == document.folder &&
         parts[1] == document.title;
+  }
+
+  Future<void> _editCard(EvidenceCard card) async {
+    final titleController = TextEditingController(text: card.title);
+    final sourceController = TextEditingController(text: card.sourceUrl);
+    final textController = TextEditingController(text: card.text);
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit evidence card'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Citation'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: sourceController,
+                decoration: const InputDecoration(labelText: 'Source URL'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: textController,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  labelText: 'Evidence text',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, {
+              'title': titleController.text.trim(),
+              'sourceUrl': sourceController.text.trim(),
+              'text': textController.text.trim(),
+            }),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    titleController.dispose();
+    sourceController.dispose();
+    textController.dispose();
+
+    if (result == null || result['title']!.isEmpty || result['text']!.isEmpty) {
+      return;
+    }
+    widget.bridge.dispatch(action('card.update', {
+      'id': card.id,
+      ...result,
+    }));
+  }
+
+  Future<void> _moveCard(EvidenceCard card) async {
+    final folder = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Move evidence card'),
+        children: [
+          for (final option in const [
+            ('private', 'Private'),
+            ('team', 'Team'),
+            ('public', 'Public'),
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, option.$1),
+              child: Row(
+                children: [
+                  Icon(
+                    option.$1 == 'private' ? Icons.lock_outline : Icons.public,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(option.$2),
+                  const Spacer(),
+                  if (card.folder == option.$1) const Icon(Icons.check),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (folder == null || folder == card.folder) return;
+    widget.bridge.dispatch(action('card.update', {
+      'id': card.id,
+      'folder': folder,
+    }));
+  }
+
+  Future<void> _deleteCard(EvidenceCard card) async {
+    final confirm = await _confirmAction(
+      context,
+      title: 'Delete Card',
+      content: 'Are you sure you want to delete card "${card.title}"?',
+    );
+    if (confirm) {
+      widget.bridge.dispatch(action('card.delete', {'id': card.id}));
+    }
   }
 
   int? _getLineFromCaret(String text, int? caret) {
@@ -1347,7 +1457,6 @@ class _CitationLink extends StatefulWidget {
 
 class _CitationLinkState extends State<_CitationLink> {
   OverlayEntry? _previewEntry;
-  Timer? _hideTimer;
 
   DebateDocument? get _document => _resolveDocument();
 
@@ -1366,7 +1475,6 @@ class _CitationLinkState extends State<_CitationLink> {
 
   @override
   void dispose() {
-    _hideTimer?.cancel();
     _removePreview();
     super.dispose();
   }
@@ -1380,7 +1488,7 @@ class _CitationLinkState extends State<_CitationLink> {
 
     return MouseRegion(
       onEnter: (_) => _showPreview(),
-      onExit: (_) => _scheduleHide(),
+      onExit: (_) => _removePreview(),
       child: InkWell(
         borderRadius: BorderRadius.circular(4),
         onTap: doc == null
@@ -1406,7 +1514,6 @@ class _CitationLinkState extends State<_CitationLink> {
   }
 
   void _showPreview() {
-    _hideTimer?.cancel();
     if (!_exists || _previewEntry != null) return;
 
     final overlay = Overlay.of(context, rootOverlay: true);
@@ -1447,43 +1554,39 @@ class _CitationLinkState extends State<_CitationLink> {
         top: top,
         width: previewWidth,
         height: previewHeight,
-        child: MouseRegion(
-          onEnter: (_) => _hideTimer?.cancel(),
-          onExit: (_) => _scheduleHide(),
-          child: Theme(
-            data: theme,
-            child: Material(
-              elevation: 8,
-              borderRadius: BorderRadius.circular(8),
-              clipBehavior: Clip.antiAlias,
-              color: theme.colorScheme.surface,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const Divider(height: 16),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: _InlineMarkdown(
-                          text: previewText.isEmpty
-                              ? 'No content available.'
-                              : previewText,
-                          documents: widget.documents,
-                          cards: widget.cards,
-                          onNavigateDoc: widget.onNavigateDoc,
-                        ),
+        child: Theme(
+          data: theme,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(8),
+            clipBehavior: Clip.antiAlias,
+            color: theme.colorScheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Divider(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: _InlineMarkdown(
+                        text: previewText.isEmpty
+                            ? 'No content available.'
+                            : previewText,
+                        documents: widget.documents,
+                        cards: widget.cards,
+                        onNavigateDoc: widget.onNavigateDoc,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1494,14 +1597,7 @@ class _CitationLinkState extends State<_CitationLink> {
     overlay.insert(entry);
   }
 
-  void _scheduleHide() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: 180), _removePreview);
-  }
-
   void _removePreview() {
-    _hideTimer?.cancel();
-    _hideTimer = null;
     _previewEntry?.remove();
     _previewEntry = null;
   }
@@ -1528,8 +1624,8 @@ class _EvidencePane extends StatelessWidget {
     required this.sourceController,
     required this.textController,
     required this.onCreate,
-    required this.onDelete,
     required this.onInsert,
+    required this.onMenu,
     this.canInsert,
     this.cardFolder = 'private',
     this.myUserName = '',
@@ -1541,8 +1637,8 @@ class _EvidencePane extends StatelessWidget {
   final TextEditingController sourceController;
   final TextEditingController textController;
   final VoidCallback onCreate;
-  final ValueChanged<EvidenceCard> onDelete;
   final ValueChanged<EvidenceCard>? onInsert;
+  final Future<void> Function(EvidenceCard, _CardMenuAction) onMenu;
   final bool Function(EvidenceCard)? canInsert;
   final String cardFolder;
   final String myUserName;
@@ -1630,7 +1726,7 @@ class _EvidencePane extends StatelessWidget {
                               cards: grouped[folder]!,
                               onInsert: onInsert,
                               canInsert: canInsert,
-                              onDelete: onDelete,
+                              onMenu: onMenu,
                               myUserName: myUserName,
                             ),
                       ],
@@ -1648,7 +1744,7 @@ class _CardFolderGroup extends StatelessWidget {
     required this.title,
     required this.cards,
     required this.onInsert,
-    required this.onDelete,
+    required this.onMenu,
     this.canInsert,
     this.myUserName = '',
   });
@@ -1657,7 +1753,7 @@ class _CardFolderGroup extends StatelessWidget {
   final List<EvidenceCard> cards;
   final ValueChanged<EvidenceCard>? onInsert;
   final bool Function(EvidenceCard)? canInsert;
-  final ValueChanged<EvidenceCard> onDelete;
+  final Future<void> Function(EvidenceCard, _CardMenuAction) onMenu;
   final String myUserName;
 
   @override
@@ -1685,10 +1781,24 @@ class _CardFolderGroup extends StatelessWidget {
                     : () => onInsert!(card),
               ),
               if (card.author == myUserName || myUserName.isEmpty)
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Delete card',
-                  onPressed: () => onDelete(card),
+                PopupMenuButton<_CardMenuAction>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'Card actions',
+                  onSelected: (action) => onMenu(card, action),
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _CardMenuAction.edit,
+                      child: Text('Edit'),
+                    ),
+                    PopupMenuItem(
+                      value: _CardMenuAction.move,
+                      child: Text('Move'),
+                    ),
+                    PopupMenuItem(
+                      value: _CardMenuAction.delete,
+                      child: Text('Delete'),
+                    ),
+                  ],
                 ),
             ],
           ),
