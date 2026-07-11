@@ -410,6 +410,7 @@ class _InRoundScreenState extends State<InRoundScreen>
       return ResponsivePane(
         cacheKey: 'in_round_setup',
         mainPaneIndex: 0,
+        collapsiblePaneIndices: const {},
         children: [
           startSessionPane,
           joinSessionPane,

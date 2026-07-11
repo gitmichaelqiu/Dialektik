@@ -77,11 +77,13 @@ class ResponsivePane extends StatefulWidget {
     required this.children,
     this.cacheKey,
     this.mainPaneIndex = 1,
+    this.collapsiblePaneIndices,
   });
 
   final List<Widget> children;
   final String? cacheKey;
   final int mainPaneIndex;
+  final Set<int>? collapsiblePaneIndices;
 
   @override
   State<ResponsivePane> createState() => _ResponsivePaneState();
@@ -213,6 +215,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
 
   void _ensureFractions(int count) {
     _collapsedPanes.removeWhere((index) => index >= count);
+    _collapsedPanes.removeWhere((index) => !_canCollapse(index));
     final key = widget.cacheKey;
     if (key != null && _fractionsCache.containsKey(key)) {
       final cached = _fractionsCache[key]!;
@@ -234,15 +237,17 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     required double width,
     required Widget child,
   }) {
-    final isMain = index == widget.mainPaneIndex;
     final isCollapsed = _collapsedPanes.contains(index);
-    final canCollapse = !isMain;
+    final canCollapse = _canCollapse(index);
 
-    return SizedBox(
+    return AnimatedContainer(
       width: width,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
       child: _PaneFrame(
         collapsed: isCollapsed,
         canCollapse: canCollapse,
+        isRightOfMain: index > widget.mainPaneIndex,
         onToggle: canCollapse
             ? () => setState(() {
                   if (isCollapsed) {
@@ -255,6 +260,11 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         child: child,
       ),
     );
+  }
+
+  bool _canCollapse(int index) {
+    return widget.collapsiblePaneIndices?.contains(index) ??
+        index != widget.mainPaneIndex;
   }
 
   void _resize({
@@ -318,44 +328,56 @@ class _PaneFrame extends StatelessWidget {
     required this.child,
     required this.collapsed,
     required this.canCollapse,
+    required this.isRightOfMain,
     this.onToggle,
   });
 
   final Widget child;
   final bool collapsed;
   final bool canCollapse;
+  final bool isRightOfMain;
   final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
     if (!canCollapse) return child;
 
-    if (collapsed) {
-      return Center(
-        child: IconButton(
-          onPressed: onToggle,
-          icon: const Icon(Icons.keyboard_double_arrow_right),
-          tooltip: 'Expand panel',
-        ),
-      );
-    }
+    final collapseIcon = isRightOfMain
+        ? Icons.keyboard_double_arrow_right
+        : Icons.keyboard_double_arrow_left;
+    final expandIcon = isRightOfMain
+        ? Icons.keyboard_double_arrow_left
+        : Icons.keyboard_double_arrow_right;
 
-    return Stack(
+    return Column(
       children: [
-        child,
-        Positioned(
-          top: 4,
-          right: 4,
-          child: Material(
-            color: Theme.of(context).colorScheme.surface.withAlpha(235),
-            shape: const CircleBorder(),
-            elevation: 2,
+        SizedBox(
+          height: 36,
+          child: Align(
+            alignment: collapsed
+                ? Alignment.center
+                : isRightOfMain
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
             child: IconButton(
               onPressed: onToggle,
-              icon: const Icon(Icons.keyboard_double_arrow_left, size: 18),
-              tooltip: 'Collapse panel',
+              icon: Icon(collapsed ? expandIcon : collapseIcon),
+              tooltip: collapsed ? 'Expand panel' : 'Collapse panel',
               visualDensity: VisualDensity.compact,
             ),
+          ),
+        ),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: collapsed
+                ? const SizedBox.expand(key: ValueKey('collapsed'))
+                : KeyedSubtree(
+                    key: const ValueKey('expanded'),
+                    child: child,
+                  ),
           ),
         ),
       ],

@@ -504,7 +504,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       mainPaneIndex: 1,
       children: [
         FocusTraversalGroup(
-            child: SizedBox(width: 320, child: historyListPane)),
+          child: historyListPane,
+        ),
         FocusTraversalGroup(
           child: Column(
             children: [
