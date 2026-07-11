@@ -297,7 +297,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }).toList();
 
     final evidencePane = _EvidencePane(
-      cards: filteredCards.where((card) => card.docId != selected?.id).toList(),
+      cards: filteredCards,
       titleController: _cardTitleController,
       sourceController: _cardSourceController,
       textController: _cardTextController,
@@ -366,6 +366,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   }));
                   if (compact) _scaffoldKey.currentState?.closeEndDrawer();
                 },
+      canInsert: (card) => card.docId != selected?.id,
     );
 
     if (compact) {
@@ -1373,8 +1374,9 @@ class _CitationLinkState extends State<_CitationLink> {
   @override
   Widget build(BuildContext context) {
     final doc = _document;
-    final color =
-        _exists ? Colors.green.shade700 : Theme.of(context).colorScheme.error;
+    final color = _exists
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.error;
 
     return MouseRegion(
       onEnter: (_) => _showPreview(),
@@ -1438,6 +1440,7 @@ class _CitationLinkState extends State<_CitationLink> {
         .toDouble();
 
     final previewText = _content.split('\n').take(5).join('\n');
+    final theme = Theme.of(context);
     final entry = OverlayEntry(
       builder: (context) => Positioned(
         left: left,
@@ -1447,39 +1450,40 @@ class _CitationLinkState extends State<_CitationLink> {
         child: MouseRegion(
           onEnter: (_) => _hideTimer?.cancel(),
           onExit: (_) => _scheduleHide(),
-          child: Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(8),
-            clipBehavior: Clip.antiAlias,
-            color: Theme.of(context).colorScheme.surface,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const Divider(height: 16),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: _InlineMarkdown(
-                        text: previewText.isEmpty
-                            ? 'No content available.'
-                            : previewText,
-                        documents: widget.documents,
-                        cards: widget.cards,
-                        onNavigateDoc: widget.onNavigateDoc,
+          child: Theme(
+            data: theme,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(8),
+              clipBehavior: Clip.antiAlias,
+              color: theme.colorScheme.surface,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Divider(height: 16),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: _InlineMarkdown(
+                          text: previewText.isEmpty
+                              ? 'No content available.'
+                              : previewText,
+                          documents: widget.documents,
+                          cards: widget.cards,
+                          onNavigateDoc: widget.onNavigateDoc,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1526,6 +1530,7 @@ class _EvidencePane extends StatelessWidget {
     required this.onCreate,
     required this.onDelete,
     required this.onInsert,
+    this.canInsert,
     this.cardFolder = 'private',
     this.myUserName = '',
     this.onCardFolderChanged,
@@ -1538,6 +1543,7 @@ class _EvidencePane extends StatelessWidget {
   final VoidCallback onCreate;
   final ValueChanged<EvidenceCard> onDelete;
   final ValueChanged<EvidenceCard>? onInsert;
+  final bool Function(EvidenceCard)? canInsert;
   final String cardFolder;
   final String myUserName;
   final ValueChanged<String?>? onCardFolderChanged;
@@ -1623,6 +1629,7 @@ class _EvidencePane extends StatelessWidget {
                                       : 'Public',
                               cards: grouped[folder]!,
                               onInsert: onInsert,
+                              canInsert: canInsert,
                               onDelete: onDelete,
                               myUserName: myUserName,
                             ),
@@ -1642,12 +1649,14 @@ class _CardFolderGroup extends StatelessWidget {
     required this.cards,
     required this.onInsert,
     required this.onDelete,
+    this.canInsert,
     this.myUserName = '',
   });
 
   final String title;
   final List<EvidenceCard> cards;
   final ValueChanged<EvidenceCard>? onInsert;
+  final bool Function(EvidenceCard)? canInsert;
   final ValueChanged<EvidenceCard> onDelete;
   final String myUserName;
 
@@ -1671,7 +1680,9 @@ class _CardFolderGroup extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.add_link),
                 tooltip: 'Insert citation',
-                onPressed: onInsert == null ? null : () => onInsert!(card),
+                onPressed: onInsert == null || canInsert?.call(card) == false
+                    ? null
+                    : () => onInsert!(card),
               ),
               if (card.author == myUserName || myUserName.isEmpty)
                 IconButton(
