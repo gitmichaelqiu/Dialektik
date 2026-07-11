@@ -28,34 +28,51 @@ class SectionHeader extends StatelessWidget {
         ),
     ];
 
-    return Row(
+    final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              if (subtitle != null) ...[
-                const SizedBox(height: 4),
-                Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ],
-          ),
-        ),
-        if (trailingWidgets.isNotEmpty)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: trailingWidgets,
-          ),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+        ],
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final actions = trailingWidgets.isEmpty
+            ? null
+            : Wrap(
+                alignment: WrapAlignment.end,
+                children: trailingWidgets,
+              );
+        if (actions == null) return titleBlock;
+
+        if (constraints.maxWidth < 280) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleBlock,
+              Align(alignment: Alignment.centerRight, child: actions),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: titleBlock),
+            actions,
+          ],
+        );
+      },
     );
   }
 }
 
 class _PaneControlScope extends InheritedWidget {
   const _PaneControlScope({
-    super.key,
     required this.isRightOfMain,
     required this.onToggle,
     required super.child,
@@ -396,25 +413,37 @@ class _PaneFrame extends StatelessWidget {
         ? Icons.keyboard_double_arrow_left
         : Icons.keyboard_double_arrow_right;
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      switchInCurve: Curves.easeOut,
-      switchOutCurve: Curves.easeIn,
-      child: collapsed
-          ? Center(
-              key: const ValueKey('collapsed'),
-              child: IconButton(
-                onPressed: onToggle,
-                icon: Icon(expandIcon),
-                tooltip: 'Expand panel',
+    if (collapsed) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Semantics(
+          button: true,
+          label: 'Expand panel',
+          child: Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: InkWell(
+              onTap: onToggle,
+              child: SizedBox.expand(
+                child: Center(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      expandIcon,
+                      key: ValueKey(expandIcon),
+                    ),
+                  ),
+                ),
               ),
-            )
-          : _PaneControlScope(
-              key: const ValueKey('expanded'),
-              isRightOfMain: isRightOfMain,
-              onToggle: onToggle!,
-              child: child,
             ),
+          ),
+        ),
+      );
+    }
+
+    return _PaneControlScope(
+      isRightOfMain: isRightOfMain,
+      onToggle: onToggle!,
+      child: child,
     );
   }
 }

@@ -1616,36 +1616,72 @@ class _PendingRequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilledButton.tonal(
+          onPressed: onApprove,
+          style: FilledButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+          ),
+          child: const Text('Approve'),
+        ),
+        OutlinedButton(
+          onPressed: onReject,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            visualDensity: VisualDensity.compact,
+          ),
+          child: const Text('Reject'),
+        ),
+      ],
+    );
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        dense: true,
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(Icons.person_outline,
-              color: Theme.of(context).colorScheme.primary),
-        ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FilledButton.tonal(
-              onPressed: onApprove,
-              style: FilledButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
-              child: const Text('Approve'),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: onReject,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                visualDensity: VisualDensity.compact,
-              ),
-              child: const Text('Reject'),
-            ),
-          ],
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final identity = Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
+                  child: Icon(Icons.person_outline,
+                      color: Theme.of(context).colorScheme.primary),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            );
+
+            if (constraints.maxWidth < 360) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  identity,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: actions),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: identity),
+                const SizedBox(width: 8),
+                actions,
+              ],
+            );
+          },
         ),
       ),
     );
