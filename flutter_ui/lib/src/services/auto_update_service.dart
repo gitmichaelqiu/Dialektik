@@ -17,7 +17,7 @@ class AutoUpdateService {
 
     try {
       await _configure();
-      await autoUpdater.checkForUpdates();
+      await autoUpdater.checkForUpdates(inBackground: true);
       await autoUpdater.setScheduledCheckInterval(3600);
     } catch (error, stackTrace) {
       debugPrint('Auto-updater initialization failed: $error');
