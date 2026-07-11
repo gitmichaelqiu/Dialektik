@@ -21,13 +21,17 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const _maskedApiKey = '••••••••••••••••••••••••••••••••';
+
   late final TextEditingController _nameController;
   late final TextEditingController _aiEndpointController;
   late final TextEditingController _aiModelController;
   late final TextEditingController _aiKeyController;
+  late final FocusNode _aiKeyFocusNode;
   bool _saved = false;
   bool _checkingForUpdates = false;
   bool _hasSavedApiKey = false;
+  bool _apiKeyPlaceholderActive = false;
 
   @override
   void initState() {
@@ -36,8 +40,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nameController = TextEditingController(text: settings.userName);
     _aiEndpointController = TextEditingController(text: settings.aiEndpoint);
     _aiModelController = TextEditingController(text: settings.aiModel);
-    _aiKeyController = TextEditingController();
+    _aiKeyController = TextEditingController(
+      text: settings.hasAiKey ? _maskedApiKey : '',
+    );
+    _aiKeyFocusNode = FocusNode()..addListener(_handleApiKeyFocus);
     _hasSavedApiKey = settings.hasAiKey;
+    _apiKeyPlaceholderActive = settings.hasAiKey;
   }
 
   @override
@@ -55,8 +63,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (settings.hasAiKey) {
       _hasSavedApiKey = true;
+      if (!_aiKeyFocusNode.hasFocus && !_apiKeyPlaceholderActive) {
+        _showMaskedApiKey();
+      }
     } else if (oldWidget.snapshot.settings.hasAiKey) {
       _hasSavedApiKey = false;
+      if (!_aiKeyFocusNode.hasFocus) {
+        _apiKeyPlaceholderActive = false;
+        _aiKeyController.clear();
+      }
     }
   }
 
@@ -66,6 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController.dispose();
     _aiModelController.dispose();
     _aiKeyController.dispose();
+    _aiKeyFocusNode
+      ..removeListener(_handleApiKeyFocus)
+      ..dispose();
     super.dispose();
   }
 
@@ -121,11 +139,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _aiKeyController,
+                  focusNode: _aiKeyFocusNode,
                   obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'API key',
-                    hintText: _hasSavedApiKey ? '••••••••' : null,
-                  ),
+                  obscuringCharacter: '•',
+                  decoration: const InputDecoration(labelText: 'API key'),
+                  onTap: _handleApiKeyFocus,
+                  onChanged: (_) => _apiKeyPlaceholderActive = false,
                 ),
               ],
             ),
@@ -186,17 +205,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'aiEndpoint': _aiEndpointController.text.trim(),
       'aiModel': _aiModelController.text.trim(),
     };
-    final apiKey = _aiKeyController.text.trim();
+    final apiKey = _apiKeyPlaceholderActive ? '' : _aiKeyController.text.trim();
     if (apiKey.isNotEmpty) {
       payload['aiApiKey'] = apiKey;
       _hasSavedApiKey = true;
     }
     widget.bridge.dispatch(action('settings.save', payload));
-    _aiKeyController.clear();
+    if (_hasSavedApiKey) _showMaskedApiKey();
     setState(() => _saved = true);
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _saved = false);
     });
+  }
+
+  void _handleApiKeyFocus() {
+    if (!_aiKeyFocusNode.hasFocus || !_apiKeyPlaceholderActive) return;
+    _apiKeyPlaceholderActive = false;
+    _aiKeyController.clear();
+  }
+
+  void _showMaskedApiKey() {
+    _apiKeyPlaceholderActive = true;
+    _aiKeyController.value = const TextEditingValue(
+      text: _maskedApiKey,
+      selection: TextSelection.collapsed(offset: _maskedApiKey.length),
+    );
   }
 
   Future<void> _checkForUpdates() async {
