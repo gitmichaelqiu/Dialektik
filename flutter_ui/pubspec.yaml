@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  auto_updater: ^1.0.0
   shared_preferences: ^2.5.5
   flutter_inappwebview: ^6.1.5
 

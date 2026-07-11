@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:auto_updater/auto_updater.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,7 +13,26 @@ import 'src/bridge/js_engine_bridge_io.dart'
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _initializeAutoUpdater();
   runApp(DialektikFlutterApp(bridge: JsEngineBridge()));
+}
+
+const _autoUpdateFeedUrl = String.fromEnvironment('AUTO_UPDATE_FEED_URL');
+
+Future<void> _initializeAutoUpdater() async {
+  final isSupportedDesktop = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows);
+  if (!isSupportedDesktop || _autoUpdateFeedUrl.isEmpty) return;
+
+  try {
+    await autoUpdater.setFeedURL(_autoUpdateFeedUrl);
+    await autoUpdater.checkForUpdates();
+    await autoUpdater.setScheduledCheckInterval(3600);
+  } catch (error, stackTrace) {
+    debugPrint('Auto-updater initialization failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 }
 
 class PreviewEngineBridge implements EngineBridge {
