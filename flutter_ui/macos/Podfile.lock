@@ -1,28 +1,38 @@
 PODS:
+  - auto_updater_macos (0.0.1):
+    - FlutterMacOS
+    - Sparkle
   - flutter_inappwebview_macos (0.0.1):
     - FlutterMacOS
     - OrderedSet (~> 6.0.3)
   - FlutterMacOS (1.0.0)
   - OrderedSet (6.0.3)
+  - Sparkle (2.9.4)
 
 DEPENDENCIES:
+  - auto_updater_macos (from `Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos`)
   - flutter_inappwebview_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
 
 SPEC REPOS:
   trunk:
     - OrderedSet
+    - Sparkle
 
 EXTERNAL SOURCES:
+  auto_updater_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos
   flutter_inappwebview_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
+  auto_updater_macos: 3a42f1a06be6981f1a18be37e6e7bf86aa732118
   flutter_inappwebview_macos: c2d68649f9f8f1831bfcd98d73fd6256366d9d1d
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
+  Sparkle: 855a03e2323e88e399729d9f8fc80b080a4946b3
 
 PODFILE CHECKSUM: 13edfb9e70ac3646927b8e6c9a212ad1d0fa29b2
 

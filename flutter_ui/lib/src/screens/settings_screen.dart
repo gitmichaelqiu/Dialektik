@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
+import '../services/auto_update_service.dart';
 import '../widgets/adaptive_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _aiModelController;
   late final TextEditingController _aiKeyController;
   bool _saved = false;
+  bool _checkingForUpdates = false;
 
   @override
   void initState() {
@@ -117,6 +119,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(
+                  title: 'About Dialektik',
+                  subtitle: 'A local-first workspace for debate teams',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Dialektik helps debate teams prepare cases, organize evidence, '
+                  'manage rounds, and collaborate directly between devices. Your '
+                  'workspace is stored locally, with shared data synchronized '
+                  'peer-to-peer when you choose to connect.',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Version 0.1.0',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: AutoUpdateService.isSupportedDesktop &&
+                          !_checkingForUpdates
+                      ? _checkForUpdates
+                      : null,
+                  icon: _checkingForUpdates
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.system_update_outlined),
+                  label: Text(_checkingForUpdates
+                      ? 'Checking for updates...'
+                      : 'Check for updates'),
+                ),
+                if (!AutoUpdateService.isSupportedDesktop) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Updates are available on macOS and Windows desktop builds.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -176,5 +229,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _saved = false);
     });
+  }
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _checkingForUpdates = true);
+    try {
+      await AutoUpdateService.checkForUpdates();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to check for updates: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkingForUpdates = false);
+    }
   }
 }
