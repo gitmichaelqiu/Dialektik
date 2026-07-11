@@ -4,7 +4,8 @@ import 'package:flutter/foundation.dart';
 class AutoUpdateService {
   const AutoUpdateService._();
 
-  static const feedUrl = 'https://github.com/gitmichaelqiu/Dialektik/releases';
+  static const feedUrl =
+      'https://raw.githubusercontent.com/gitmichaelqiu/Dialektik/main/appcast.xml';
 
   static bool get isSupportedDesktop =>
       !kIsWeb &&

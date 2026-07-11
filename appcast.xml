@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Dialektik Updates</title>
+    <link>https://raw.githubusercontent.com/gitmichaelqiu/Dialektik/main/appcast.xml</link>
+    <description>Updates for Dialektik desktop applications</description>
+    <language>en</language>
+
+    <!--
+      Add one item per release after packaging the macOS and Windows artifacts.
+
+      <item>
+        <title>Dialektik 0.2.0</title>
+        <description><![CDATA[Release notes go here.]]></description>
+        <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
+        <sparkle:version>2</sparkle:version>
+        <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+        <enclosure
+          url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/dialektik-0.2.0-macos.zip"
+          sparkle:edSignature="REPLACE_WITH_SPARKLE_SIGNATURE"
+          sparkle:os="macos"
+          length="0"
+          type="application/octet-stream" />
+      </item>
+      <item>
+        <title>Dialektik 0.2.0</title>
+        <description><![CDATA[Release notes go here.]]></description>
+        <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
+        <sparkle:version>0.2.0</sparkle:version>
+        <enclosure
+          url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/dialektik-0.2.0-windows-setup.exe"
+          sparkle:dsaSignature="REPLACE_WITH_WINDOWS_SIGNATURE"
+          sparkle:os="windows"
+          length="0"
+          type="application/octet-stream" />
+      </item>
+    -->
+  </channel>
+</rss>
