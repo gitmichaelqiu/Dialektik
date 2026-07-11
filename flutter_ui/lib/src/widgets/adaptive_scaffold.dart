@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -180,6 +181,11 @@ class _ResponsivePaneState extends State<ResponsivePane> {
 
   List<double> _fractions = const [];
   Set<int> _collapsedPanes = {};
+  final Set<int> _pendingExpansions = {};
+  Timer? _paneAnimationTimer;
+  bool _animatePaneWidths = false;
+
+  static const _paneAnimationDuration = Duration(milliseconds: 240);
 
   @override
   void initState() {
@@ -189,6 +195,13 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     if (key != null) {
       _collapsedPanes = {...?_collapsedPanesCache[key]};
     }
+  }
+
+  @override
+  void dispose() {
+    _paneAnimationTimer?.cancel();
+    _finishPendingExpansions();
+    super.dispose();
   }
 
   @override
@@ -223,7 +236,9 @@ class _ResponsivePaneState extends State<ResponsivePane> {
             .toDouble();
         final minWidth = (availableWidth / count * 0.55).clamp(180.0, 280.0);
         const collapsedWidth = 48.0;
-        final collapsedCount = _collapsedPanes.length;
+        final animatedCollapsedPanes = {..._collapsedPanes}
+          ..removeAll(_pendingExpansions);
+        final collapsedCount = animatedCollapsedPanes.length;
         final expandedAvailableWidth =
             (availableWidth - collapsedWidth * collapsedCount)
                 .clamp(0.0, double.infinity)
@@ -231,10 +246,12 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         final expandedFractionTotal = _fractions
             .asMap()
             .entries
-            .where((entry) => !_collapsedPanes.contains(entry.key))
+            .where((entry) => !animatedCollapsedPanes.contains(entry.key))
             .fold<double>(0, (total, entry) => total + entry.value);
         final widths = _fractions.asMap().entries.map((entry) {
-          if (_collapsedPanes.contains(entry.key)) return collapsedWidth;
+          if (animatedCollapsedPanes.contains(entry.key)) {
+            return collapsedWidth;
+          }
           if (expandedFractionTotal == 0) {
             return expandedAvailableWidth;
           }
@@ -256,8 +273,8 @@ class _ResponsivePaneState extends State<ResponsivePane> {
                   _PaneDivider(
                     width: dividerWidth,
                     onDrag: (delta) {
-                      if (_collapsedPanes.contains(i) ||
-                          _collapsedPanes.contains(i + 1)) {
+                      if (animatedCollapsedPanes.contains(i) ||
+                          animatedCollapsedPanes.contains(i + 1)) {
                         return;
                       }
                       _resize(
@@ -305,28 +322,57 @@ class _ResponsivePaneState extends State<ResponsivePane> {
 
     return SizedBox(
       width: width,
-      child: _PaneFrame(
-        collapsed: isCollapsed,
-        canCollapse: canCollapse,
-        isRightOfMain: index > widget.mainPaneIndex,
-        onToggle: canCollapse
-            ? () {
-                setState(() {
-                  if (isCollapsed) {
-                    _collapsedPanes.remove(index);
-                  } else {
-                    _collapsedPanes.add(index);
-                  }
-                });
-                final key = widget.cacheKey;
-                if (key != null) {
-                  _collapsedPanesCache[key] = {..._collapsedPanes};
-                }
-              }
-            : null,
-        child: child,
+      child: AnimatedContainer(
+        duration: _animatePaneWidths ? _paneAnimationDuration : Duration.zero,
+        curve: Curves.easeInOutCubic,
+        child: _PaneFrame(
+          collapsed: isCollapsed,
+          canCollapse: canCollapse,
+          isRightOfMain: index > widget.mainPaneIndex,
+          onToggle: canCollapse ? () => _togglePane(index) : null,
+          child: child,
+        ),
       ),
     );
+  }
+
+  void _togglePane(int index) {
+    if (_collapsedPanes.contains(index)) {
+      _pendingExpansions.add(index);
+    } else {
+      _collapsedPanes.add(index);
+      _persistCollapsedPanes();
+    }
+    _paneAnimationTimer?.cancel();
+    setState(() => _animatePaneWidths = true);
+    _paneAnimationTimer = Timer(_paneAnimationDuration, () {
+      if (!mounted) return;
+      setState(() {
+        _finishPendingExpansions();
+        _animatePaneWidths = false;
+      });
+      _persistCollapsedPanes();
+    });
+  }
+
+  void _finishPendingExpansions() {
+    _collapsedPanes.removeAll(_pendingExpansions);
+    _pendingExpansions.clear();
+  }
+
+  void _persistCollapsedPanes() {
+    final key = widget.cacheKey;
+    if (key != null) {
+      _collapsedPanesCache[key] = {..._collapsedPanes};
+    }
+  }
+
+  void _stopPaneAnimationForResize() {
+    if (!_animatePaneWidths && _pendingExpansions.isEmpty) return;
+    _paneAnimationTimer?.cancel();
+    _finishPendingExpansions();
+    _animatePaneWidths = false;
+    _persistCollapsedPanes();
   }
 
   bool _canCollapse(int index) {
@@ -340,6 +386,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     required double availableWidth,
     required double minWidth,
   }) {
+    _stopPaneAnimationForResize();
     if (availableWidth <= 0) return;
     final minFraction = minWidth / availableWidth;
     final next = [..._fractions];
