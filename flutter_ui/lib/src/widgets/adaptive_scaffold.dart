@@ -184,6 +184,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
   final Set<int> _expandingPanes = {};
   Timer? _paneAnimationTimer;
   bool _animatePaneWidths = false;
+  final Map<int, int> _paneAnimationEpochs = {};
 
   static const _paneAnimationDuration = Duration(milliseconds: 240);
 
@@ -327,6 +328,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         child: _PaneFrame(
           collapsed: isCollapsed,
           expanding: _expandingPanes.contains(index),
+          animationEpoch: _paneAnimationEpochs[index] ?? 0,
           canCollapse: canCollapse,
           isRightOfMain: index > widget.mainPaneIndex,
           onToggle: canCollapse ? () => _togglePane(index) : null,
@@ -348,6 +350,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
     }
     _persistCollapsedPanes();
     _paneAnimationTimer?.cancel();
+    _paneAnimationEpochs[index] = (_paneAnimationEpochs[index] ?? 0) + 1;
     setState(() {});
     _paneAnimationTimer = Timer(_paneAnimationDuration, () {
       if (!mounted) return;
@@ -445,6 +448,7 @@ class _PaneFrame extends StatelessWidget {
     required this.child,
     required this.collapsed,
     required this.expanding,
+    required this.animationEpoch,
     required this.canCollapse,
     required this.isRightOfMain,
     this.onToggle,
@@ -453,6 +457,7 @@ class _PaneFrame extends StatelessWidget {
   final Widget child;
   final bool collapsed;
   final bool expanding;
+  final int animationEpoch;
   final bool canCollapse;
   final bool isRightOfMain;
   final VoidCallback? onToggle;
@@ -483,19 +488,32 @@ class _PaneFrame extends StatelessWidget {
         ),
       ),
       child: collapsed
-          ? MouseRegion(
+          ? KeyedSubtree(
               key: const ValueKey('collapsed'),
-              cursor: SystemMouseCursors.click,
-              child: Semantics(
-                button: true,
-                label: 'Expand panel',
-                child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: InkWell(
-                    onTap: onToggle,
-                    child: SizedBox.expand(
-                      child: Center(
-                        child: Icon(expandIcon),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Semantics(
+                  button: true,
+                  label: 'Expand panel',
+                  child: Material(
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: InkWell(
+                      onTap: onToggle,
+                      child: SizedBox.expand(
+                        child: Center(
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey(animationEpoch),
+                            tween: Tween(begin: 0.78, end: 1.0),
+                            duration: const Duration(milliseconds: 280),
+                            curve: Curves.elasticOut,
+                            builder: (context, scale, icon) => Transform.scale(
+                              scale: scale,
+                              child: icon,
+                            ),
+                            child: Icon(expandIcon),
+                          ),
+                        ),
                       ),
                     ),
                   ),
