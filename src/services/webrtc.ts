@@ -1,7 +1,7 @@
 import { Peer, type DataConnection } from "peerjs";
 
 
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.1.1";
 const ROOM_PREFIX = "dialektik-room-";
 
 export interface PeerMessage {

@@ -298,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Version 0.1.0',
+              'Version 0.1.1',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
