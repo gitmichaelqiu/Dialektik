@@ -352,6 +352,12 @@ class _InRoundScreenState extends State<InRoundScreen>
     }
 
     final compact = MediaQuery.sizeOf(context).width < 840;
+    final turnConfigured = widget.snapshot.settings.turnServerUrl.trim().isNotEmpty &&
+        widget.snapshot.settings.turnUsername.trim().isNotEmpty &&
+        widget.snapshot.settings.turnCredential.trim().isNotEmpty;
+    void openNetworkSettings() {
+      widget.bridge.dispatch(action('app.setActivePage', {'page': 'settings'}));
+    }
 
     final startSessionPane = _StartSessionPane(
       matchController: _matchController,
@@ -366,6 +372,8 @@ class _InRoundScreenState extends State<InRoundScreen>
         'teamSize': _teamSize,
         'participate': _hostIsDebater,
       })),
+      showNetworkHint: !turnConfigured,
+      onConfigureNetwork: openNetworkSettings,
     );
 
     final lastCode = widget.snapshot.lastRoomCode;
@@ -402,6 +410,8 @@ class _InRoundScreenState extends State<InRoundScreen>
       },
       rejoinLabel: rejoinLabel,
       onRejoin: rejoinAction,
+      showNetworkHint: !turnConfigured,
+      onConfigureNetwork: openNetworkSettings,
     );
 
     if (session == null) {
@@ -761,6 +771,8 @@ class _StartSessionPane extends StatelessWidget {
     required this.hostIsDebater,
     required this.onHostIsDebaterChanged,
     required this.onHost,
+    required this.showNetworkHint,
+    required this.onConfigureNetwork,
   });
 
   final TextEditingController matchController;
@@ -770,6 +782,8 @@ class _StartSessionPane extends StatelessWidget {
   final bool hostIsDebater;
   final ValueChanged<bool> onHostIsDebaterChanged;
   final VoidCallback onHost;
+  final bool showNetworkHint;
+  final VoidCallback onConfigureNetwork;
 
   @override
   Widget build(BuildContext context) {
@@ -787,6 +801,10 @@ class _StartSessionPane extends StatelessWidget {
                     'Host a synced room for partner prep and round management',
               ),
               const SizedBox(height: 16),
+              if (showNetworkHint) ...[
+                _NetworkConnectionHint(onConfigure: onConfigureNetwork),
+                const SizedBox(height: 12),
+              ],
               TextField(
                 controller: matchController,
                 decoration: const InputDecoration(labelText: 'Match name'),
@@ -842,16 +860,69 @@ class _StartSessionPane extends StatelessWidget {
   }
 }
 
+class _NetworkConnectionHint extends StatelessWidget {
+  const _NetworkConnectionHint({required this.onConfigure});
+
+  final VoidCallback onConfigure;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.public, size: 20, color: colors.onSecondaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: 'Connecting across different networks may require a TURN server. ',
+                style: TextStyle(color: colors.onSecondaryContainer),
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: InkWell(
+                      onTap: onConfigure,
+                      child: Text(
+                        'Configure it in Settings',
+                        style: TextStyle(
+                          color: colors.primary,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _JoinSessionPane extends StatelessWidget {
   const _JoinSessionPane({
     required this.codeController,
     required this.onJoin,
+    required this.showNetworkHint,
+    required this.onConfigureNetwork,
     this.rejoinLabel,
     this.onRejoin,
   });
 
   final TextEditingController codeController;
   final VoidCallback onJoin;
+  final bool showNetworkHint;
+  final VoidCallback onConfigureNetwork;
   final String? rejoinLabel;
   final VoidCallback? onRejoin;
 
@@ -870,6 +941,10 @@ class _JoinSessionPane extends StatelessWidget {
                 subtitle: 'Request access using the host room code',
               ),
               const SizedBox(height: 16),
+              if (showNetworkHint) ...[
+                _NetworkConnectionHint(onConfigure: onConfigureNetwork),
+                const SizedBox(height: 12),
+              ],
               TextField(
                 controller: codeController,
                 textCapitalization: TextCapitalization.characters,
