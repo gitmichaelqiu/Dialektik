@@ -1,4 +1,5 @@
 import type { PeerMessage } from "./webrtc";
+import { decodeMessage, encodeMessage } from "./message-codec";
 
 declare const __DIALEKTIK_RELAY_URL__: string;
 
@@ -8,7 +9,7 @@ interface RelayEnvelope {
   type: "relay-message";
   senderId: string;
   senderUserId: string;
-  message: PeerMessage;
+  message: unknown;
 }
 
 interface RelaySocket extends WebSocket {
@@ -66,7 +67,9 @@ export class RelayClient {
         try {
           const envelope = JSON.parse(String(event.data)) as RelayEnvelope;
           if (envelope.type === "relay-message" && envelope.message) {
-            this.onMessage(envelope.message);
+            void decodeMessage<PeerMessage>(envelope.message).then(message => {
+              if (message) this.onMessage(message);
+            });
           }
         } catch (error) {
           console.error("[relay] Invalid message:", error);
@@ -85,15 +88,16 @@ export class RelayClient {
     });
   }
 
-  public send(message: PeerMessage, targetUserId?: string) {
+  public async send(message: PeerMessage, targetUserId?: string) {
     const socket = this.socket;
     if (!socket?.__dialektikReady || socket.readyState !== WebSocket.OPEN) return;
+    const encoded = await encodeMessage(message);
     socket.send(JSON.stringify({
       type: "relay",
       roomCode: this.roomCode,
       senderUserId: this.userId,
       targetUserId,
-      message: { ...message, senderId: this.peerId },
+      message: { ...(encoded as Record<string, unknown>), senderId: this.peerId },
     }));
   }
 

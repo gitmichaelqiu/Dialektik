@@ -480,6 +480,7 @@ class SettingsState {
     required this.turnServerUrl,
     required this.turnUsername,
     required this.turnCredential,
+    required this.manualDocumentSync,
     this.userId,
   });
 
@@ -494,6 +495,7 @@ class SettingsState {
         turnServerUrl = '',
         turnUsername = '',
         turnCredential = '',
+        manualDocumentSync = false,
         userId = null;
 
   factory SettingsState.fromJson(Map<String, Object?>? json) {
@@ -510,6 +512,7 @@ class SettingsState {
       turnServerUrl: _string(json['turnServerUrl']),
       turnUsername: _string(json['turnUsername']),
       turnCredential: _string(json['turnCredential']),
+      manualDocumentSync: json['manualDocumentSync'] == true,
     );
   }
 
@@ -524,6 +527,7 @@ class SettingsState {
   final String turnServerUrl;
   final String turnUsername;
   final String turnCredential;
+  final bool manualDocumentSync;
 }
 
 String _string(Object? value, {String fallback = ''}) {

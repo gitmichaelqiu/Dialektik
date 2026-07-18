@@ -1,23 +1,15 @@
 import { Peer, type DataConnection } from "peerjs";
+import { decodeMessage, encodeMessage } from "./message-codec";
 
 
 export const APP_VERSION = "0.1.1";
 const ROOM_PREFIX = "dialektik-room-";
 
-// Keep the same STUN/TURN configuration used by PeerJS itself. The PeerJS
-// Cloud relays are needed when either peer is behind a restrictive or
-// symmetric NAT; adding stale public TURN credentials can make ICE negotiation
-// fail on iOS instead of falling through cleanly.
+// Keep only STUN by default. If a user configures TURN, it is appended below;
+// ICE then prefers direct host/STUN candidates and uses the configured relay
+// only when the direct connectivity checks fail.
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
-  {
-    urls: [
-      "turn:eu-0.turn.peerjs.com:3478",
-      "turn:us-0.turn.peerjs.com:3478",
-    ],
-    username: "peerjs",
-    credential: "peerjsp",
-  },
 ];
 
 export interface TurnServerConfig {
@@ -27,7 +19,7 @@ export interface TurnServerConfig {
 }
 
 export interface PeerMessage {
-  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-approved" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-doc-sync-request" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
+  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-approved" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-doc-sync-request" | "shared-doc-manual-sync" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
   version?: string;
   senderId: string;
   payload?: any;
@@ -61,6 +53,7 @@ export class PeerMeshManager {
   private reconnectAttempts = new Map<string, number>();
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private turnServer: TurnServerConfig | null = null;
+  private sendQueues = new Map<string, Promise<void>>();
 
   constructor() {
     // Generate a unique client peer ID
@@ -254,11 +247,11 @@ export class PeerMeshManager {
           matchDetails: this.matchDetails
         }
       };
-      conn.send(msg);
+      this.send(conn, msg);
     });
 
-    conn.on("data", (data: any) => {
-      const msg = data as PeerMessage;
+    conn.on("data", async (data: any) => {
+      const msg = await decodeMessage<PeerMessage>(data);
       if (!msg || !msg.type) return;
 
       this.handleIncomingMessage(conn, msg);
@@ -381,7 +374,7 @@ export class PeerMeshManager {
   public broadcast(msg: PeerMessage) {
     for (const [_, conn] of this.connections) {
       if (conn.open) {
-        conn.send(msg);
+        this.send(conn, msg);
       }
     }
   }
@@ -392,8 +385,20 @@ export class PeerMeshManager {
   public sendToPeer(peerId: string, msg: PeerMessage) {
     const conn = this.connections.get(peerId);
     if (conn && conn.open) {
-      conn.send(msg);
+      this.send(conn, msg);
     }
+  }
+
+  private send(conn: DataConnection, msg: PeerMessage) {
+    const previous = this.sendQueues.get(conn.peer) ?? Promise.resolve();
+    const next = previous.then(async () => {
+      if (!conn.open) return;
+      conn.send(await encodeMessage(msg));
+    }).catch(error => console.error(`Failed to send message to ${conn.peer}:`, error));
+    this.sendQueues.set(conn.peer, next);
+    void next.finally(() => {
+      if (this.sendQueues.get(conn.peer) === next) this.sendQueues.delete(conn.peer);
+    });
   }
 
   /**

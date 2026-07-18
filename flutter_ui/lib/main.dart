@@ -802,6 +802,9 @@ class PreviewEngineBridge implements EngineBridge {
           'userName': newUserName,
           'aiEndpoint': payload['aiEndpoint'] ?? current['aiEndpoint'],
           'aiModel': payload['aiModel'] ?? current['aiModel'],
+          'manualDocumentSync': payload['manualDocumentSync'] ??
+              current['manualDocumentSync'] ??
+              false,
           'hasAiKey': payload['aiApiKey'] is String &&
                   (payload['aiApiKey']! as String).isNotEmpty ||
               current['hasAiKey'] == true,
@@ -1042,5 +1045,6 @@ final Map<String, Object?> _initialPreviewState = {
     'aiEndpoint': '',
     'aiModel': '',
     'hasAiKey': false,
+    'manualDocumentSync': false,
   },
 };

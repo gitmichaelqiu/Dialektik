@@ -38,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _updatingApiKeyField = false;
   bool _apiKeySavePending = false;
   bool? _pendingApiKeyState;
+  bool _manualDocumentSync = false;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiKeyFocusNode = FocusNode()..addListener(_handleApiKeyFocus);
     _hasSavedApiKey = settings.hasAiKey;
     _apiKeyPlaceholderActive = settings.hasAiKey;
+    _manualDocumentSync = settings.manualDocumentSync;
   }
 
   @override
@@ -79,6 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (oldWidget.snapshot.settings.turnCredential != settings.turnCredential) {
       _turnCredentialController.text = settings.turnCredential;
+    }
+    if (oldWidget.snapshot.settings.manualDocumentSync != settings.manualDocumentSync) {
+      _manualDocumentSync = settings.manualDocumentSync;
     }
     final apiKeyStateSettled =
         !_apiKeySavePending || settings.hasAiKey == _pendingApiKeyState;
@@ -166,17 +171,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     labelText: 'TURN server URL(s)',
                     hintText: 'turn:global.relay.metered.ca:80',
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _turnUsernameController,
                   decoration: const InputDecoration(labelText: 'TURN username'),
+                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _turnCredentialController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'TURN credential'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Manual document sync'),
+                  subtitle: const Text(
+                    'Only send shared document content when you press Sync. Other room state remains automatic.',
+                  ),
+                  value: _manualDocumentSync,
+                  onChanged: _turnConfigured
+                      ? (value) => setState(() => _manualDocumentSync = value)
+                      : null,
                 ),
               ],
             ),
@@ -282,6 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'turnServerUrl': _turnServerController.text.trim(),
       'turnUsername': _turnUsernameController.text.trim(),
       'turnCredential': _turnCredentialController.text.trim(),
+      'manualDocumentSync': _manualDocumentSync && _turnConfigured,
     };
     final apiKey = _aiKeyController.text.trim();
     final maskIsUntouched = _apiKeyPlaceholderActive ||
@@ -304,6 +325,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() => _saved = false);
     });
   }
+
+  bool get _turnConfigured =>
+      _turnServerController.text.trim().isNotEmpty &&
+      _turnUsernameController.text.trim().isNotEmpty &&
+      _turnCredentialController.text.trim().isNotEmpty;
 
   void _handleApiKeyFocus() {
     if (!_aiKeyFocusNode.hasFocus || !_apiKeyPlaceholderActive) return;

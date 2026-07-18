@@ -239,6 +239,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           'insertText': edit.insertText,
         }));
       },
+      manualDocumentSync: widget.snapshot.settings.manualDocumentSync,
+      onSync: () {
+        if (selected == null) return;
+        widget.bridge.dispatch(action('document.sync', {'id': selected.id}));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document sync sent')),
+        );
+      },
       onMove: (folder) {
         if (selected == null) return;
         widget.bridge.dispatch(
@@ -874,6 +882,8 @@ class _EditorPane extends StatelessWidget {
     required this.onModeChanged,
     required this.onInsertCitation,
     required this.onNavigateDoc,
+    required this.manualDocumentSync,
+    required this.onSync,
     this.isMobile = false,
   });
 
@@ -892,6 +902,8 @@ class _EditorPane extends StatelessWidget {
   final ValueChanged<String> onModeChanged;
   final ValueChanged<String> onInsertCitation;
   final ValueChanged<DebateDocument> onNavigateDoc;
+  final bool manualDocumentSync;
+  final VoidCallback onSync;
   final bool isMobile;
 
   @override
@@ -965,6 +977,12 @@ class _EditorPane extends StatelessWidget {
                       ? null
                       : (value) => onToggleReadMode(value.first),
                 ),
+                if (manualDocumentSync && doc.folder != 'private')
+                  FilledButton.tonalIcon(
+                    onPressed: onSync,
+                    icon: const Icon(Icons.sync),
+                    label: const Text('Sync'),
+                  ),
               ],
             ),
             const SizedBox(height: 12),

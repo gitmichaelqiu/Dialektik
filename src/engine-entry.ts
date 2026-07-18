@@ -31,6 +31,7 @@ interface DebateDocument {
   lastModified: number; encryptedHash?: string;
   partnerAccess?: string; ownerId?: string; ownerName?: string;
   contentRevision?: number;
+  syncBaseContent?: string;
 }
 interface EvidenceCard {
   id: string; title: string; sourceUrl: string; text: string;
@@ -107,6 +108,8 @@ let hasAiKey = false;
 let turnServerUrl = "";
 let turnUsername = "";
 let turnCredential = "";
+let manualDocumentSync = false;
+const handledManualSyncIds = new Set<string>();
 let aiChats: AiChat[] = [];
 let activeAiChatId: string | null = null;
 let aiLoading = false;
@@ -176,6 +179,7 @@ async function buildSnapshot() {
     if (s.key === "turn_server_url") turnServerUrl = s.value;
     if (s.key === "turn_username") turnUsername = s.value;
     if (s.key === "turn_credential") turnCredential = s.value;
+    if (s.key === "manual_document_sync") manualDocumentSync = s.value === "true";
   }
 
   return {
@@ -215,6 +219,7 @@ async function buildSnapshot() {
       turnServerUrl,
       turnUsername,
       turnCredential,
+      manualDocumentSync,
       githubOwner,
       githubRepo,
       hasGithubToken: false,
@@ -248,6 +253,32 @@ function applyTextSplice(text: string, edit: TextSplice): string {
 
 function docRevision(doc: DebateDocument | undefined | null): number {
   return Math.max(0, Math.trunc(Number(doc?.contentRevision ?? 0)));
+}
+
+function documentForSync(doc: DebateDocument, includeContent = !manualDocumentSync) {
+  if (includeContent) return doc;
+  const { content: _content, ...metadata } = doc;
+  return { ...metadata, content: "", contentRevision: 0 };
+}
+
+function mergeDocumentContent(base: string, local: string, incoming: string): string {
+  if (local === base) return incoming;
+  if (incoming === base || local === incoming) return local;
+
+  const baseLines = base.split("\n");
+  const localLines = local.split("\n");
+  const incomingLines = incoming.split("\n");
+  const max = Math.max(baseLines.length, localLines.length, incomingLines.length);
+  const merged: string[] = [];
+  for (let index = 0; index < max; index++) {
+    const baseLine = baseLines[index] ?? "";
+    const localLine = localLines[index] ?? "";
+    const incomingLine = incomingLines[index] ?? "";
+    if (localLine === baseLine) merged.push(incomingLine);
+    else if (incomingLine === baseLine || localLine === incomingLine) merged.push(localLine);
+    else merged.push(`[Local changes]\n${localLine}\n[Synced changes]\n${incomingLine}\n[End merged section]`);
+  }
+  return merged.join("\n");
 }
 
 async function applyDocumentSplice(id: string, edit: TextSplice, revision?: number) {
@@ -344,6 +375,7 @@ async function loadConfig() {
     if (s.key === "turn_server_url") turnServerUrl = s.value;
     if (s.key === "turn_username") turnUsername = s.value;
     if (s.key === "turn_credential") turnCredential = s.value;
+    if (s.key === "manual_document_sync") manualDocumentSync = s.value === "true";
   }
   if (!userId) {
     userId = crypto.randomUUID();
@@ -426,7 +458,7 @@ async function syncPublicDocsToPeers() {
   broadcastRoomMessage({
     type: "shared-docs-sync",
     senderId: mesh.peerId,
-    payload: { docs: publicDocs, removeIds: [] },
+    payload: { docs: publicDocs.map(doc => documentForSync(doc)), removeIds: [], contentIncluded: !manualDocumentSync },
   });
 }
 
@@ -550,6 +582,7 @@ async function handlePeerMessage(msg: PeerMessage) {
 
     case "shared-docs-sync": {
       const { docs = [], removeIds = [] } = msg.payload || {};
+      const contentIncluded = msg.payload?.contentIncluded !== false;
       for (const id of removeIds as string[]) {
         const existing = await db.documents.get(id);
         if (existing && existing.ownerId !== userId) {
@@ -560,25 +593,67 @@ async function handlePeerMessage(msg: PeerMessage) {
         const existing = await db.documents.get(doc.id);
         if (existing?.ownerId === userId) continue;
         if (!existing) {
-          await db.documents.put({ ...doc, contentRevision: docRevision(doc) });
+          await db.documents.put({
+            ...doc,
+            content: contentIncluded ? doc.content : "",
+            contentRevision: contentIncluded ? docRevision(doc) : 0,
+            syncBaseContent: contentIncluded ? doc.content : "",
+          });
         } else if (
           docRevision(doc) > docRevision(existing) ||
           doc.lastModified > existing.lastModified
         ) {
           const incomingRevision = docRevision(doc);
           const existingRevision = docRevision(existing);
-          const shouldUpdateContent = incomingRevision >= existingRevision;
+          const shouldUpdateContent = contentIncluded && incomingRevision >= existingRevision;
           await db.documents.update(doc.id, {
             name: doc.name,
             ...(shouldUpdateContent
               ? { content: doc.content, contentRevision: incomingRevision }
               : {}),
             lastModified: doc.lastModified,
+            ...(contentIncluded ? { syncBaseContent: doc.content } : {}),
             partnerAccess: doc.partnerAccess,
             encryptedHash: doc.encryptedHash,
             ownerId: doc.ownerId, ownerName: doc.ownerName,
           });
         }
+      }
+      await emitSnapshot();
+      break;
+    }
+
+    case "shared-doc-manual-sync": {
+      const incoming = msg.payload?.doc as DebateDocument | undefined;
+      if (!incoming || incoming.partnerAccess === "private") break;
+      const syncId = typeof msg.payload?.syncId === "string" ? msg.payload.syncId : "";
+      if (syncId && handledManualSyncIds.has(syncId)) break;
+      if (syncId) handledManualSyncIds.add(syncId);
+      const existing = await db.documents.get(incoming.id);
+      const localContent = existing?.content ?? "";
+      const baseContent = existing?.syncBaseContent ?? localContent;
+      const mergedContent = mergeDocumentContent(baseContent, localContent, incoming.content ?? "");
+      await db.documents.put({
+        ...(existing ?? incoming),
+        ...incoming,
+        content: mergedContent,
+        contentRevision: Math.max(docRevision(existing), docRevision(incoming)) + 1,
+        lastModified: Date.now(),
+        syncBaseContent: mergedContent,
+      });
+      if (existing?.ownerId === userId) {
+        broadcastRoomMessage({
+          type: "shared-doc-manual-sync",
+          senderId: mesh.peerId,
+          payload: {
+            doc: {
+              ...incoming,
+              content: mergedContent,
+              contentRevision: Math.max(docRevision(existing), docRevision(incoming)) + 1,
+            },
+            syncId,
+          },
+        });
       }
       await emitSnapshot();
       break;
@@ -825,6 +900,10 @@ async function dispatch(actionJson: string) {
       turnCredential = payload.turnCredential;
       await db.settings.put({ key: "turn_credential", value: turnCredential });
     }
+    if (payload.manualDocumentSync !== undefined) {
+      manualDocumentSync = payload.manualDocumentSync === true;
+      await db.settings.put({ key: "manual_document_sync", value: String(manualDocumentSync) });
+    }
     mesh.setTurnServer({
       urls: turnServerUrl.split(/[\n,]+/).map((url) => url.trim()).filter(Boolean),
       username: turnUsername,
@@ -874,7 +953,7 @@ async function dispatch(actionJson: string) {
     const nextRevision = docRevision(existing) + 1;
     await db.documents.update(id, { content, lastModified: Date.now(), contentRevision: nextRevision });
     const updated = await db.documents.get(id);
-    if (updated && updated.partnerAccess !== "private") {
+    if (updated && updated.partnerAccess !== "private" && !manualDocumentSync) {
       // Broadcast the change to peers so they see live updates.
       broadcastRoomMessage({
         type: "shared-docs-sync",
@@ -893,13 +972,30 @@ async function dispatch(actionJson: string) {
     const existing = await db.documents.get(id);
     const baseRevision = docRevision(existing);
     const updated = await applyDocumentSplice(id, edit, baseRevision + 1);
-    if (updated && updated.partnerAccess !== "private") {
+    if (updated && updated.partnerAccess !== "private" && !manualDocumentSync) {
       broadcastRoomMessage({
         type: "shared-doc-op",
         senderId: mesh.peerId,
         payload: { id, baseRevision, revision: updated.contentRevision, ...edit },
       });
     }
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "document.sync") {
+    const existing = await db.documents.get(payload.id);
+    if (!existing || existing.partnerAccess === "private") return;
+    const synced: DebateDocument = {
+      ...existing,
+      syncBaseContent: existing.content,
+    };
+    await db.documents.update(existing.id, { syncBaseContent: existing.content });
+    broadcastRoomMessage({
+      type: "shared-doc-manual-sync",
+      senderId: mesh.peerId,
+      payload: { doc: synced, syncId: `${mesh.peerId}-${Date.now()}` },
+    });
     await emitSnapshot();
     return;
   }
@@ -915,7 +1011,7 @@ async function dispatch(actionJson: string) {
       broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
-        payload: { docs: [updated], removeIds: [] },
+        payload: { docs: [documentForSync(updated)], removeIds: [], contentIncluded: !manualDocumentSync },
       });
     }
     await emitSnapshot();
@@ -937,7 +1033,7 @@ async function dispatch(actionJson: string) {
         broadcastRoomMessage({
           type: "shared-docs-sync",
           senderId: mesh.peerId,
-          payload: { docs: [updated], removeIds: [] },
+          payload: { docs: [documentForSync(updated)], removeIds: [], contentIncluded: !manualDocumentSync },
         });
       }
     } else if (wasShared) {
@@ -961,7 +1057,7 @@ async function dispatch(actionJson: string) {
       broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
-        payload: { docs: [updated], removeIds: [] },
+          payload: { docs: [documentForSync(updated)], removeIds: [], contentIncluded: !manualDocumentSync },
       });
     }
     await emitSnapshot();
