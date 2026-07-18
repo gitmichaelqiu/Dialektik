@@ -1504,9 +1504,38 @@ async function dispatch(actionJson: string) {
 
   // ── Workspace reset ───────────────────────
   if (type === "workspace.reset") {
+    const preserveSettings = payload.preserveSettings === true;
     session = null;
     mesh.terminateSession();
     relay.disconnect();
+    await db.documents.clear();
+    await db.cards.clear();
+    await db.history.clear();
+    await db.aiChats.clear();
+    aiChats = [];
+    activeAiChatId = null;
+    if (!preserveSettings) {
+      await db.settings.clear();
+      userId = crypto.randomUUID();
+      userName = "";
+      aiEndpoint = "";
+      aiModel = "";
+      aiApiKey = "";
+      hasAiKey = false;
+      turnServerUrl = "";
+      turnUsername = "";
+      turnCredential = "";
+      mesh.setTurnServer(null);
+      await db.settings.put({ key: "user_id", value: userId });
+      const initialChat: AiChat = {
+        id: `chat-${Date.now()}`,
+        title: "New Chat",
+        messages: [],
+      };
+      await db.aiChats.put(initialChat);
+      aiChats = [initialChat];
+      activeAiChatId = initialChat.id;
+    }
     await emitSnapshot();
     return;
   }

@@ -827,6 +827,10 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'workspace.reset') {
+      final preserveSettings = payload['preserveSettings'] == true;
+      final preservedSettings = preserveSettings
+          ? Map<String, Object?>.from(_rawState['settings']! as Map)
+          : null;
       _syncTimer?.cancel();
       final currentPage = _rawState['activePage'];
       _rawState
@@ -834,6 +838,9 @@ class PreviewEngineBridge implements EngineBridge {
         ..addAll(_initialPreviewState);
       if (currentPage != null) {
         _rawState['activePage'] = currentPage;
+      }
+      if (preservedSettings != null) {
+        _rawState['settings'] = preservedSettings;
       }
       _state.value = AppSnapshot.fromJson(_rawState);
       return;

@@ -231,26 +231,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             OutlinedButton.icon(
               onPressed: () async {
-                final confirm = await showDialog<bool>(
+                final resetMode = await showDialog<String>(
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Reset Workspace'),
                     content: const Text(
-                        'Are you sure you want to reset the local workspace? All local documents, custom settings, and history logs will be permanently deleted.'),
+                        'Choose whether to keep your profile, AI, and network settings while clearing local workspace data.'),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, false),
+                        onPressed: () => Navigator.pop(context),
                         child: const Text('Cancel'),
                       ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Reset'),
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(context, 'preserve'),
+                        child: const Text('Reset data only'),
+                      ),
+                      FilledButton.tonal(
+                        onPressed: () => Navigator.pop(context, 'everything'),
+                        child: const Text('Reset everything'),
                       ),
                     ],
                   ),
                 );
-                if (confirm == true && mounted) {
-                  widget.bridge.dispatch(action('workspace.reset'));
+                if (resetMode != null && mounted) {
+                  widget.bridge.dispatch(action('workspace.reset', {
+                    'preserveSettings': resetMode == 'preserve',
+                  }));
                 }
               },
               icon: const Icon(Icons.warning_amber_outlined),
