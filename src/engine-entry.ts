@@ -621,6 +621,19 @@ async function handlePeerMessage(msg: PeerMessage) {
           break;
         }
         broadcastSessionState();
+        const connectedUserId = peerUserId.get(msg.senderId);
+        if (connectedUserId && session.debaters.some(debater =>
+          debater.id === connectedUserId && debater.status === "approved"
+        )) {
+          // Approval may have happened while the previous data channel was
+          // negotiating. Replay it after this connection is open so a client
+          // that retried does not remain in pending_approval forever.
+          mesh.sendToPeer(msg.senderId, {
+            type: "join-approved",
+            senderId: mesh.peerId,
+            payload: { id: connectedUserId },
+          });
+        }
       }
       // When a peer connects to us (as client), send our join-request
       if (!mesh.isHost && session) {

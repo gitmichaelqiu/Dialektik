@@ -57,6 +57,8 @@ export class PeerMeshManager {
   private onMatchDetailsCallback: ((details: any) => void) | null = null;
   /** Fires when a new peer connects (before the data channel opens). */
   private onPeerConnectingCallbacks: ((peerId: string, metadata?: any) => void)[] = [];
+  private reconnectAttempts = new Map<string, number>();
+  private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor() {
     // Generate a unique client peer ID
@@ -209,6 +211,12 @@ export class PeerMeshManager {
    */
   private setupConnectionEvents(conn: DataConnection) {
     conn.on("open", () => {
+      this.reconnectAttempts.delete(conn.peer);
+      const reconnectTimer = this.reconnectTimers.get(conn.peer);
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        this.reconnectTimers.delete(conn.peer);
+      }
       // 1. Send version handshake
       const msg: PeerMessage = {
         type: "handshake",
@@ -237,7 +245,24 @@ export class PeerMeshManager {
     conn.on("error", (err) => {
       console.error(`Connection error with ${conn.peer}:`, err);
       conn.close();
+      this.scheduleReconnect(conn.peer);
     });
+  }
+
+  private scheduleReconnect(peerId: string) {
+    if (!this.peer || this.peer.destroyed || !this.roomCode) return;
+    if (this.reconnectTimers.has(peerId)) return;
+
+    const attempt = (this.reconnectAttempts.get(peerId) || 0) + 1;
+    this.reconnectAttempts.set(peerId, attempt);
+    const delay = Math.min(1000 * 2 ** (attempt - 1), 10000);
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(peerId);
+      if (!this.peer || this.peer.destroyed || this.connections.has(peerId)) return;
+      console.log(`Retrying connection to ${peerId} (attempt ${attempt})`);
+      this.connectToPeer(peerId);
+    }, delay);
+    this.reconnectTimers.set(peerId, timer);
   }
 
   private handleIncomingConnection(conn: DataConnection) {
@@ -428,6 +453,10 @@ export class PeerMeshManager {
       this.peer.destroy();
       this.peer = null;
     }
+
+    for (const timer of this.reconnectTimers.values()) clearTimeout(timer);
+    this.reconnectTimers.clear();
+    this.reconnectAttempts.clear();
     
     this.isHost = false;
     this.roomCode = "";
