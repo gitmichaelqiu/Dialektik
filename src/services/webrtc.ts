@@ -27,7 +27,7 @@ export interface TurnServerConfig {
 }
 
 export interface PeerMessage {
-  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-approved" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
+  type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-approved" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-doc-sync-request" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
   version?: string;
   senderId: string;
   payload?: any;

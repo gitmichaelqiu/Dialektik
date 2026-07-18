@@ -420,7 +420,6 @@ function setupMeshHandlers() {
 }
 
 async function syncPublicDocsToPeers() {
-  if (mesh.connections.size === 0) return;
   const all = await db.documents.toArray();
   const publicDocs = all.filter(d => d.partnerAccess === "public" || d.partnerAccess === "team");
   if (publicDocs.length === 0) return;
@@ -432,7 +431,6 @@ async function syncPublicDocsToPeers() {
 }
 
 async function syncPublicCardsToPeers() {
-  if (mesh.connections.size === 0) return;
   const all = await db.cards.toArray();
   const sharedCards = all.filter(c => c.folder === "public" || c.folder === "team");
   if (sharedCards.length === 0) return;
@@ -546,7 +544,10 @@ async function handlePeerMessage(msg: PeerMessage) {
         if (existing?.ownerId === userId) continue;
         if (!existing) {
           await db.documents.put({ ...doc, contentRevision: docRevision(doc) });
-        } else if (doc.lastModified > existing.lastModified) {
+        } else if (
+          docRevision(doc) > docRevision(existing) ||
+          doc.lastModified > existing.lastModified
+        ) {
           const incomingRevision = docRevision(doc);
           const existingRevision = docRevision(existing);
           const shouldUpdateContent = incomingRevision >= existingRevision;
@@ -601,11 +602,35 @@ async function handlePeerMessage(msg: PeerMessage) {
       const incomingRevision = Math.trunc(Number(revision));
       const incomingBaseRevision = Math.trunc(Number(baseRevision));
       if (!Number.isFinite(incomingRevision) || incomingRevision <= existingRevision) break;
-      if (Number.isFinite(incomingBaseRevision) && existingRevision !== incomingBaseRevision) break;
+      if (Number.isFinite(incomingBaseRevision) && existingRevision !== incomingBaseRevision) {
+        const ownerId = existing.ownerId;
+        const request: PeerMessage = {
+          type: "shared-doc-sync-request",
+          senderId: mesh.peerId,
+          payload: { id, requesterId: userId },
+        };
+        mesh.sendToPeer(msg.senderId, request);
+        if (ownerId) relay.send(request, ownerId);
+        break;
+      }
       const updated = await applyDocumentSplice(id, edit, incomingRevision);
       if (updated?.partnerAccess !== "private") {
         await emitSnapshot();
       }
+      break;
+    }
+
+    case "shared-doc-sync-request": {
+      if (!msg.payload?.id) break;
+      const requested = await db.documents.get(msg.payload.id as string);
+      if (!requested || requested.ownerId !== userId || requested.partnerAccess === "private") break;
+      const response: PeerMessage = {
+        type: "shared-docs-sync",
+        senderId: mesh.peerId,
+        payload: { docs: [requested], removeIds: [] },
+      };
+      mesh.sendToPeer(msg.senderId, response);
+      if (msg.payload.requesterId) relay.send(response, msg.payload.requesterId as string);
       break;
     }
 
@@ -718,7 +743,15 @@ async function handlePeerMessage(msg: PeerMessage) {
 // ─────────────────────────────────────────────
 function broadcastSessionState() {
   if (!session) return;
-  const sanitized = { ...session, speakerNotes: {} };
+  const sanitized = {
+    ...session,
+    // Lobby participants may know that a room exists, but the handout is
+    // intentionally revealed only once the host starts the debate.
+    handout: session.status === "active"
+      ? session.handout
+      : { title: "", problem: "", details: "" },
+    speakerNotes: {},
+  };
   const message: PeerMessage = {
     type: "session-state", senderId: mesh.peerId, payload: sanitized,
   };

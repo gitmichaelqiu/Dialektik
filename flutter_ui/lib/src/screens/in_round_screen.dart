@@ -1178,23 +1178,28 @@ class _TimersPane extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionHeader(
-                title: 'Round timers',
-                subtitle: 'Speech, prep, and custom timers',
-                trailing: session.isHost
-                    ? IconButton(
-                        onPressed: () =>
-                            bridge.dispatch(action('timer.resetAll')),
-                        icon: const Icon(Icons.restart_alt),
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: 'Round timers',
+              subtitle: 'Speech, prep, and custom timers',
+              trailing: session.isHost
+                  ? IconButton(
+                      onPressed: () =>
+                          bridge.dispatch(action('timer.resetAll')),
+                      icon: const Icon(Icons.restart_alt),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
               _TimerTile(
                 name: 'Speech',
                 remainingMs: session.speechRemainingMs,
@@ -1333,8 +1338,11 @@ class _TimersPane extends StatelessWidget {
                   onSelect: onSpeakerSelected!,
                 ),
               ],
-            ],
-          ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
