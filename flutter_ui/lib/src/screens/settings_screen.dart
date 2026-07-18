@@ -195,7 +195,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   value: _manualDocumentSync,
                   onChanged: _turnConfigured
-                      ? (value) => setState(() => _manualDocumentSync = value)
+                      ? (value) {
+                          setState(() => _manualDocumentSync = value);
+                          widget.bridge.dispatch(action('settings.save', {
+                            'turnServerUrl': _turnServerController.text.trim(),
+                            'turnUsername': _turnUsernameController.text.trim(),
+                            'turnCredential': _turnCredentialController.text.trim(),
+                            'manualDocumentSync': value,
+                          }));
+                        }
                       : null,
                 ),
               ],
