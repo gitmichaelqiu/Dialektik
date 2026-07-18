@@ -12,6 +12,7 @@ dependencies:
   auto_updater: ^1.0.0
   shared_preferences: ^2.5.5
   flutter_inappwebview: ^6.1.5
+  http: ^1.2.2
   url_launcher: ^6.3.2
 
 dev_dependencies:

@@ -361,7 +361,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _checkForUpdates() async {
     setState(() => _checkingForUpdates = true);
     try {
-      await AutoUpdateService.checkForUpdates();
+      final availableVersion = await AutoUpdateService.checkForUpdates();
+      if (mounted && !AutoUpdateService.isSupportedDesktop) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(availableVersion == null
+                ? 'Dialektik is up to date.'
+                : 'A new update is available: $availableVersion'),
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
