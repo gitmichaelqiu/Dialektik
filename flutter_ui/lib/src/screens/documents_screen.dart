@@ -1144,27 +1144,14 @@ class _EditorPane extends StatelessWidget {
                               }
                               return KeyEventResult.ignored;
                             },
-                            child: Tooltip(
-                              message: collaborationEditor == null ||
-                                      collaborationLockedLine == null
-                                  ? ''
-                                  : '$collaborationEditor is editing this line',
-                              preferBelow: false,
-                              child: TextField(
-                                key: ValueKey('editor_${doc.id}'),
-                                controller: contentController,
-                                focusNode: contentFocusNode,
-                                expands: true,
-                                maxLines: null,
-                                minLines: null,
-                                readOnly: !doc.isWritable && !isOwner,
-                                textAlignVertical: TextAlignVertical.top,
-                                decoration: const InputDecoration(
-                                  labelText: 'Markdown',
-                                  alignLabelWithHint: true,
-                                ),
-                                onChanged: onChanged,
-                              ),
+                            child: _CollaborativeTextField(
+                              key: ValueKey('editor_${doc.id}'),
+                              controller: contentController,
+                              focusNode: contentFocusNode,
+                              lockedLine: collaborationLockedLine,
+                              editorName: collaborationEditor,
+                              readOnly: !doc.isWritable && !isOwner,
+                              onChanged: onChanged,
                             ),
                           ),
                         ),
@@ -1173,6 +1160,101 @@ class _EditorPane extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CollaborativeTextField extends StatefulWidget {
+  const _CollaborativeTextField({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.lockedLine,
+    required this.editorName,
+    required this.readOnly,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final int? lockedLine;
+  final String? editorName;
+  final bool readOnly;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_CollaborativeTextField> createState() =>
+      _CollaborativeTextFieldState();
+}
+
+class _CollaborativeTextFieldState extends State<_CollaborativeTextField> {
+  bool _hoveringLockedLine = false;
+
+  void _updateHover(PointerHoverEvent event) {
+    final lockedLine = widget.lockedLine;
+    final editorName = widget.editorName;
+    if (lockedLine == null || editorName == null || editorName.isEmpty) return;
+
+    // TextField's default body text line height is approximately 20 px. The
+    // small top inset accounts for the editor's content padding.
+    final line = ((event.localPosition.dy - 16) / 20).floor();
+    final hovering = line == lockedLine;
+    if (hovering != _hoveringLockedLine) {
+      setState(() => _hoveringLockedLine = hovering);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editorName = widget.editorName;
+    return MouseRegion(
+      onHover: _updateHover,
+      onExit: (_) {
+        if (_hoveringLockedLine) setState(() => _hoveringLockedLine = false);
+      },
+      child: Stack(
+        children: [
+          TextField(
+            controller: widget.controller,
+            focusNode: widget.focusNode,
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            readOnly: widget.readOnly,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: const InputDecoration(
+              labelText: 'Markdown',
+              alignLabelWithHint: true,
+            ),
+            onChanged: widget.onChanged,
+          ),
+          if (_hoveringLockedLine && editorName != null)
+            Positioned(
+              top: 6,
+              right: 8,
+              child: Tooltip(
+                message: '$editorName is editing this line',
+                child: Material(
+                  color: Theme.of(context).colorScheme.inverseSurface,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      '$editorName is editing this line',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onInverseSurface,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
