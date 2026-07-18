@@ -4,15 +4,12 @@ import { Peer, type DataConnection } from "peerjs";
 export const APP_VERSION = "0.1.1";
 const ROOM_PREFIX = "dialektik-room-";
 
-// Keep direct peer-to-peer candidates first, then fall back to Open Relay when
-// either peer is behind a restrictive NAT or firewall. The relay is only used
-// when ICE cannot establish a direct path. These are the public credentials
-// documented by Open Relay; production deployments should replace them with
-// account-scoped credentials and monitor the service quota.
+// Keep the same STUN/TURN configuration used by PeerJS itself. The PeerJS
+// Cloud relays are needed when either peer is behind a restrictive or
+// symmetric NAT; adding stale public TURN credentials can make ICE negotiation
+// fail on iOS instead of falling through cleanly.
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
-  // PeerJS Cloud's relays are part of the default PeerJS configuration and
-  // are important when both peers are behind restrictive or symmetric NAT.
   {
     urls: [
       "turn:eu-0.turn.peerjs.com:3478",
@@ -20,18 +17,6 @@ const ICE_SERVERS = [
     ],
     username: "peerjs",
     credential: "peerjsp",
-  },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:openrelay.metered.ca:80" },
-  {
-    urls: [
-      "turn:openrelay.metered.ca:80",
-      "turn:openrelay.metered.ca:443",
-      "turn:openrelay.metered.ca:443?transport=tcp",
-      "turns:openrelay.metered.ca:443?transport=tcp",
-    ],
-    username: "openrelayproject",
-    credential: "openrelayproject",
   },
 ];
 
@@ -130,6 +115,7 @@ export class PeerMeshManager {
         debug: 1,
         config: {
           iceServers: ICE_SERVERS,
+          sdpSemantics: "unified-plan",
         }
       });
 
