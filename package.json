@@ -12,12 +12,14 @@
     "build": "node scripts/flutter-build.mjs",
     "flutter:build:web": "cd flutter_ui && flutter build web",
     "flutter:build:ios": "cd flutter_ui && flutter build ios",
+    "relay:start": "node server/relay-server.mjs",
     "preview": "cd flutter_ui && flutter run -d chrome",
     "engine:build": "vite build --config vite.config.engine.ts"
   },
   "dependencies": {
     "dexie": "^4.4.4",
     "peerjs": "^1.5.5",
+    "ws": "^8.18.0",
     "yjs": "^13.6.31"
   },
   "devDependencies": {

@@ -58,6 +58,9 @@ npm install
 # 2. Build the JS engine bundle (required before running the app)
 npm run engine:build
 
+# Build with a deployed WebSocket relay for cross-network fallback
+DIALEKTIK_RELAY_URL=wss://relay.example.com npm run engine:build
+
 # 3. Run in development mode
 npm run dev
 ```
@@ -82,6 +85,10 @@ The `engine:build` step compiles the TypeScript engine into `flutter_ui/assets/e
 ```bash
 npm run engine:build && npm run flutter:web
 ```
+
+For local relay development, run `npm run relay:start`. The relay is
+in-memory and must be deployed at a public `wss://` URL for users on different
+networks. Set `DIALEKTIK_RELAY_URL` before building the engine bundle.
 
 ### Production Builds
 

@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
 
+const relayUrl = process.env.DIALEKTIK_RELAY_URL || "ws://localhost:8787";
+
 /**
  * Vite build config for the headless JS engine bundle.
  * Output: flutter_ui/assets/engine.js (loaded by the WebView bridge).
@@ -30,5 +32,6 @@ export default defineConfig({
   // Allow IndexedDB, WebRTC, and PeerJS globals
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    __DIALEKTIK_RELAY_URL__: JSON.stringify(relayUrl),
   },
 });

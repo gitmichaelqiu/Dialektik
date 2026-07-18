@@ -20,6 +20,7 @@ import Dexie from "dexie";
 import { PeerMeshManager, type PeerMessage } from "./services/webrtc";
 import { PeerJSYjsProvider } from "./services/yjs-provider";
 import { AIService } from "./services/ai";
+import { RelayClient } from "./services/relay";
 
 // ─────────────────────────────────────────────
 // DB  (mirrors db.ts but inline for bundle isolation)
@@ -86,6 +87,9 @@ interface SessionState {
 }
 
 const mesh = new PeerMeshManager();
+const relay = new RelayClient((message) => {
+  handlePeerMessage(message);
+});
 let session: SessionState | null = null;
 let yjsProviders: Map<string, PeerJSYjsProvider> = new Map();
 let yjsDocs: Map<string, Y.Doc> = new Map();
@@ -403,7 +407,7 @@ async function syncPublicDocsToPeers() {
   const all = await db.documents.toArray();
   const publicDocs = all.filter(d => d.partnerAccess === "public" || d.partnerAccess === "team");
   if (publicDocs.length === 0) return;
-  mesh.broadcast({
+  broadcastRoomMessage({
     type: "shared-docs-sync",
     senderId: mesh.peerId,
     payload: { docs: publicDocs, removeIds: [] },
@@ -415,7 +419,7 @@ async function syncPublicCardsToPeers() {
   const all = await db.cards.toArray();
   const sharedCards = all.filter(c => c.folder === "public" || c.folder === "team");
   if (sharedCards.length === 0) return;
-  mesh.broadcast({
+  broadcastRoomMessage({
     type: "shared-cards-sync",
     senderId: mesh.peerId,
     payload: { cards: sharedCards, removeIds: [] },
@@ -633,15 +637,22 @@ async function handlePeerMessage(msg: PeerMessage) {
             senderId: mesh.peerId,
             payload: { id: connectedUserId },
           });
+          relay.send({
+            type: "join-approved",
+            senderId: mesh.peerId,
+            payload: { id: connectedUserId },
+          }, connectedUserId);
         }
       }
       // When a peer connects to us (as client), send our join-request
       if (!mesh.isHost && session) {
-        mesh.sendToPeer(msg.senderId, {
+        const joinRequest: PeerMessage = {
           type: "join-request",
           senderId: mesh.peerId,
           payload: { id: userId, name: userName },
-        });
+        };
+        mesh.sendToPeer(msg.senderId, joinRequest);
+        relay.send(joinRequest);
       }
       break;
     }
@@ -691,7 +702,15 @@ async function handlePeerMessage(msg: PeerMessage) {
 function broadcastSessionState() {
   if (!session) return;
   const sanitized = { ...session, speakerNotes: {} };
-  mesh.broadcast({ type: "session-state", senderId: mesh.peerId, payload: sanitized });
+  const message: PeerMessage = {
+    type: "session-state", senderId: mesh.peerId, payload: sanitized,
+  };
+  broadcastRoomMessage(message);
+}
+
+function broadcastRoomMessage(message: PeerMessage) {
+  mesh.broadcast(message);
+  relay.send(message);
 }
 
 // ─────────────────────────────────────────────
@@ -773,7 +792,7 @@ async function dispatch(actionJson: string) {
     const updated = await db.documents.get(id);
     if (updated && updated.partnerAccess !== "private") {
       // Broadcast the change to peers so they see live updates.
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [{ ...updated, content }], removeIds: [] },
@@ -791,7 +810,7 @@ async function dispatch(actionJson: string) {
     const baseRevision = docRevision(existing);
     const updated = await applyDocumentSplice(id, edit, baseRevision + 1);
     if (updated && updated.partnerAccess !== "private") {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-doc-op",
         senderId: mesh.peerId,
         payload: { id, baseRevision, revision: updated.contentRevision, ...edit },
@@ -809,7 +828,7 @@ async function dispatch(actionJson: string) {
     await db.documents.update(id, { name: finalName, lastModified: Date.now() });
     const updated = await db.documents.get(id);
     if (updated && updated.partnerAccess !== "private") {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [updated], removeIds: [] },
@@ -831,7 +850,7 @@ async function dispatch(actionJson: string) {
       // Document became shared — push it.
       const updated = await db.documents.get(id);
       if (updated) {
-        mesh.broadcast({
+        broadcastRoomMessage({
           type: "shared-docs-sync",
           senderId: mesh.peerId,
           payload: { docs: [updated], removeIds: [] },
@@ -839,7 +858,7 @@ async function dispatch(actionJson: string) {
       }
     } else if (wasShared) {
       // Document was removed from shared scope — tell peers to delete.
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [], removeIds: [id] },
@@ -855,7 +874,7 @@ async function dispatch(actionJson: string) {
     await db.documents.update(id, { encryptedHash: mode, lastModified: Date.now() });
     const updated = await db.documents.get(id);
     if (updated && updated.partnerAccess !== "private") {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [updated], removeIds: [] },
@@ -885,7 +904,7 @@ async function dispatch(actionJson: string) {
     await db.documents.delete(payload.id);
     // Notify peers about removal
     if (mesh.connections.size > 0) {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-docs-sync",
         senderId: mesh.peerId,
         payload: { docs: [], removeIds: [payload.id] },
@@ -935,7 +954,7 @@ async function dispatch(actionJson: string) {
       folder: nextFolder,
     });
     if (existing.folder !== "private" && nextFolder === "private") {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-cards-sync",
         senderId: mesh.peerId,
         payload: { cards: [], removeIds: [existing.id] },
@@ -954,7 +973,7 @@ async function dispatch(actionJson: string) {
     if (!["private", "team", "public"].includes(folder)) return;
     await db.cards.update(existing.id, { folder });
     if (existing.folder !== "private" && folder === "private") {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-cards-sync",
         senderId: mesh.peerId,
         payload: { cards: [], removeIds: [existing.id] },
@@ -971,7 +990,7 @@ async function dispatch(actionJson: string) {
     await db.cards.delete(payload.id);
     // Notify peers if the deleted card was shared
     if (existing && existing.folder && existing.folder !== "private" && mesh.connections.size > 0) {
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "shared-cards-sync",
         senderId: mesh.peerId,
         payload: { cards: [], removeIds: [payload.id] },
@@ -1010,6 +1029,11 @@ async function dispatch(actionJson: string) {
     } catch (e) {
       console.error("[engine] createRoom failed:", e);
     }
+    try {
+      await relay.connect(code, userId, userName, mesh.peerId, true);
+    } catch (e) {
+      console.error("[engine] relay host connection failed:", e);
+    }
     await emitSnapshot();
     return;
   }
@@ -1035,13 +1059,20 @@ async function dispatch(actionJson: string) {
     startTimerLoop();
     try {
       await mesh.joinRoom(code);
-      // After the WebRTC handshake fires (mesh.onConnectionOpen / handshake message),
-      // the engine sends the join-request packet automatically via handlePeerMessage.
     } catch (e) {
       console.error("[engine] joinRoom failed:", e);
-      // Host unreachable — clear the session so the client can retry.
-      session = null;
-      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      // Keep the session alive: the relay can still complete the join even
+      // when PeerJS ICE negotiation fails.
+    }
+    try {
+      await relay.connect(code, userId, userName, mesh.peerId, false);
+      relay.send({
+        type: "join-request",
+        senderId: mesh.peerId,
+        payload: { id: userId, name: userName },
+      });
+    } catch (e) {
+      console.error("[engine] relay client connection failed:", e);
     }
     await emitSnapshot();
     return;
@@ -1050,10 +1081,13 @@ async function dispatch(actionJson: string) {
   // ── Session: Exit ─────────────────────────
   if (type === "session.exit") {
     // Notify peers before tearing down so they know the session ended.
-    mesh.broadcast({ type: "session-ended", senderId: mesh.peerId });
+    const message: PeerMessage = { type: "session-ended", senderId: mesh.peerId };
+    mesh.broadcast(message);
+    relay.send(message);
     // Small delay to let the broadcast go out before closing connections.
     await new Promise(r => setTimeout(r, 100));
     mesh.terminateSession();
+    relay.disconnect();
     session = null;
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     yjsProviders.forEach(p => p.destroy());
@@ -1102,6 +1136,11 @@ async function dispatch(actionJson: string) {
         payload: { id: approvedUserId },
       });
     }
+    relay.send({
+      type: "join-approved",
+      senderId: mesh.peerId,
+      payload: { id: approvedUserId },
+    }, approvedUserId);
     broadcastSessionState();
     await emitSnapshot();
     return;
@@ -1113,6 +1152,7 @@ async function dispatch(actionJson: string) {
     session.pendingRequests = session.pendingRequests.filter(r => r.id !== payload.id);
     const rejectedId = payload.id as string;
     if (rejectedId) rejectedPeers.add(rejectedId);
+    relay.send({ type: "join-rejected", senderId: mesh.peerId }, rejectedId);
     await emitSnapshot();
     return;
   }
@@ -1143,7 +1183,7 @@ async function dispatch(actionJson: string) {
     const edit = toTextSplice(payload);
     if (typeof field !== "string" || !edit) return;
     if (!applyHandoutSplice(field, edit)) return;
-    mesh.broadcast({
+    broadcastRoomMessage({
       type: "handout-op",
       senderId: mesh.peerId,
       payload: { field, ...edit },
@@ -1200,6 +1240,7 @@ async function dispatch(actionJson: string) {
     };
     await db.history.put(record);
     mesh.terminateSession();
+    relay.disconnect();
     session = null;
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     await emitSnapshot();
@@ -1222,7 +1263,7 @@ async function dispatch(actionJson: string) {
     }
     if (mesh.isHost) {
       const targetTime = act === "start" ? Date.now() + (timerType === "speech" ? session.speechRemainingMs : session.prepRemainingMs) : undefined;
-      mesh.broadcast({
+      broadcastRoomMessage({
         type: "timer-action", senderId: mesh.peerId,
         payload: { timerType, action: act, durationSeconds, targetTime },
       });
@@ -1379,6 +1420,7 @@ async function dispatch(actionJson: string) {
   if (type === "workspace.reset") {
     session = null;
     mesh.terminateSession();
+    relay.disconnect();
     await emitSnapshot();
     return;
   }
@@ -1389,7 +1431,7 @@ async function dispatch(actionJson: string) {
 // ─────────────────────────────────────────────
 function broadcastCustomTimers() {
   if (!session) return;
-  mesh.broadcast({ type: "custom-timers-sync", senderId: mesh.peerId, payload: { timers: session.customTimers } });
+  broadcastRoomMessage({ type: "custom-timers-sync", senderId: mesh.peerId, payload: { timers: session.customTimers } });
 }
 
 function generateRoomCode() {
