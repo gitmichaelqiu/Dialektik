@@ -60,7 +60,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     super.initState();
     _selectedId = _cachedSelectedId;
     _readMode = _cachedReadMode;
-    _contentController.addListener(_broadcastCursor);
     _contentFocusNode.addListener(_handleEditorFocusChanged);
   }
 
@@ -135,7 +134,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _contentController.removeListener(_broadcastCursor);
     _contentController.dispose();
     _contentFocusNode.removeListener(_handleEditorFocusChanged);
     _contentFocusNode.dispose();
@@ -177,7 +175,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   void _handleEditorFocusChanged() {
-    if (_contentFocusNode.hasFocus || _lastSentCursorDocumentId == null) return;
+    if (_contentFocusNode.hasFocus) {
+      _broadcastCursor();
+      return;
+    }
+    if (_lastSentCursorDocumentId == null) return;
     widget.bridge.dispatch(action('document.cursor', {
       'id': _lastSentCursorDocumentId,
       'line': -1,
@@ -290,6 +292,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         }
         final edit = _TextEditOp.between(previous, content);
         _lastLocalContent = content;
+        _broadcastCursor();
         if (edit == null) return;
         widget.bridge.dispatch(action('document.spliceContent', {
           'id': selected.id,
@@ -337,6 +340,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         }
         _contentController.text = nextText;
         _lastLocalContent = nextText;
+        _broadcastCursor();
         if (selected != null) {
           final edit = _TextEditOp.between(previous, nextText);
           if (edit == null) return;
@@ -1174,6 +1178,7 @@ class _CollaborativeTextField extends StatefulWidget {
     required this.editorName,
     required this.readOnly,
     required this.onChanged,
+    required this.onSelectionChanged,
   });
 
   final TextEditingController controller;
@@ -1182,6 +1187,7 @@ class _CollaborativeTextField extends StatefulWidget {
   final String? editorName;
   final bool readOnly;
   final ValueChanged<String> onChanged;
+  final ValueChanged<TextSelection> onSelectionChanged;
 
   @override
   State<_CollaborativeTextField> createState() =>
