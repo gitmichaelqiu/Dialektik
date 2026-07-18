@@ -4,6 +4,27 @@ import { Peer, type DataConnection } from "peerjs";
 export const APP_VERSION = "0.1.1";
 const ROOM_PREFIX = "dialektik-room-";
 
+// Keep direct peer-to-peer candidates first, then fall back to Open Relay when
+// either peer is behind a restrictive NAT or firewall. The relay is only used
+// when ICE cannot establish a direct path. These are the public credentials
+// documented by Open Relay; production deployments should replace them with
+// account-scoped credentials and monitor the service quota.
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:openrelay.metered.ca:80" },
+  {
+    urls: [
+      "turn:openrelay.metered.ca:80",
+      "turn:openrelay.metered.ca:443",
+      "turn:openrelay.metered.ca:443?transport=tcp",
+      "turns:openrelay.metered.ca:443?transport=tcp",
+    ],
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
+
 export interface PeerMessage {
   type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
   version?: string;
@@ -85,16 +106,23 @@ export class PeerMeshManager {
       this.peer = new Peer(customId || this.peerId, {
         debug: 1,
         config: {
-          iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" }
-          ]
+          iceServers: ICE_SERVERS,
         }
       });
 
       this.peer.on("open", (id) => {
         this.peerId = id;
         resolve(id);
+      });
+
+      this.peer.on("disconnected", () => {
+        // PeerJS may lose its signaling WebSocket during a Wi-Fi/cellular
+        // handoff even though the existing data channels are still usable.
+        // Reconnect the signaling socket so future mesh joins can complete.
+        const peer = this.peer;
+        if (peer && !peer.destroyed) {
+          peer.reconnect();
+        }
       });
 
       this.peer.on("connection", (conn) => {
@@ -161,11 +189,17 @@ export class PeerMeshManager {
   public connectToPeer(targetPeerId: string): DataConnection {
     if (!this.peer) throw new Error("Peer not initialized");
 
+    const existing = this.connections.get(targetPeerId);
+    if (existing) return existing;
+
     const conn = this.peer.connect(targetPeerId, {
       serialization: "json",
       metadata: this.connectMeta,
     });
 
+    // Register the connection before its handshake so mesh-list broadcasts do
+    // not initiate a second channel while this one is still negotiating.
+    this.connections.set(targetPeerId, conn);
     this.setupConnectionEvents(conn);
     return conn;
   }
@@ -197,7 +231,7 @@ export class PeerMeshManager {
     });
 
     conn.on("close", () => {
-      this.handleConnectionClose(conn.peer);
+      this.handleConnectionClose(conn.peer, conn);
     });
 
     conn.on("error", (err) => {
@@ -314,7 +348,13 @@ export class PeerMeshManager {
   /**
    * Handles peer disconnecting. Cleans list and triggers host migration if host dies.
    */
-  private handleConnectionClose(closedPeerId: string) {
+  private handleConnectionClose(closedPeerId: string, closedConnection?: DataConnection) {
+    if (
+      closedConnection &&
+      this.connections.get(closedPeerId) !== closedConnection
+    ) {
+      return;
+    }
     this.connections.delete(closedPeerId);
 
     if (this.isHost) {
