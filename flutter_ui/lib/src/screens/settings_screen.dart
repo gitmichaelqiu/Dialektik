@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -31,7 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _turnUsernameController;
   late final TextEditingController _turnCredentialController;
   late final FocusNode _aiKeyFocusNode;
-  bool _saved = false;
   bool _checkingForUpdates = false;
   bool _hasSavedApiKey = false;
   bool _apiKeyPlaceholderActive = false;
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _apiKeySavePending = false;
   bool? _pendingApiKeyState;
   bool _manualDocumentSync = false;
+  Timer? _settingsSaveTimer;
 
   @override
   void initState() {
@@ -114,6 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _turnServerController.dispose();
     _turnUsernameController.dispose();
     _turnCredentialController.dispose();
+    _settingsSaveTimer?.cancel();
     _aiKeyFocusNode
       ..removeListener(_handleApiKeyFocus)
       ..dispose();
@@ -141,6 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _nameController,
                   decoration: const InputDecoration(labelText: 'User name'),
+                  onChanged: (_) => _scheduleSettingsSave(),
                 ),
               ],
             ),
@@ -171,20 +175,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     labelText: 'TURN server URL(s)',
                     hintText: 'turn:global.relay.metered.ca:80',
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _scheduleSettingsSave();
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _turnUsernameController,
                   decoration: const InputDecoration(labelText: 'TURN username'),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _scheduleSettingsSave();
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _turnCredentialController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'TURN credential'),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    _scheduleSettingsSave();
+                  },
                 ),
                 const SizedBox(height: 8),
                 SwitchListTile.adaptive(
@@ -227,11 +240,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _aiEndpointController,
                   decoration: const InputDecoration(labelText: 'Endpoint'),
+                  onChanged: (_) => _scheduleSettingsSave(),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _aiModelController,
                   decoration: const InputDecoration(labelText: 'Model'),
+                  onChanged: (_) => _scheduleSettingsSave(),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -252,11 +267,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           spacing: 12,
           runSpacing: 12,
           children: [
-            FilledButton.icon(
-              onPressed: _save,
-              icon: Icon(_saved ? Icons.check : Icons.save_outlined),
-              label: Text(_saved ? 'Saved' : 'Save settings'),
-            ),
             OutlinedButton.icon(
               onPressed: () async {
                 final resetMode = await showDialog<String>(
@@ -297,12 +307,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _save() {
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a user name.')),
-      );
-      return;
-    }
     final payload = <String, Object?>{
       'userName': _nameController.text.trim(),
       'aiEndpoint': _aiEndpointController.text.trim(),
@@ -328,10 +332,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _apiKeyPlaceholderActive = false;
       _aiKeyController.clear();
     }
-    setState(() => _saved = true);
-    Future<void>.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _saved = false);
-    });
+  }
+
+  void _scheduleSettingsSave() {
+    _settingsSaveTimer?.cancel();
+    _settingsSaveTimer = Timer(const Duration(milliseconds: 450), _save);
   }
 
   bool get _turnConfigured =>
@@ -347,6 +352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _handleApiKeyChanged(String _) {
     if (_updatingApiKeyField) return;
     _apiKeyPlaceholderActive = false;
+    _scheduleSettingsSave();
   }
 
   void _selectMaskedApiKey() {
