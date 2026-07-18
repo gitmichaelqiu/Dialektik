@@ -70,6 +70,7 @@ class _InRoundScreenState extends State<InRoundScreen>
   bool _showSpeakerPosition = false;
   String? _previousSpeakerId;
   bool _speakerInitialized = false;
+  String? _copiedRoomCode;
   TabController? _tabController;
   static int _savedTabIndex = 0;
 
@@ -111,10 +112,41 @@ class _InRoundScreenState extends State<InRoundScreen>
       _userInitiatedExit = false;
       _speakerInitialized = false;
       _shownRequestIds.clear();
+      _copiedRoomCode = null;
       return;
     }
     if (session.status == 'pending_approval') {
       _wasPending = true;
+    }
+    final roomWasJustCreated = oldWidget.snapshot.session == null &&
+        session.isHost &&
+        session.status == 'lobby' &&
+        session.roomCode.isNotEmpty;
+    if (roomWasJustCreated && _copiedRoomCode != session.roomCode) {
+      _copiedRoomCode = session.roomCode;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Clipboard.setData(ClipboardData(text: session.roomCode));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            backgroundColor: Colors.teal.shade700,
+            content: Row(
+              children: [
+                const Icon(Icons.copy, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Room code ${session.roomCode} copied to clipboard!',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      });
     }
     // Don't overwrite actively-edited text fields with stale snapshot data.
     final isEditing = _handoutTitleFocusNode.hasFocus ||
@@ -1772,30 +1804,32 @@ class _NotesPane extends StatelessWidget {
                     label: const Text('Exit'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: MenuAnchor(
-                    builder: (context, menuController, child) {
-                      return FilledButton.icon(
-                        onPressed: () => menuController.isOpen
-                            ? menuController.close()
-                            : menuController.open(),
-                        icon: const Icon(Icons.emoji_events_outlined),
-                        label: const Text('Declare Winner'),
-                      );
-                    },
-                    menuChildren: [
-                      MenuItemButton(
-                        onPressed: () => onSaveRound('affirmative'),
-                        child: const Text('Affirmative Wins'),
-                      ),
-                      MenuItemButton(
-                        onPressed: () => onSaveRound('negative'),
-                        child: const Text('Negative Wins'),
-                      ),
-                    ],
+                if (session.isHost) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: MenuAnchor(
+                      builder: (context, menuController, child) {
+                        return FilledButton.icon(
+                          onPressed: () => menuController.isOpen
+                              ? menuController.close()
+                              : menuController.open(),
+                          icon: const Icon(Icons.emoji_events_outlined),
+                          label: const Text('Declare Winner'),
+                        );
+                      },
+                      menuChildren: [
+                        MenuItemButton(
+                          onPressed: () => onSaveRound('affirmative'),
+                          child: const Text('Affirmative Wins'),
+                        ),
+                        MenuItemButton(
+                          onPressed: () => onSaveRound('negative'),
+                          child: const Text('Negative Wins'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
