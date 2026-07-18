@@ -11,6 +11,16 @@ const ROOM_PREFIX = "dialektik-room-";
 // account-scoped credentials and monitor the service quota.
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
+  // PeerJS Cloud's relays are part of the default PeerJS configuration and
+  // are important when both peers are behind restrictive or symmetric NAT.
+  {
+    urls: [
+      "turn:eu-0.turn.peerjs.com:3478",
+      "turn:us-0.turn.peerjs.com:3478",
+    ],
+    username: "peerjs",
+    credential: "peerjsp",
+  },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:openrelay.metered.ca:80" },
   {
