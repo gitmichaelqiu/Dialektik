@@ -72,7 +72,11 @@ export class PeerMeshManager {
 
   constructor() {
     // Generate a unique client peer ID
-    this.peerId = `peer-${Math.random().toString(36).substring(2, 11)}`;
+    this.peerId = this.createClientPeerId();
+  }
+
+  private createClientPeerId() {
+    return `peer-${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**
@@ -113,6 +117,13 @@ export class PeerMeshManager {
     return new Promise((resolve, reject) => {
       if (this.peer) {
         this.peer.destroy();
+      }
+
+      // PeerJS keeps a recently closed ID reserved for a short period. A
+      // client that retries a failed join must therefore get a new ID; room
+      // hosts continue to use the deterministic room host ID.
+      if (!customId) {
+        this.peerId = this.createClientPeerId();
       }
 
       this.peer = new Peer(customId || this.peerId, {
