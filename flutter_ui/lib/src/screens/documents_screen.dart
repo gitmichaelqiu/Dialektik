@@ -841,7 +841,12 @@ class _FolderGroup extends StatelessWidget {
                 selected: doc.id == selectedId,
                 leading: Icon(doc.isShared ? Icons.public : Icons.lock_outline),
                 title: Text(doc.title, overflow: TextOverflow.ellipsis),
-                subtitle: Text(doc.isWritable ? 'Writable' : 'Read-only'),
+                subtitle: Text(
+                  doc.isWritable ? 'Writable' : 'Read-only',
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
