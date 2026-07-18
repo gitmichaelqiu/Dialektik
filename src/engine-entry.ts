@@ -33,6 +33,11 @@ interface DebateDocument {
   contentRevision?: number;
   syncBaseContent?: string;
 }
+interface DocumentEditor {
+  userId: string;
+  name: string;
+  line: number;
+}
 interface EvidenceCard {
   id: string; title: string; sourceUrl: string; text: string;
   hash: string; timestamp: number; docId?: string;
@@ -110,6 +115,7 @@ let turnUsername = "";
 let turnCredential = "";
 let manualDocumentSync = false;
 const handledManualSyncIds = new Set<string>();
+const documentEditors = new Map<string, DocumentEditor>();
 let aiChats: AiChat[] = [];
 let activeAiChatId: string | null = null;
 let aiLoading = false;
@@ -194,6 +200,7 @@ async function buildSnapshot() {
       ownerId: d.ownerId, ownerName: d.ownerName,
       lastModified: d.lastModified,
       contentRevision: docRevision(d),
+      ...documentEditorSnapshot(d.id),
     })),
     cards: cards.map(c => ({
       id: c.id, title: c.title, text: c.text, sourceUrl: c.sourceUrl,
@@ -227,6 +234,12 @@ async function buildSnapshot() {
   };
 }
 
+function documentEditorSnapshot(id: string) {
+  const editor = documentEditors.get(id);
+  if (!editor || editor.userId === userId || editor.line < 0) return {};
+  return { partnerCaret: editor.line, partnerName: editor.name };
+}
+
 function serializeSession(s: SessionState) {
   return { ...s };
 }
@@ -249,6 +262,13 @@ function applyTextSplice(text: string, edit: TextSplice): string {
   const start = Math.min(edit.index, text.length);
   const end = Math.min(start + edit.deleteCount, text.length);
   return text.slice(0, start) + edit.insertText + text.slice(end);
+}
+
+function editTouchesLine(text: string, edit: TextSplice, line: number): boolean {
+  const startLine = text.slice(0, Math.min(edit.index, text.length)).split("\n").length - 1;
+  const endIndex = Math.min(edit.index + edit.deleteCount, text.length);
+  const endLine = text.slice(0, endIndex).split("\n").length - 1;
+  return startLine <= line && endLine >= line;
 }
 
 function docRevision(doc: DebateDocument | undefined | null): number {
@@ -411,6 +431,11 @@ function setupMeshHandlers() {
   });
 
   mesh.onConnectionClose((peerId) => {
+    for (const [docId, editor] of documentEditors) {
+      if (editor.userId === peerId || editor.userId === peerUserId.get(peerId)) {
+        documentEditors.delete(docId);
+      }
+    }
     // Mark the disconnected debater.
     const uid = peerUserId.get(peerId);
     if (uid && session) {
@@ -689,8 +714,12 @@ async function handlePeerMessage(msg: PeerMessage) {
       const edit = toTextSplice(msg.payload);
       if (typeof id !== "string" || !edit) break;
       const existing = await db.documents.get(id);
-      if (!existing || existing.ownerId === userId) break;
+      if (!existing || existing.partnerAccess === "private" || existing.encryptedHash === "read") break;
       const existingRevision = docRevision(existing);
+      const editor = documentEditors.get(id);
+      if (editor && editor.userId !== msg.senderId && editTouchesLine(existing.content ?? "", edit, editor.line)) {
+        break;
+      }
       const incomingRevision = Math.trunc(Number(revision));
       const incomingBaseRevision = Math.trunc(Number(baseRevision));
       if (!Number.isFinite(incomingRevision) || incomingRevision <= existingRevision) break;
@@ -707,8 +736,34 @@ async function handlePeerMessage(msg: PeerMessage) {
       }
       const updated = await applyDocumentSplice(id, edit, incomingRevision);
       if (updated?.partnerAccess !== "private") {
+        if (msg.payload?.forwarded !== true) {
+          broadcastRoomMessage({
+            type: "shared-doc-op",
+            senderId: mesh.peerId,
+            payload: { ...msg.payload, forwarded: true },
+          });
+        }
         await emitSnapshot();
       }
+      break;
+    }
+
+    case "doc-cursor": {
+      const id = msg.payload?.id;
+      const line = Number(msg.payload?.line);
+      if (typeof id !== "string") break;
+      if (!Number.isFinite(line) || line < 0) {
+        documentEditors.delete(id);
+      } else {
+        documentEditors.set(id, {
+          userId: msg.senderId,
+          name: typeof msg.payload?.name === "string" && msg.payload.name.trim()
+            ? msg.payload.name.trim()
+            : "A collaborator",
+          line: Math.trunc(line),
+        });
+      }
+      await emitSnapshot();
       break;
     }
 
@@ -741,6 +796,7 @@ async function handlePeerMessage(msg: PeerMessage) {
       // The host (or peer) closed the session.
       if (session) {
         session = null;
+        documentEditors.clear();
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         await emitSnapshot();
       }
@@ -902,6 +958,7 @@ async function dispatch(actionJson: string) {
     }
     if (payload.manualDocumentSync !== undefined) {
       manualDocumentSync = payload.manualDocumentSync === true;
+      documentEditors.clear();
       await db.settings.put({ key: "manual_document_sync", value: String(manualDocumentSync) });
     }
     mesh.setTurnServer({
@@ -970,6 +1027,11 @@ async function dispatch(actionJson: string) {
     const edit = toTextSplice(payload);
     if (typeof id !== "string" || !edit) return;
     const existing = await db.documents.get(id);
+    const editor = documentEditors.get(id);
+    if (editor && editor.userId !== userId && editTouchesLine(existing?.content ?? "", edit, editor.line)) {
+      await emitSnapshot();
+      return;
+    }
     const baseRevision = docRevision(existing);
     const updated = await applyDocumentSplice(id, edit, baseRevision + 1);
     if (updated && updated.partnerAccess !== "private" && !manualDocumentSync) {
@@ -979,6 +1041,25 @@ async function dispatch(actionJson: string) {
         payload: { id, baseRevision, revision: updated.contentRevision, ...edit },
       });
     }
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "document.cursor") {
+    const id = payload.id;
+    const line = Number(payload.line);
+    const existing = await db.documents.get(id);
+    if (!existing || existing.partnerAccess === "private" || existing.encryptedHash === "read" || manualDocumentSync) return;
+    if (!Number.isFinite(line) || line < 0) {
+      documentEditors.delete(id);
+    } else {
+      documentEditors.set(id, { userId, name: userName || "A collaborator", line: Math.trunc(line) });
+    }
+    broadcastRoomMessage({
+      type: "doc-cursor",
+      senderId: mesh.peerId,
+      payload: { id, line: Number.isFinite(line) ? Math.trunc(line) : -1, name: userName || "A collaborator" },
+    });
     await emitSnapshot();
     return;
   }
@@ -1269,6 +1350,7 @@ async function dispatch(actionJson: string) {
     mesh.terminateSession();
     relay.disconnect();
     session = null;
+    documentEditors.clear();
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     yjsProviders.forEach(p => p.destroy());
     yjsProviders.clear();
@@ -1424,6 +1506,7 @@ async function dispatch(actionJson: string) {
     mesh.terminateSession();
     relay.disconnect();
     session = null;
+    documentEditors.clear();
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     await emitSnapshot();
     return;
@@ -1604,6 +1687,7 @@ async function dispatch(actionJson: string) {
     session = null;
     mesh.terminateSession();
     relay.disconnect();
+    documentEditors.clear();
     await db.documents.clear();
     await db.cards.clear();
     await db.history.clear();

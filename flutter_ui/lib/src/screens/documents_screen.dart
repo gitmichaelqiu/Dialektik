@@ -60,6 +60,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     super.initState();
     _selectedId = _cachedSelectedId;
     _readMode = _cachedReadMode;
+    _contentController.addListener(_broadcastCursor);
+    _contentFocusNode.addListener(_handleEditorFocusChanged);
   }
 
   final HighlightingTextController _contentController =
@@ -77,6 +79,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   /// in the snapshot (which would otherwise trigger unnecessary rebuilds).
   String? _lastSyncedContent;
   String? _lastLocalContent;
+  String? _lastSentCursor;
+  String? _lastSentCursorDocumentId;
 
   List<DebateDocument> _filteredDocs = const [];
 
@@ -131,13 +135,55 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _contentController.removeListener(_broadcastCursor);
     _contentController.dispose();
+    _contentFocusNode.removeListener(_handleEditorFocusChanged);
     _contentFocusNode.dispose();
     _newTitleController.dispose();
     _cardTitleController.dispose();
     _cardSourceController.dispose();
     _cardTextController.dispose();
     super.dispose();
+  }
+
+  void _broadcastCursor() {
+    final doc = _selectedDocument;
+    if (doc == null ||
+        widget.snapshot.settings.manualDocumentSync ||
+        !doc.isShared ||
+        !doc.isWritable ||
+        !_contentFocusNode.hasFocus) {
+      return;
+    }
+    final selection = _contentController.selection;
+    if (!selection.isValid || selection.baseOffset < 0) return;
+    final line = _getLineFromCaret(_contentController.text, selection.baseOffset);
+    if (line == null) return;
+    final key = '${doc.id}:$line';
+    if (_lastSentCursor == key) return;
+    if (_lastSentCursorDocumentId != null &&
+        _lastSentCursorDocumentId != doc.id) {
+      widget.bridge.dispatch(action('document.cursor', {
+        'id': _lastSentCursorDocumentId,
+        'line': -1,
+      }));
+    }
+    _lastSentCursor = key;
+    _lastSentCursorDocumentId = doc.id;
+    widget.bridge.dispatch(action('document.cursor', {
+      'id': doc.id,
+      'line': line,
+    }));
+  }
+
+  void _handleEditorFocusChanged() {
+    if (_contentFocusNode.hasFocus || _lastSentCursorDocumentId == null) return;
+    widget.bridge.dispatch(action('document.cursor', {
+      'id': _lastSentCursorDocumentId,
+      'line': -1,
+    }));
+    _lastSentCursor = null;
+    _lastSentCursorDocumentId = null;
   }
 
   @override
@@ -229,6 +275,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       onChanged: (content) {
         if (selected == null) return;
         final previous = _lastLocalContent ?? selected.content;
+        if (!widget.snapshot.settings.manualDocumentSync &&
+            selected.isShared &&
+            selected.isWritable &&
+            _editTouchesLine(previous, content, selected.partnerCaret)) {
+          final offset = _contentController.selection.baseOffset;
+          _contentController.value = TextEditingValue(
+            text: previous,
+            selection: TextSelection.collapsed(
+              offset: offset.clamp(0, previous.length),
+            ),
+          );
+          return;
+        }
         final edit = _TextEditOp.between(previous, content);
         _lastLocalContent = content;
         if (edit == null) return;
@@ -269,6 +328,13 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           '[[$citation]]',
         );
         final previous = _contentController.text;
+        if (selected != null &&
+            !widget.snapshot.settings.manualDocumentSync &&
+            selected.isShared &&
+            selected.isWritable &&
+            _editTouchesLine(previous, nextText, selected.partnerCaret)) {
+          return;
+        }
         _contentController.text = nextText;
         _lastLocalContent = nextText;
         if (selected != null) {
@@ -624,12 +690,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   /// Update the partner-caret highlight line without touching the text.
   void _maybeUpdateHighlight(DebateDocument doc) {
-    final newLine = _getLineFromCaret(doc.content, doc.partnerCaret);
+    final newLine = !widget.snapshot.settings.manualDocumentSync &&
+            doc.isShared &&
+            doc.isWritable
+        ? _getLineFromCaret(doc.content, doc.partnerCaret)
+        : null;
     if (newLine != _contentController.highlightedLine) {
       _contentController.highlightColor =
           Theme.of(context).colorScheme.primaryContainer.withAlpha(76);
       _contentController.highlightedLine = newLine;
     }
+  }
+
+  bool _editTouchesLine(String previous, String next, int? lockedLine) {
+    if (lockedLine == null) return false;
+    final edit = _TextEditOp.between(previous, next);
+    if (edit == null) return false;
+    final start = edit.index.clamp(0, previous.length);
+    final end = (edit.index + edit.deleteCount).clamp(0, previous.length);
+    final startLine = previous.substring(0, start).split('\n').length - 1;
+    final endLine = previous.substring(0, end).split('\n').length - 1;
+    return startLine <= lockedLine && endLine >= lockedLine;
   }
 
   bool get documentHasFocus {
@@ -926,6 +1007,12 @@ class _EditorPane extends StatelessWidget {
     // Third parties with read-only documents are forced into Read mode.
     final forceRead = !isOwner && !doc.isWritable;
     final effectiveReadMode = readMode || forceRead;
+    final collaborationLockedLine = !manualDocumentSync &&
+            doc.isShared &&
+            doc.isWritable
+        ? doc.partnerCaret
+        : null;
+    final collaborationEditor = doc.partnerName;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1057,20 +1144,27 @@ class _EditorPane extends StatelessWidget {
                               }
                               return KeyEventResult.ignored;
                             },
-                            child: TextField(
-                              key: ValueKey('editor_${doc.id}'),
-                              controller: contentController,
-                              focusNode: contentFocusNode,
-                              expands: true,
-                              maxLines: null,
-                              minLines: null,
-                              readOnly: !doc.isWritable && !isOwner,
-                              textAlignVertical: TextAlignVertical.top,
-                              decoration: const InputDecoration(
-                                labelText: 'Markdown',
-                                alignLabelWithHint: true,
+                            child: Tooltip(
+                              message: collaborationEditor == null ||
+                                      collaborationLockedLine == null
+                                  ? ''
+                                  : '$collaborationEditor is editing this line',
+                              preferBelow: false,
+                              child: TextField(
+                                key: ValueKey('editor_${doc.id}'),
+                                controller: contentController,
+                                focusNode: contentFocusNode,
+                                expands: true,
+                                maxLines: null,
+                                minLines: null,
+                                readOnly: !doc.isWritable && !isOwner,
+                                textAlignVertical: TextAlignVertical.top,
+                                decoration: const InputDecoration(
+                                  labelText: 'Markdown',
+                                  alignLabelWithHint: true,
+                                ),
+                                onChanged: onChanged,
                               ),
-                              onChanged: onChanged,
                             ),
                           ),
                         ),
