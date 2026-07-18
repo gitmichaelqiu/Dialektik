@@ -426,6 +426,17 @@ async function handlePeerMessage(msg: PeerMessage) {
   if (!msg?.type) return;
 
   switch (msg.type) {
+    case "join-approved": {
+      if (!mesh.isHost && session && msg.senderId.endsWith("-host")) {
+        // Approval is sent directly to the joining peer. This transitions the
+        // client immediately, even if the accompanying state broadcast is
+        // briefly filtered while the host reconciles peer and user IDs.
+        session.status = "lobby";
+        await emitSnapshot();
+      }
+      break;
+    }
+
     case "join-rejected": {
       if (!mesh.isHost && session) {
         // Host rejected our join request — exit the pending state.
@@ -441,11 +452,42 @@ async function handlePeerMessage(msg: PeerMessage) {
         const payload = msg.payload || {};
         const requesterId = payload.id as string || msg.senderId;
         const requesterName = payload.name as string || "Unknown";
-        const already = session.pendingRequests.some(r => r.id === requesterId);
-        if (!already) {
-          session.pendingRequests = [...session.pendingRequests, { id: requesterId, name: requesterName }];
-          await emitSnapshot();
+        const previousRequesterId = peerUserId.get(msg.senderId);
+        peerUserId.set(msg.senderId, requesterId);
+
+        // Early PeerJS metadata is not available consistently across relay
+        // paths. Replace the temporary peer-ID request instead of adding a
+        // second request for the same connection.
+        const pendingIndex = session.pendingRequests.findIndex(r =>
+          r.id === requesterId ||
+          r.id === msg.senderId ||
+          r.id === previousRequesterId
+        );
+        if (pendingIndex >= 0) {
+          session.pendingRequests = session.pendingRequests.map((request, index) =>
+            index === pendingIndex
+              ? { id: requesterId, name: requesterName }
+              : request
+          );
+        } else {
+          session.pendingRequests = [
+            ...session.pendingRequests,
+            { id: requesterId, name: requesterName },
+          ];
         }
+
+        // If the host approved the temporary ID before the join-request
+        // arrived, repair the approved debater and rebroadcast the corrected
+        // state so the client can pass its identity check.
+        session.debaters = session.debaters.map(debater =>
+          debater.id === msg.senderId
+            ? { ...debater, id: requesterId, name: requesterName }
+            : debater
+        );
+        if (session.debaters.some(debater => debater.id === requesterId)) {
+          broadcastSessionState();
+        }
+        await emitSnapshot();
       }
       break;
     }
@@ -1027,13 +1069,25 @@ async function dispatch(actionJson: string) {
     const { id } = payload;
     const req = session.pendingRequests.find(r => r.id === id);
     if (!req) return;
+    const peerEntry = Array.from(peerUserId.entries()).find(([peerId, user]) =>
+      peerId === id || user === id
+    );
+    const approvedPeerId = peerEntry?.[0];
+    const approvedUserId = peerEntry?.[1] || id;
     session.pendingRequests = session.pendingRequests.filter(r => r.id !== id);
-    const alreadyIn = session.debaters.some(d => d.id === id);
+    const alreadyIn = session.debaters.some(d => d.id === approvedUserId);
     if (!alreadyIn) {
       session.debaters = [...session.debaters, {
-        id: req.id, name: req.name, status: "approved",
+        id: approvedUserId, name: req.name, status: "approved",
         team: "negative", position: 1,
       }];
+    }
+    if (approvedPeerId) {
+      mesh.sendToPeer(approvedPeerId, {
+        type: "join-approved",
+        senderId: mesh.peerId,
+        payload: { id: approvedUserId },
+      });
     }
     broadcastSessionState();
     await emitSnapshot();

@@ -290,11 +290,17 @@ class _InRoundScreenState extends State<InRoundScreen>
     }
   }
 
-  void _initTabController() {
-    if (_tabController != null && _tabController!.length == 3) return;
+  void _initTabController({required bool showTimers}) {
+    final tabCount = showTimers ? 3 : 2;
+    if (_tabController != null && _tabController!.length == tabCount) return;
+    final previousIndex = _tabController?.index ?? _savedTabIndex;
     _tabController?.dispose();
     _tabController =
-        TabController(length: 3, vsync: this, initialIndex: _savedTabIndex);
+        TabController(
+          length: tabCount,
+          vsync: this,
+          initialIndex: previousIndex.clamp(0, tabCount - 1),
+        );
     _tabController!.addListener(() {
       if (!_tabController!.indexIsChanging) {
         _savedTabIndex = _tabController!.index;
@@ -570,7 +576,7 @@ class _InRoundScreenState extends State<InRoundScreen>
           );
 
     // Ensure tab controller exists (created once, updated on rebuild).
-    _initTabController();
+    _initTabController(showTimers: active);
     return compact
         ? Scaffold(
             appBar: AppBar(
@@ -579,7 +585,8 @@ class _InRoundScreenState extends State<InRoundScreen>
                 controller: _tabController,
                 tabs: [
                   const Tab(icon: Icon(Icons.description), text: 'Handout'),
-                  const Tab(icon: Icon(Icons.timer), text: 'Timers'),
+                  if (active)
+                    const Tab(icon: Icon(Icons.timer), text: 'Timers'),
                   Tab(
                     icon: Icon(active ? Icons.edit_note : Icons.group),
                     text: active ? 'Notes' : 'Debaters',
@@ -596,12 +603,13 @@ class _InRoundScreenState extends State<InRoundScreen>
                     child: handoutPane,
                   ),
                 ),
-                FocusTraversalGroup(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: timersPane,
+                if (active)
+                  FocusTraversalGroup(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: timersPane,
+                    ),
                   ),
-                ),
                 FocusTraversalGroup(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -616,7 +624,7 @@ class _InRoundScreenState extends State<InRoundScreen>
             mainPaneIndex: 0,
             children: [
               FocusTraversalGroup(child: handoutPane),
-              FocusTraversalGroup(child: timersPane),
+              if (active) FocusTraversalGroup(child: timersPane),
               FocusTraversalGroup(child: debatersOrNotesPane),
             ],
           );
