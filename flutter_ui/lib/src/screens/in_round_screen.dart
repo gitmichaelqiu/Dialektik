@@ -70,7 +70,6 @@ class _InRoundScreenState extends State<InRoundScreen>
   bool _showSpeakerPosition = false;
   String? _previousSpeakerId;
   bool _speakerInitialized = false;
-  String? _copiedRoomCode; // guards auto-copy notification for host room code
   TabController? _tabController;
   static int _savedTabIndex = 0;
 
@@ -112,39 +111,10 @@ class _InRoundScreenState extends State<InRoundScreen>
       _userInitiatedExit = false;
       _speakerInitialized = false;
       _shownRequestIds.clear();
-      _copiedRoomCode = null;
       return;
     }
     if (session.status == 'pending_approval') {
       _wasPending = true;
-    }
-    // Auto-copy room code when the host creates a new room.
-    if (session.isHost &&
-        session.roomCode.isNotEmpty &&
-        _copiedRoomCode != session.roomCode) {
-      _copiedRoomCode = session.roomCode;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Clipboard.setData(ClipboardData(text: session.roomCode));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.fixed,
-            backgroundColor: Colors.teal.shade700,
-            content: Row(
-              children: [
-                const Icon(Icons.copy, color: Colors.white70, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Room code ${session.roomCode} copied to clipboard!',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      });
     }
     // Don't overwrite actively-edited text fields with stale snapshot data.
     final isEditing = _handoutTitleFocusNode.hasFocus ||

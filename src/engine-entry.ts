@@ -503,6 +503,23 @@ async function handlePeerMessage(msg: PeerMessage) {
             ? { ...debater, id: requesterId, name: requesterName }
             : debater
         );
+        if (session.debaters.some(debater =>
+          debater.id === requesterId && debater.status === "approved"
+        )) {
+          session.pendingRequests = session.pendingRequests.filter(
+            request => request.id !== requesterId
+          );
+          const approval: PeerMessage = {
+            type: "join-approved",
+            senderId: mesh.peerId,
+            payload: { id: requesterId },
+          };
+          mesh.sendToPeer(msg.senderId, approval);
+          relay.send(approval, requesterId);
+          broadcastSessionState();
+          await emitSnapshot();
+          break;
+        }
         if (session.debaters.some(debater => debater.id === requesterId)) {
           broadcastSessionState();
         }
@@ -635,7 +652,7 @@ async function handlePeerMessage(msg: PeerMessage) {
     }
 
     case "handout-op": {
-      if (mesh.isHost || !msg.senderId.endsWith("-host")) break;
+      if (mesh.isHost || !session || session.status !== "active" || !msg.senderId.endsWith("-host")) break;
       const { field } = msg.payload || {};
       const edit = toTextSplice(msg.payload);
       if (typeof field !== "string" || !edit) break;
@@ -687,7 +704,7 @@ async function handlePeerMessage(msg: PeerMessage) {
         }
       }
       // When a peer connects to us (as client), send our join-request
-      if (!mesh.isHost && session) {
+      if (!mesh.isHost && session && session.status === "pending_approval") {
         const joinRequest: PeerMessage = {
           type: "join-request",
           senderId: mesh.peerId,
@@ -1250,11 +1267,13 @@ async function dispatch(actionJson: string) {
     const edit = toTextSplice(payload);
     if (typeof field !== "string" || !edit) return;
     if (!applyHandoutSplice(field, edit)) return;
-    broadcastRoomMessage({
-      type: "handout-op",
-      senderId: mesh.peerId,
-      payload: { field, ...edit },
-    });
+    if (session.status === "active") {
+      broadcastRoomMessage({
+        type: "handout-op",
+        senderId: mesh.peerId,
+        payload: { field, ...edit },
+      });
+    }
     await emitSnapshot();
     return;
   }
