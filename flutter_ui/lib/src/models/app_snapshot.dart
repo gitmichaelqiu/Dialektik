@@ -477,6 +477,9 @@ class SettingsState {
     required this.githubOwner,
     required this.githubRepo,
     required this.hasGithubToken,
+    required this.turnServerUrl,
+    required this.turnUsername,
+    required this.turnCredential,
     this.userId,
   });
 
@@ -488,6 +491,9 @@ class SettingsState {
         githubOwner = '',
         githubRepo = '',
         hasGithubToken = false,
+        turnServerUrl = '',
+        turnUsername = '',
+        turnCredential = '',
         userId = null;
 
   factory SettingsState.fromJson(Map<String, Object?>? json) {
@@ -501,6 +507,9 @@ class SettingsState {
       githubOwner: _string(json['githubOwner']),
       githubRepo: _string(json['githubRepo']),
       hasGithubToken: json['hasGithubToken'] == true,
+      turnServerUrl: _string(json['turnServerUrl']),
+      turnUsername: _string(json['turnUsername']),
+      turnCredential: _string(json['turnCredential']),
     );
   }
 
@@ -512,6 +521,9 @@ class SettingsState {
   final String githubOwner;
   final String githubRepo;
   final bool hasGithubToken;
+  final String turnServerUrl;
+  final String turnUsername;
+  final String turnCredential;
 }
 
 String _string(Object? value, {String fallback = ''}) {

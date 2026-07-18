@@ -27,6 +27,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _aiEndpointController;
   late final TextEditingController _aiModelController;
   late final TextEditingController _aiKeyController;
+  late final TextEditingController _turnServerController;
+  late final TextEditingController _turnUsernameController;
+  late final TextEditingController _turnCredentialController;
   late final FocusNode _aiKeyFocusNode;
   bool _saved = false;
   bool _checkingForUpdates = false;
@@ -43,6 +46,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nameController = TextEditingController(text: settings.userName);
     _aiEndpointController = TextEditingController(text: settings.aiEndpoint);
     _aiModelController = TextEditingController(text: settings.aiModel);
+    _turnServerController = TextEditingController(text: settings.turnServerUrl);
+    _turnUsernameController = TextEditingController(text: settings.turnUsername);
+    _turnCredentialController =
+        TextEditingController(text: settings.turnCredential);
     _aiKeyController = TextEditingController(
       text: settings.hasAiKey ? _maskedApiKey : '',
     );
@@ -63,6 +70,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (oldWidget.snapshot.settings.aiModel != settings.aiModel) {
       _aiModelController.text = settings.aiModel;
+    }
+    if (oldWidget.snapshot.settings.turnServerUrl != settings.turnServerUrl) {
+      _turnServerController.text = settings.turnServerUrl;
+    }
+    if (oldWidget.snapshot.settings.turnUsername != settings.turnUsername) {
+      _turnUsernameController.text = settings.turnUsername;
+    }
+    if (oldWidget.snapshot.settings.turnCredential != settings.turnCredential) {
+      _turnCredentialController.text = settings.turnCredential;
     }
     final apiKeyStateSettled =
         !_apiKeySavePending || settings.hasAiKey == _pendingApiKeyState;
@@ -90,6 +106,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController.dispose();
     _aiModelController.dispose();
     _aiKeyController.dispose();
+    _turnServerController.dispose();
+    _turnUsernameController.dispose();
+    _turnCredentialController.dispose();
     _aiKeyFocusNode
       ..removeListener(_handleApiKeyFocus)
       ..dispose();
@@ -117,6 +136,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _nameController,
                   decoration: const InputDecoration(labelText: 'User name'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(
+                  title: 'Network settings',
+                  subtitle: 'Optional TURN server for different networks',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Leave these fields empty for direct connections on the same network. For Metered, enter one or more TURN URLs separated by commas or new lines.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _turnServerController,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'TURN server URL(s)',
+                    hintText: 'turn:global.relay.metered.ca:80',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _turnUsernameController,
+                  decoration: const InputDecoration(labelText: 'TURN username'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _turnCredentialController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'TURN credential'),
                 ),
               ],
             ),
@@ -213,6 +273,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'userName': _nameController.text.trim(),
       'aiEndpoint': _aiEndpointController.text.trim(),
       'aiModel': _aiModelController.text.trim(),
+      'turnServerUrl': _turnServerController.text.trim(),
+      'turnUsername': _turnUsernameController.text.trim(),
+      'turnCredential': _turnCredentialController.text.trim(),
     };
     final apiKey = _aiKeyController.text.trim();
     final maskIsUntouched = _apiKeyPlaceholderActive ||

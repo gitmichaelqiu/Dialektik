@@ -104,6 +104,9 @@ let aiEndpoint = "";
 let aiModel = "";
 let aiApiKey = "";
 let hasAiKey = false;
+let turnServerUrl = "";
+let turnUsername = "";
+let turnCredential = "";
 let aiChats: AiChat[] = [];
 let activeAiChatId: string | null = null;
 let aiLoading = false;
@@ -170,6 +173,9 @@ async function buildSnapshot() {
     if (s.key === "ai_api_key") { aiApiKey = s.value; hasAiKey = !!s.value; }
     if (s.key === "github_owner") githubOwner = s.value;
     if (s.key === "github_repo") githubRepo = s.value;
+    if (s.key === "turn_server_url") turnServerUrl = s.value;
+    if (s.key === "turn_username") turnUsername = s.value;
+    if (s.key === "turn_credential") turnCredential = s.value;
   }
 
   return {
@@ -206,6 +212,9 @@ async function buildSnapshot() {
       aiEndpoint: currentAiEndpoint,
       aiModel: currentAiModel,
       hasAiKey,
+      turnServerUrl,
+      turnUsername,
+      turnCredential,
       githubOwner,
       githubRepo,
       hasGithubToken: false,
@@ -332,11 +341,19 @@ async function loadConfig() {
     if (s.key === "ai_endpoint") aiEndpoint = s.value;
     if (s.key === "ai_model") aiModel = s.value;
     if (s.key === "ai_api_key") { aiApiKey = s.value; hasAiKey = !!s.value; }
+    if (s.key === "turn_server_url") turnServerUrl = s.value;
+    if (s.key === "turn_username") turnUsername = s.value;
+    if (s.key === "turn_credential") turnCredential = s.value;
   }
   if (!userId) {
     userId = crypto.randomUUID();
     await db.settings.put({ key: "user_id", value: userId });
   }
+  mesh.setTurnServer({
+    urls: turnServerUrl.split(/[\n,]+/).map((url) => url.trim()).filter(Boolean),
+    username: turnUsername,
+    credential: turnCredential,
+  });
   aiChats = await db.aiChats.toArray();
   if (aiChats.length === 0) {
     const initChat: AiChat = {
@@ -746,6 +763,23 @@ async function dispatch(actionJson: string) {
       aiModel = payload.aiModel;
       await db.settings.put({ key: "ai_model", value: aiModel });
     }
+    if (payload.turnServerUrl !== undefined) {
+      turnServerUrl = payload.turnServerUrl;
+      await db.settings.put({ key: "turn_server_url", value: turnServerUrl });
+    }
+    if (payload.turnUsername !== undefined) {
+      turnUsername = payload.turnUsername;
+      await db.settings.put({ key: "turn_username", value: turnUsername });
+    }
+    if (payload.turnCredential !== undefined) {
+      turnCredential = payload.turnCredential;
+      await db.settings.put({ key: "turn_credential", value: turnCredential });
+    }
+    mesh.setTurnServer({
+      urls: turnServerUrl.split(/[\n,]+/).map((url) => url.trim()).filter(Boolean),
+      username: turnUsername,
+      credential: turnCredential,
+    });
     // Update debater name if in session
     if (session && userId) {
       const newName = payload.userName?.trim() || userName;

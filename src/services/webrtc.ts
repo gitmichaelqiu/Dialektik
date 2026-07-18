@@ -20,6 +20,12 @@ const ICE_SERVERS = [
   },
 ];
 
+export interface TurnServerConfig {
+  urls: string[];
+  username: string;
+  credential: string;
+}
+
 export interface PeerMessage {
   type: "handshake" | "yjs-sync-step-1" | "yjs-sync-step-2" | "yjs-update" | "timer-action" | "version-reject" | "pairing-request" | "vault-sync" | "join-request" | "join-approved" | "join-rejected" | "session-ended" | "session-state" | "shared-docs-sync" | "shared-doc-op" | "shared-cards-sync" | "handout-op" | "doc-cursor" | "custom-timers-sync";
   version?: string;
@@ -54,6 +60,7 @@ export class PeerMeshManager {
   private onPeerConnectingCallbacks: ((peerId: string, metadata?: any) => void)[] = [];
   private reconnectAttempts = new Map<string, number>();
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private turnServer: TurnServerConfig | null = null;
 
   constructor() {
     // Generate a unique client peer ID
@@ -62,6 +69,18 @@ export class PeerMeshManager {
 
   private createClientPeerId() {
     return `peer-${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  public setTurnServer(config: TurnServerConfig | null) {
+    this.turnServer = config && config.urls.length > 0 && config.username && config.credential
+      ? config
+      : null;
+  }
+
+  private iceServers() {
+    return this.turnServer
+      ? [...ICE_SERVERS, this.turnServer]
+      : ICE_SERVERS;
   }
 
   /**
@@ -114,7 +133,7 @@ export class PeerMeshManager {
       this.peer = new Peer(customId || this.peerId, {
         debug: 1,
         config: {
-          iceServers: ICE_SERVERS,
+          iceServers: this.iceServers(),
           sdpSemantics: "unified-plan",
         }
       });
