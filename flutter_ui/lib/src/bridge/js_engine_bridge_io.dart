@@ -163,6 +163,18 @@ class JsEngineBridge implements EngineBridge {
           debugPrint('[JsEngineBridge] engine load error: $e');
         }
       },
+      onReceivedError: (_, request, error) {
+        debugPrint(
+          '[JsEngineBridge] WebView load error (${error.type}) at '
+          '${request.url}: ${error.description}',
+        );
+      },
+      onReceivedHttpError: (_, request, response) {
+        debugPrint(
+          '[JsEngineBridge] WebView HTTP error (${response.statusCode}) at '
+          '${request.url}: ${response.reasonPhrase}',
+        );
+      },
       onConsoleMessage: (_, msg) {
         debugPrint('[engine console] ${msg.messageLevel}: ${msg.message}');
       },

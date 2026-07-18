@@ -12,8 +12,11 @@ import 'src/services/auto_update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AutoUpdateService.initialize();
   runApp(DialektikFlutterApp(bridge: JsEngineBridge()));
+  // Do not block the first Flutter frame on optional desktop-only updater
+  // setup. This is especially important on iOS, where the updater is a no-op
+  // and the app should render immediately.
+  unawaited(AutoUpdateService.initialize());
 }
 
 class PreviewEngineBridge implements EngineBridge {

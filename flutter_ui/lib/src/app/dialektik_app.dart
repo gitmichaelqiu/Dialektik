@@ -99,7 +99,10 @@ class _AppRoot extends StatelessWidget {
 
     final shell = StreamBuilder<AppSnapshot>(
       stream: bridge.snapshots,
-      initialData: initialSnapshot,
+      // Render the Flutter shell immediately while the native WebView boots.
+      // On iOS, WKWebView startup can take long enough that waiting for the
+      // first IndexedDB snapshot looks like a blank launch screen.
+      initialData: initialSnapshot ?? AppSnapshot.initial(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return Theme(
