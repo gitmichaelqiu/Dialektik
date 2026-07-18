@@ -71,7 +71,7 @@ The `engine:build` step compiles the TypeScript engine into `flutter_ui/assets/e
 | `npm run engine:build` | Build JS engine bundle (TypeScript → IIFE) |
 | `npm run dev` | Run Flutter app (auto-detects macOS/Windows/Linux) |
 | `npm run flutter:web` | Run in Chrome |
-| `npm run flutter:ios` | Run in iOS simulator |
+| `npm run flutter:ios` | Run on the first detected iOS device or simulator |
 | `npm run flutter:analyze` | Dart static analysis |
 | `npm run build` | Production build (auto-detects platform) |
 | `npm run flutter:build:web` | Build Flutter web |

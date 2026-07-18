@@ -7,7 +7,7 @@
     "dev": "node scripts/flutter-dev.mjs",
     "flutter:dev": "node scripts/flutter-dev.mjs",
     "flutter:web": "cd flutter_ui && flutter run -d chrome",
-    "flutter:ios": "cd flutter_ui && flutter run -d ios",
+    "flutter:ios": "node scripts/flutter-dev.mjs -d ios",
     "flutter:analyze": "cd flutter_ui && flutter analyze",
     "build": "node scripts/flutter-build.mjs",
     "flutter:build:web": "cd flutter_ui && flutter build web",
