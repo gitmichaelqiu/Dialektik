@@ -1,15 +1,12 @@
 import 'package:auto_updater/auto_updater.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class AutoUpdateService {
   const AutoUpdateService._();
 
   static const feedUrl =
       'https://raw.githubusercontent.com/gitmichaelqiu/Dialektik/main/appcast.xml';
-  static const githubLatestReleaseUrl =
-      'https://api.github.com/repos/gitmichaelqiu/Dialektik/releases/latest';
   static const currentVersion = '0.1.1';
 
   static bool get isSupportedDesktop =>
@@ -33,7 +30,7 @@ class AutoUpdateService {
   }
 
   /// Desktop delegates to auto_updater. Mobile only performs a read-only
-  /// GitHub release check and never attempts to download or install anything.
+  /// GitHub appcast check and never attempts to download or install anything.
   /// Returns the newer release tag on mobile, or null when no update exists.
   static Future<String?> checkForUpdates() async {
     if (isSupportedDesktop) {
@@ -43,20 +40,20 @@ class AutoUpdateService {
     }
     if (kIsWeb) return null;
 
-    final response = await http.get(
-      Uri.parse(githubLatestReleaseUrl),
-      headers: const {'Accept': 'application/vnd.github+json'},
-    );
+    return _checkAppcast();
+  }
+
+  static Future<String?> _checkAppcast() async {
+    final response = await http.get(Uri.parse(feedUrl));
     if (response.statusCode != 200) {
-      throw Exception('GitHub returned HTTP ${response.statusCode}');
+      throw Exception('GitHub release metadata returned HTTP ${response.statusCode}');
     }
-    final payload = jsonDecode(response.body);
-    if (payload is! Map || payload['draft'] == true || payload['prerelease'] == true) {
-      return null;
-    }
-    final tag = payload['tag_name'];
-    if (tag is! String || !_isNewer(tag, currentVersion)) return null;
-    return tag;
+    final match = RegExp(
+      r'<sparkle:shortVersionString>\s*([^<]+?)\s*</sparkle:shortVersionString>',
+    ).firstMatch(response.body);
+    final version = match?.group(1)?.trim();
+    if (version == null || !_isNewer(version, currentVersion)) return null;
+    return version;
   }
 
   static bool _isNewer(String candidate, String current) {
