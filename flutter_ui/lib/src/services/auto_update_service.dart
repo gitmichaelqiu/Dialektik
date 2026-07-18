@@ -17,6 +17,8 @@ class AutoUpdateService {
       (defaultTargetPlatform == TargetPlatform.macOS ||
           defaultTargetPlatform == TargetPlatform.windows);
 
+  static bool get isSupportedPlatform => !kIsWeb;
+
   static Future<void> initialize() async {
     if (!isSupportedDesktop) return;
 

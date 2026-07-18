@@ -425,7 +425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               runSpacing: 12,
               children: [
                 FilledButton.icon(
-                  onPressed: AutoUpdateService.isSupportedDesktop &&
+                  onPressed: AutoUpdateService.isSupportedPlatform &&
                           !_checkingForUpdates
                       ? _checkForUpdates
                       : null,
@@ -450,7 +450,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (!AutoUpdateService.isSupportedDesktop) ...[
               const SizedBox(height: 8),
               Text(
-                'Updates are available on macOS and Windows desktop builds.',
+                'Mobile checks GitHub for newer releases only. Installation is not performed from this app.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
