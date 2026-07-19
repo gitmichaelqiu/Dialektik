@@ -18,7 +18,7 @@
         </ul>
       ]]></description>
       <pubDate>Sun, 19 Jul 2026 15:00:00 GMT</pubDate>
-      <sparkle:version>2</sparkle:version>
+      <sparkle:version>0.2.0</sparkle:version>
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>https://github.com/gitmichaelqiu/Dialektik/releases/tag/v0.2.0</sparkle:releaseNotesLink>
       <enclosure
@@ -40,7 +40,7 @@
         </ul>
       ]]></description>
       <pubDate>Sat, 11 Jul 2026 15:18:51 GMT</pubDate>
-      <sparkle:version>1</sparkle:version>
+      <sparkle:version>0.1.1</sparkle:version>
       <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>https://github.com/gitmichaelqiu/Dialektik/releases/tag/v0.1.1</sparkle:releaseNotesLink>
       <enclosure
