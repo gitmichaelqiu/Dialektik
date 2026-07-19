@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../services/auto_update_service.dart';
+import '../services/join_request_notification_service.dart';
 import '../widgets/adaptive_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -40,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _apiKeySavePending = false;
   bool? _pendingApiKeyState;
   bool _manualDocumentSync = false;
+  bool _joinRequestNotifications = false;
   Timer? _settingsSaveTimer;
 
   @override
@@ -60,6 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _hasSavedApiKey = settings.hasAiKey;
     _apiKeyPlaceholderActive = settings.hasAiKey;
     _manualDocumentSync = settings.manualDocumentSync;
+    _joinRequestNotifications = settings.joinRequestNotifications;
   }
 
   @override
@@ -86,6 +89,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (oldWidget.snapshot.settings.manualDocumentSync != settings.manualDocumentSync) {
       _manualDocumentSync = settings.manualDocumentSync;
+    }
+    if (oldWidget.snapshot.settings.joinRequestNotifications !=
+        settings.joinRequestNotifications) {
+      _joinRequestNotifications = settings.joinRequestNotifications;
     }
     final apiKeyStateSettled =
         !_apiKeySavePending || settings.hasAiKey == _pendingApiKeyState;
@@ -129,6 +136,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         _buildAboutCard(context),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(
+                  title: 'Notifications',
+                  subtitle: 'Stay informed while viewing another tab',
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('System notifications for join requests'),
+                  subtitle: const Text(
+                    'Show a system notification when someone requests to join your room.',
+                  ),
+                  value: _joinRequestNotifications,
+                  onChanged: (value) {
+                    setState(() => _joinRequestNotifications = value);
+                    if (value) {
+                      unawaited(
+                          JoinRequestNotificationService.requestPermission());
+                    }
+                    widget.bridge.dispatch(action('settings.save', {
+                      'joinRequestNotifications': value,
+                    }));
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -315,6 +355,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'turnUsername': _turnUsernameController.text.trim(),
       'turnCredential': _turnCredentialController.text.trim(),
       'manualDocumentSync': _manualDocumentSync && _turnConfigured,
+      'joinRequestNotifications': _joinRequestNotifications,
     };
     final apiKey = _aiKeyController.text.trim();
     final maskIsUntouched = _apiKeyPlaceholderActive ||

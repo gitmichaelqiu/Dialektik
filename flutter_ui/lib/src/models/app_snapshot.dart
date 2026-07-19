@@ -484,6 +484,7 @@ class SettingsState {
     required this.turnUsername,
     required this.turnCredential,
     required this.manualDocumentSync,
+    required this.joinRequestNotifications,
     this.userId,
   });
 
@@ -499,6 +500,7 @@ class SettingsState {
         turnUsername = '',
         turnCredential = '',
         manualDocumentSync = false,
+        joinRequestNotifications = false,
         userId = null;
 
   factory SettingsState.fromJson(Map<String, Object?>? json) {
@@ -516,6 +518,7 @@ class SettingsState {
       turnUsername: _string(json['turnUsername']),
       turnCredential: _string(json['turnCredential']),
       manualDocumentSync: json['manualDocumentSync'] == true,
+      joinRequestNotifications: json['joinRequestNotifications'] == true,
     );
   }
 
@@ -531,6 +534,7 @@ class SettingsState {
   final String turnUsername;
   final String turnCredential;
   final bool manualDocumentSync;
+  final bool joinRequestNotifications;
 }
 
 String _string(Object? value, {String fallback = ''}) {

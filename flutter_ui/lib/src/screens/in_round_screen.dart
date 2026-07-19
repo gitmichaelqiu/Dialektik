@@ -62,7 +62,6 @@ class _InRoundScreenState extends State<InRoundScreen>
         false;
   }
 
-  final Set<String> _shownRequestIds = {};
   final Set<String> _shownDisconnectedIds = {};
   bool _wasPending = false;
   bool _isJoining = false;
@@ -111,7 +110,6 @@ class _InRoundScreenState extends State<InRoundScreen>
       _isJoining = false;
       _userInitiatedExit = false;
       _speakerInitialized = false;
-      _shownRequestIds.clear();
       _copiedRoomCode = null;
       return;
     }
@@ -171,60 +169,6 @@ class _InRoundScreenState extends State<InRoundScreen>
         speakerId == null ? '' : session.speakerNotes[speakerId] ?? '';
     if (_notesController.text != notes && !isEditing) {
       _notesController.text = notes;
-    }
-
-    if (session.isHost && session.pendingRequests.isNotEmpty) {
-      for (final req in session.pendingRequests) {
-        if (!_shownRequestIds.contains(req.id)) {
-          _shownRequestIds.add(req.id);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.fixed,
-                backgroundColor: Colors.black87,
-                content: Row(
-                  children: [
-                    const Icon(Icons.person_add,
-                        color: Colors.white70, size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Join request from ${req.name}',
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        widget.bridge.dispatch(
-                            action('session.rejectJoin', {'id': req.id}));
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      },
-                      child: const Text('Reject',
-                          style: TextStyle(color: Colors.redAccent)),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () {
-                        widget.bridge.dispatch(
-                            action('session.approveJoin', {'id': req.id}));
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.teal.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      child: const Text('Approve'),
-                    ),
-                  ],
-                ),
-                duration: const Duration(days: 1),
-              ),
-            );
-          });
-        }
-      }
     }
 
     // Notify host when a debater disconnects.

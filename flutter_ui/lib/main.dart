@@ -9,6 +9,7 @@ import 'dialektik_flutter_ui.dart';
 import 'src/bridge/js_engine_bridge_io.dart'
     if (dart.library.html) 'src/bridge/js_engine_bridge_web.dart';
 import 'src/services/auto_update_service.dart';
+import 'src/services/join_request_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ void main() async {
   // setup. This is especially important on iOS, where the updater is a no-op
   // and the app should render immediately.
   unawaited(AutoUpdateService.initialize());
+  unawaited(JoinRequestNotificationService.initialize());
 }
 
 class PreviewEngineBridge implements EngineBridge {
@@ -805,6 +807,9 @@ class PreviewEngineBridge implements EngineBridge {
           'manualDocumentSync': payload['manualDocumentSync'] ??
               current['manualDocumentSync'] ??
               false,
+          'joinRequestNotifications': payload['joinRequestNotifications'] ??
+              current['joinRequestNotifications'] ??
+              false,
           'hasAiKey': payload['aiApiKey'] is String &&
                   (payload['aiApiKey']! as String).isNotEmpty ||
               current['hasAiKey'] == true,
@@ -1046,5 +1051,6 @@ final Map<String, Object?> _initialPreviewState = {
     'aiModel': '',
     'hasAiKey': false,
     'manualDocumentSync': false,
+    'joinRequestNotifications': false,
   },
 };

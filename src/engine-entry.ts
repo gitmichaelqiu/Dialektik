@@ -114,6 +114,7 @@ let turnServerUrl = "";
 let turnUsername = "";
 let turnCredential = "";
 let manualDocumentSync = false;
+let joinRequestNotifications = false;
 const handledManualSyncIds = new Set<string>();
 const documentEditors = new Map<string, DocumentEditor>();
 let aiChats: AiChat[] = [];
@@ -186,6 +187,7 @@ async function buildSnapshot() {
     if (s.key === "turn_username") turnUsername = s.value;
     if (s.key === "turn_credential") turnCredential = s.value;
     if (s.key === "manual_document_sync") manualDocumentSync = s.value === "true";
+    if (s.key === "join_request_notifications") joinRequestNotifications = s.value === "true";
   }
 
   return {
@@ -227,6 +229,7 @@ async function buildSnapshot() {
       turnUsername,
       turnCredential,
       manualDocumentSync,
+      joinRequestNotifications,
       githubOwner,
       githubRepo,
       hasGithubToken: false,
@@ -396,6 +399,7 @@ async function loadConfig() {
     if (s.key === "turn_username") turnUsername = s.value;
     if (s.key === "turn_credential") turnCredential = s.value;
     if (s.key === "manual_document_sync") manualDocumentSync = s.value === "true";
+    if (s.key === "join_request_notifications") joinRequestNotifications = s.value === "true";
   }
   if (!userId) {
     userId = crypto.randomUUID();
@@ -960,6 +964,13 @@ async function dispatch(actionJson: string) {
       manualDocumentSync = payload.manualDocumentSync === true;
       documentEditors.clear();
       await db.settings.put({ key: "manual_document_sync", value: String(manualDocumentSync) });
+    }
+    if (payload.joinRequestNotifications !== undefined) {
+      joinRequestNotifications = payload.joinRequestNotifications === true;
+      await db.settings.put({
+        key: "join_request_notifications",
+        value: String(joinRequestNotifications),
+      });
     }
     mesh.setTurnServer({
       urls: turnServerUrl.split(/[\n,]+/).map((url) => url.trim()).filter(Boolean),
@@ -1705,6 +1716,7 @@ async function dispatch(actionJson: string) {
       turnServerUrl = "";
       turnUsername = "";
       turnCredential = "";
+      joinRequestNotifications = false;
       mesh.setTurnServer(null);
       await db.settings.put({ key: "user_id", value: userId });
       const initialChat: AiChat = {

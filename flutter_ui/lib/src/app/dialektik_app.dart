@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../bridge/engine_bridge.dart';
@@ -7,6 +9,7 @@ import '../screens/documents_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
+import '../services/join_request_notification_service.dart';
 
 const Color _seedColor = Color(0xff0f766e);
 
@@ -119,7 +122,7 @@ class _AppRoot extends StatelessWidget {
         final theme = _appTheme(snap.systemBrightness);
         return Theme(
           data: theme,
-          child: _AppShell(bridge: bridge, snapshot: snap),
+          child: _JoinRequestAwareShell(bridge: bridge, snapshot: snap),
         );
       },
     );
@@ -136,6 +139,100 @@ class _AppRoot extends StatelessWidget {
         Positioned.fill(child: shell),
       ],
     );
+  }
+}
+
+class _JoinRequestAwareShell extends StatefulWidget {
+  const _JoinRequestAwareShell({required this.bridge, required this.snapshot});
+
+  final EngineBridge bridge;
+  final AppSnapshot snapshot;
+
+  @override
+  State<_JoinRequestAwareShell> createState() => _JoinRequestAwareShellState();
+}
+
+class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
+  final Set<String> _shownRequestIds = <String>{};
+
+  @override
+  void didUpdateWidget(covariant _JoinRequestAwareShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _notifyForNewRequests();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _notifyForNewRequests());
+  }
+
+  void _notifyForNewRequests() {
+    final session = widget.snapshot.session;
+    if (!mounted || session == null || !session.isHost) return;
+    final activeRequestIds = session.pendingRequests.map((request) => request.id).toSet();
+    _shownRequestIds.removeWhere((id) => !activeRequestIds.contains(id));
+    for (final request in session.pendingRequests) {
+      if (!_shownRequestIds.add(request.id)) continue;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            backgroundColor: Colors.black87,
+            content: Row(
+              children: [
+                const Icon(Icons.person_add, color: Colors.white70, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Join request from ${request.name}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    widget.bridge.dispatch(
+                        action('session.rejectJoin', {'id': request.id}));
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                  child: const Text('Reject',
+                      style: TextStyle(color: Colors.redAccent)),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    widget.bridge.dispatch(
+                        action('session.approveJoin', {'id': request.id}));
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  child: const Text('Approve'),
+                ),
+              ],
+            ),
+            duration: const Duration(days: 1),
+          ),
+        );
+      });
+      if (widget.snapshot.settings.joinRequestNotifications) {
+        unawaited(JoinRequestNotificationService.show(
+          requestId: request.id,
+          name: request.name,
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppShell(bridge: widget.bridge, snapshot: widget.snapshot);
   }
 }
 
