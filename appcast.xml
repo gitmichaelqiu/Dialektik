@@ -22,10 +22,10 @@
       <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>https://github.com/gitmichaelqiu/Dialektik/releases/tag/v0.2.0</sparkle:releaseNotesLink>
       <enclosure
-        url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/Dialektik_macOS_v0.2.0.zip"
-        sparkle:edSignature="apKnmbBWv643cz9EeGoJWRRVpJ9KZkMim1JQCYlH5RUYffRyhp0lYBmFZFeuTIlokzwNOg5HbOeHEFNvtJNhAQ=="
+        url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/Dialektik_macOS_v0.2.0.dmg"
+        sparkle:edSignature="ix3rLESaDnpHnoDH1RyloHMS4J2oma21g76uUgMpbo+l0G0f2Uo49dJ67GcJQ+FgqmXs9eJjg34rY/wHTvpLDw=="
         sparkle:os="macos"
-        length="22734364"
+        length="22931192"
         type="application/octet-stream" />
     </item>
 
