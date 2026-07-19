@@ -144,6 +144,8 @@ try {
 // polling reads via evaluateJavascript. The FlutterChannel.postMessage
 // push path (callHandler) is unreliable for event-driven state changes.
 let __latestSnapshot: string | null = null;
+let snapshotQueue = Promise.resolve();
+let snapshotRequested = false;
 
 function setSnapshot(json: string) {
   __latestSnapshot = json;
@@ -326,13 +328,19 @@ function applyHandoutSplice(field: string, edit: TextSplice) {
 }
 
 async function emitSnapshot() {
-  try {
-    const snapshot = await buildSnapshot();
-    const json = JSON.stringify(snapshot);
-    setSnapshot(json);
-  } catch (e) {
-    console.error("[engine] emitSnapshot error:", e);
-  }
+  snapshotRequested = true;
+  const nextSnapshot = snapshotQueue.then(async () => {
+    if (!snapshotRequested) return;
+    snapshotRequested = false;
+    try {
+      const snapshot = await buildSnapshot();
+      setSnapshot(JSON.stringify(snapshot));
+    } catch (e) {
+      console.error("[engine] emitSnapshot error:", e);
+    }
+  });
+  snapshotQueue = nextSnapshot.catch(() => undefined);
+  await nextSnapshot;
 }
 
 // ─────────────────────────────────────────────
@@ -449,6 +457,7 @@ function setupMeshHandlers() {
       // Also clean up any pending request from this peer.
       session.pendingRequests = session.pendingRequests.filter(r => r.id !== uid);
     }
+    peerUserId.delete(peerId);
     emitSnapshot();
   });
 
@@ -520,6 +529,8 @@ async function handlePeerMessage(msg: PeerMessage) {
     case "join-rejected": {
       if (!mesh.isHost && session) {
         // Host rejected our join request — exit the pending state.
+        mesh.terminateSession();
+        relay.disconnect();
         session = null;
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         await emitSnapshot();
@@ -1425,6 +1436,16 @@ async function dispatch(actionJson: string) {
     session.pendingRequests = session.pendingRequests.filter(r => r.id !== payload.id);
     const rejectedId = payload.id as string;
     if (rejectedId) rejectedPeers.add(rejectedId);
+    const peerEntry = Array.from(peerUserId.entries()).find(([peerId, user]) =>
+      peerId === rejectedId || user === rejectedId
+    );
+    if (peerEntry) {
+      mesh.sendToPeer(peerEntry[0], {
+        type: "join-rejected",
+        senderId: mesh.peerId,
+        payload: { id: rejectedId },
+      });
+    }
     relay.send({ type: "join-rejected", senderId: mesh.peerId }, rejectedId);
     await emitSnapshot();
     return;
