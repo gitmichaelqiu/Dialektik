@@ -1178,7 +1178,6 @@ class _CollaborativeTextField extends StatefulWidget {
     required this.editorName,
     required this.readOnly,
     required this.onChanged,
-    required this.onSelectionChanged,
   });
 
   final TextEditingController controller;
@@ -1187,7 +1186,6 @@ class _CollaborativeTextField extends StatefulWidget {
   final String? editorName;
   final bool readOnly;
   final ValueChanged<String> onChanged;
-  final ValueChanged<TextSelection> onSelectionChanged;
 
   @override
   State<_CollaborativeTextField> createState() =>
