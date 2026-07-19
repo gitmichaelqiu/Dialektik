@@ -8,6 +8,28 @@
     <language>en</language>
 
     <item>
+      <title>Dialektik 0.2.0</title>
+      <description><![CDATA[
+        <h2>Dialektik 0.2.0</h2>
+        <ul>
+          <li>Improved cross-network room connectivity and join request handling.</li>
+          <li>Added reliable in-app rejection notifications and native join request notifications.</li>
+          <li>Improved collaborative document synchronization and session stability.</li>
+        </ul>
+      ]]></description>
+      <pubDate>Sun, 19 Jul 2026 15:00:00 GMT</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>https://github.com/gitmichaelqiu/Dialektik/releases/tag/v0.2.0</sparkle:releaseNotesLink>
+      <enclosure
+        url="https://github.com/gitmichaelqiu/Dialektik/releases/download/v0.2.0/Dialektik_macOS_v0.2.0.zip"
+        sparkle:edSignature="apKnmbBWv643cz9EeGoJWRRVpJ9KZkMim1JQCYlH5RUYffRyhp0lYBmFZFeuTIlokzwNOg5HbOeHEFNvtJNhAQ=="
+        sparkle:os="macos"
+        length="22734364"
+        type="application/octet-stream" />
+    </item>
+
+    <item>
       <title>Dialektik 0.1.1</title>
       <description><![CDATA[
         <h2>Dialektik 0.1.1</h2>

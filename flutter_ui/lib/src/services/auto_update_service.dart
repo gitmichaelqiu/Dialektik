@@ -7,7 +7,7 @@ class AutoUpdateService {
 
   static const feedUrl =
       'https://raw.githubusercontent.com/gitmichaelqiu/Dialektik/main/appcast.xml';
-  static const currentVersion = '0.1.1';
+  static const currentVersion = '0.2.0';
 
   static bool get isSupportedDesktop =>
       !kIsWeb &&
