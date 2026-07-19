@@ -628,8 +628,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       if (saved.isValid && saved.baseOffset <= doc.content.length) {
         _contentController.selection = saved;
       }
-      _lastSyncedContent = doc.content;
-      _lastLocalContent = doc.content;
+      if (_contentController.text == doc.content || !documentHasFocus) {
+        _lastSyncedContent = doc.content;
+        _lastLocalContent = doc.content;
+      }
     } else if (_contentController.text == doc.content) {
       // Content already matches (idle state). Mark synced so future
       // timer-only ticks early-return instead of running these checks.
@@ -675,11 +677,21 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       // Cached selection is still valid — ensure controllers are in sync.
       final doc = _filteredDocs.firstWhere((d) => d.id == _selectedId);
       if (_nameController.text != doc.title) _nameController.text = doc.title;
-      if (_contentController.text != doc.content) {
-        _contentController.text = doc.content;
+      if (_contentController.text != doc.content && !documentHasFocus) {
+        final selection = _contentController.selection;
+        _contentController.value = TextEditingValue(
+          text: doc.content,
+          selection: selection.isValid
+              ? TextSelection.collapsed(
+                  offset: selection.baseOffset.clamp(0, doc.content.length),
+                )
+              : TextSelection.collapsed(offset: doc.content.length),
+        );
       }
-      _lastSyncedContent = doc.content;
-      _lastLocalContent = doc.content;
+      if (_contentController.text == doc.content || !documentHasFocus) {
+        _lastSyncedContent = doc.content;
+        _lastLocalContent = doc.content;
+      }
       return;
     }
     // Cached doc lost access — fall back to first available doc.
