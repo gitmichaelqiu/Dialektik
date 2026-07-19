@@ -110,6 +110,8 @@ export class RelayClient {
     const configured = (globalThis as typeof globalThis & {
       __DIALEKTIK_RELAY_URL?: string;
     }).__DIALEKTIK_RELAY_URL;
-    return configured || __DIALEKTIK_RELAY_URL__ || "ws://localhost:8787";
+    // Relay is optional. A native client must not try to connect to its own
+    // localhost unless a relay URL was explicitly configured at build time.
+    return configured || __DIALEKTIK_RELAY_URL__ || null;
   }
 }

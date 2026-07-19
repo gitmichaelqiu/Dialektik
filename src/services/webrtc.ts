@@ -110,11 +110,17 @@ export class PeerMeshManager {
   /**
    * Initializes a PeerJS instance connected to the signaling server.
    */
-  private initPeer(customId?: string): Promise<string> {
+  private async initPeer(customId?: string): Promise<string> {
+    if (this.peer) {
+      this.peer.destroy();
+      this.peer = null;
+      // PeerJS releases an ID asynchronously. Waiting here prevents a quick
+      // exit/re-host cycle from racing the PeerServer and reporting the old
+      // host ID as already taken.
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+
     return new Promise((resolve, reject) => {
-      if (this.peer) {
-        this.peer.destroy();
-      }
 
       // PeerJS keeps a recently closed ID reserved for a short period. A
       // client that retries a failed join must therefore get a new ID; room
