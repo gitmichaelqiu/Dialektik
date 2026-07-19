@@ -301,6 +301,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           'insertText': edit.insertText,
         }));
       },
+      onCursorActivity: _broadcastCursor,
       manualDocumentSync: widget.snapshot.settings.manualDocumentSync,
       onSync: () {
         if (selected == null) return;
@@ -980,6 +981,7 @@ class _EditorPane extends StatelessWidget {
     required this.onToggleReadMode,
     required this.onRename,
     required this.onChanged,
+    required this.onCursorActivity,
     required this.onMove,
     required this.onModeChanged,
     required this.onInsertCitation,
@@ -1000,6 +1002,7 @@ class _EditorPane extends StatelessWidget {
   final ValueChanged<bool> onToggleReadMode;
   final VoidCallback onRename;
   final ValueChanged<String> onChanged;
+  final VoidCallback onCursorActivity;
   final ValueChanged<String> onMove;
   final ValueChanged<String> onModeChanged;
   final ValueChanged<String> onInsertCitation;
@@ -1143,6 +1146,18 @@ class _EditorPane extends StatelessWidget {
                           child: Focus(
                             onKeyEvent: (node, event) {
                               if (event is KeyDownEvent &&
+                                  (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                                      event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                                      event.logicalKey == LogicalKeyboardKey.home ||
+                                      event.logicalKey == LogicalKeyboardKey.end ||
+                                      event.logicalKey == LogicalKeyboardKey.pageUp ||
+                                      event.logicalKey == LogicalKeyboardKey.pageDown)) {
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) => onCursorActivity());
+                              }
+                              if (event is KeyDownEvent &&
                                   event.logicalKey == LogicalKeyboardKey.tab &&
                                   !HardwareKeyboard.instance.isShiftPressed) {
                                 final sel = contentController.selection;
@@ -1168,6 +1183,11 @@ class _EditorPane extends StatelessWidget {
                               editorName: collaborationEditor,
                               readOnly: !doc.isWritable && !isOwner,
                               onChanged: onChanged,
+                              onCursorActivity: onCursorActivity,
+                              onTap: () {
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) => onCursorActivity());
+                              },
                             ),
                           ),
                         ),
@@ -1190,6 +1210,8 @@ class _CollaborativeTextField extends StatefulWidget {
     required this.editorName,
     required this.readOnly,
     required this.onChanged,
+    required this.onCursorActivity,
+    required this.onTap,
   });
 
   final TextEditingController controller;
@@ -1198,6 +1220,8 @@ class _CollaborativeTextField extends StatefulWidget {
   final String? editorName;
   final bool readOnly;
   final ValueChanged<String> onChanged;
+  final VoidCallback onCursorActivity;
+  final VoidCallback onTap;
 
   @override
   State<_CollaborativeTextField> createState() =>
@@ -1219,6 +1243,7 @@ class _CollaborativeTextFieldState extends State<_CollaborativeTextField> {
     if (hovering != _hoveringLockedLine) {
       setState(() => _hoveringLockedLine = hovering);
     }
+    widget.onCursorActivity();
   }
 
   @override
@@ -1244,6 +1269,7 @@ class _CollaborativeTextFieldState extends State<_CollaborativeTextField> {
               alignLabelWithHint: true,
             ),
             onChanged: widget.onChanged,
+            onTap: widget.onTap,
           ),
           if (_hoveringLockedLine && editorName != null)
             Positioned(
