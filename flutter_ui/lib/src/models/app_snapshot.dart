@@ -106,6 +106,7 @@ class DebateDocument {
     this.ownerName,
     this.lastModified,
     this.partnerCaret,
+    this.partnerLine,
     this.partnerName,
   });
 
@@ -122,6 +123,7 @@ class DebateDocument {
           ? (json['lastModified']! as num).toInt()
           : null,
       partnerCaret: json['partnerCaret'] as int?,
+      partnerLine: json['partnerLine'] as int?,
       partnerName: json['partnerName'] as String?,
     );
   }
@@ -135,6 +137,7 @@ class DebateDocument {
   final String? ownerName;
   final int? lastModified;
   final int? partnerCaret;
+  final int? partnerLine;
   final String? partnerName;
 
   String get title =>

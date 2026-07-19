@@ -237,7 +237,7 @@ async function buildSnapshot() {
 function documentEditorSnapshot(id: string) {
   const editor = documentEditors.get(id);
   if (!editor || editor.userId === userId || editor.line < 0) return {};
-  return { partnerCaret: editor.line, partnerName: editor.name };
+  return { partnerLine: editor.line, partnerName: editor.name };
 }
 
 function serializeSession(s: SessionState) {

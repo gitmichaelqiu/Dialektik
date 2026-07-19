@@ -280,7 +280,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         if (!widget.snapshot.settings.manualDocumentSync &&
             selected.isShared &&
             selected.isWritable &&
-            _editTouchesLine(previous, content, selected.partnerCaret)) {
+            _editTouchesLine(previous, content, selected.partnerLine)) {
           final offset = _contentController.selection.baseOffset;
           _contentController.value = TextEditingValue(
             text: previous,
@@ -336,7 +336,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             !widget.snapshot.settings.manualDocumentSync &&
             selected.isShared &&
             selected.isWritable &&
-            _editTouchesLine(previous, nextText, selected.partnerCaret)) {
+            _editTouchesLine(previous, nextText, selected.partnerLine)) {
           return;
         }
         _contentController.text = nextText;
@@ -710,7 +710,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     final newLine = !widget.snapshot.settings.manualDocumentSync &&
             doc.isShared &&
             doc.isWritable
-        ? _getLineFromCaret(doc.content, doc.partnerCaret)
+        ? doc.partnerLine
         : null;
     if (newLine != _contentController.highlightedLine) {
       _contentController.highlightColor =
@@ -1029,7 +1029,7 @@ class _EditorPane extends StatelessWidget {
     final collaborationLockedLine = !manualDocumentSync &&
             doc.isShared &&
             doc.isWritable
-        ? doc.partnerCaret
+        ? doc.partnerLine
         : null;
     final collaborationEditor = doc.partnerName;
     return Card(
