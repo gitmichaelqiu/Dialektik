@@ -154,6 +154,7 @@ class _JoinRequestAwareShell extends StatefulWidget {
 
 class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
   final Set<String> _shownRequestIds = <String>{};
+  bool _rejectionShown = false;
 
   @override
   void didUpdateWidget(covariant _JoinRequestAwareShell oldWidget) {
@@ -169,7 +170,43 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
 
   void _notifyForNewRequests() {
     final session = widget.snapshot.session;
-    if (!mounted || session == null || !session.isHost) return;
+    if (!mounted) return;
+    if (session != null && !session.isHost && session.status == 'rejected') {
+      if (_rejectionShown) return;
+      _rejectionShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.fixed,
+            backgroundColor: Theme.of(context).colorScheme.error,
+            content: Row(
+              children: [
+                Icon(Icons.cancel, color: Theme.of(context).colorScheme.onError),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Your request was rejected by the host.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onError,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        // The rejected state is only a notification carrier. Clean it up
+        // immediately so the client is ready to join another room.
+        widget.bridge.dispatch(action('session.exit', {}));
+      });
+      return;
+    }
+    if (session == null || session.isHost) {
+      _rejectionShown = false;
+    }
+    if (session == null || !session.isHost) return;
     final activeRequestIds = session.pendingRequests.map((request) => request.id).toSet();
     _shownRequestIds.removeWhere((id) => !activeRequestIds.contains(id));
     for (final request in session.pendingRequests) {

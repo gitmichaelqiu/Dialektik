@@ -528,10 +528,11 @@ async function handlePeerMessage(msg: PeerMessage) {
 
     case "join-rejected": {
       if (!mesh.isHost && session) {
-        // Host rejected our join request — exit the pending state.
+        // Keep an explicit rejected state long enough for Flutter to show an
+        // in-app notification, even when the user is on another tab.
         mesh.terminateSession();
         relay.disconnect();
-        session = null;
+        session.status = "rejected";
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         await emitSnapshot();
       }
