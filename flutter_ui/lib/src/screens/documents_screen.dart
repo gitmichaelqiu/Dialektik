@@ -155,7 +155,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }
     final selection = _contentController.selection;
     if (!selection.isValid || selection.baseOffset < 0) return;
-    final line = _getLineFromCaret(_contentController.text, selection.baseOffset);
+    final line =
+        _getLineFromCaret(_contentController.text, selection.baseOffset);
     if (line == null) return;
     final key = '${doc.id}:$line';
     if (_lastSentCursor == key) return;
@@ -652,6 +653,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     String? myUserId,
   ) {
     _filteredDocs = widget.snapshot.documents.where((doc) {
+      if (doc.isGoogleDoc) return false;
       if (doc.folder != 'team') return true;
       if (myTeam == null) return true;
       // Find the owner's team in the session
@@ -1026,11 +1028,10 @@ class _EditorPane extends StatelessWidget {
     // Third parties with read-only documents are forced into Read mode.
     final forceRead = !isOwner && !doc.isWritable;
     final effectiveReadMode = readMode || forceRead;
-    final collaborationLockedLine = !manualDocumentSync &&
-            doc.isShared &&
-            doc.isWritable
-        ? doc.partnerLine
-        : null;
+    final collaborationLockedLine =
+        !manualDocumentSync && doc.isShared && doc.isWritable
+            ? doc.partnerLine
+            : null;
     final collaborationEditor = doc.partnerName;
     return Card(
       child: Padding(
@@ -1146,14 +1147,22 @@ class _EditorPane extends StatelessWidget {
                           child: Focus(
                             onKeyEvent: (node, event) {
                               if (event is KeyDownEvent &&
-                                  (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowDown ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-                                      event.logicalKey == LogicalKeyboardKey.arrowRight ||
-                                      event.logicalKey == LogicalKeyboardKey.home ||
-                                      event.logicalKey == LogicalKeyboardKey.end ||
-                                      event.logicalKey == LogicalKeyboardKey.pageUp ||
-                                      event.logicalKey == LogicalKeyboardKey.pageDown)) {
+                                  (event.logicalKey ==
+                                          LogicalKeyboardKey.arrowUp ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.arrowDown ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.arrowLeft ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.arrowRight ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.home ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.end ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.pageUp ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.pageDown)) {
                                 WidgetsBinding.instance.addPostFrameCallback(
                                     (_) => onCursorActivity());
                               }
@@ -2151,8 +2160,7 @@ class HighlightingTextController extends TextEditingController {
         children.add(TextSpan(
           text: lineText,
           style: (style ?? const TextStyle()).copyWith(
-            backgroundColor:
-            highlightColor ??
+            backgroundColor: highlightColor ??
                 Theme.of(context).colorScheme.primaryContainer.withAlpha(76),
           ),
         ));

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../screens/ai_screen.dart';
-import '../screens/documents_screen.dart';
+import '../screens/google_docs_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
@@ -522,7 +522,7 @@ class _PageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (snapshot.activePage) {
-      AppPage.documents => DocumentsScreen(bridge: bridge, snapshot: snapshot),
+      AppPage.documents => GoogleDocsScreen(bridge: bridge, snapshot: snapshot),
       AppPage.inRound => InRoundScreen(bridge: bridge, snapshot: snapshot),
       AppPage.ai => AiScreen(bridge: bridge, snapshot: snapshot),
       AppPage.history => HistoryScreen(bridge: bridge, snapshot: snapshot),

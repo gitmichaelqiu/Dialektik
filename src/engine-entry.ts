@@ -32,6 +32,7 @@ interface DebateDocument {
   partnerAccess?: string; ownerId?: string; ownerName?: string;
   contentRevision?: number;
   syncBaseContent?: string;
+  externalUrl?: string;
 }
 interface DocumentEditor {
   userId: string;
@@ -199,6 +200,8 @@ async function buildSnapshot() {
     lastRoomIsHost: session ? false : lastRoomIsHost,
     documents: docs.map(d => ({
       id: d.id, name: d.name, content: d.content,
+      sourceType: d.type === "google_docs" ? "google_docs" : "local",
+      externalUrl: d.externalUrl ?? "",
       partnerAccess: d.partnerAccess ?? "private",
       encryptedHash: d.encryptedHash ?? "write",
       ownerId: d.ownerId, ownerName: d.ownerName,
@@ -1008,6 +1011,28 @@ async function dispatch(actionJson: string) {
   }
 
   // ── Documents ─────────────────────────────
+  if (type === "document.linkGoogle") {
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const externalUrl = normalizeGoogleDocUrl(payload.url);
+    if (!name || !externalUrl) return;
+    const doc: DebateDocument = {
+      id: `gdoc-${Date.now()}`,
+      name,
+      type: "google_docs",
+      content: typeof payload.aiContext === "string" ? payload.aiContext.trim() : "",
+      externalUrl,
+      lastModified: Date.now(),
+      partnerAccess: "private",
+      encryptedHash: "read",
+      ownerId: userId,
+      ownerName: userName,
+      contentRevision: 0,
+    };
+    await db.documents.put(doc);
+    await emitSnapshot();
+    return;
+  }
+
   if (type === "document.create") {
     const name = (payload.name || "Untitled").trim();
     const safeName = name.endsWith(".md") ? name : `${name}.md`;
@@ -1107,8 +1132,12 @@ async function dispatch(actionJson: string) {
   if (type === "document.rename") {
     const { id, name } = payload;
     if (!id || !name) return;
-    const safeName = name.endsWith(".md") ? name : `${name}.md`;
-    const finalName = await uniqueDocName(safeName, id);
+    const existing = await db.documents.get(id);
+    if (!existing) return;
+    const finalName = existing.type === "google_docs"
+      ? name.trim()
+      : await uniqueDocName(name.endsWith(".md") ? name : `${name}.md`, id);
+    if (!finalName) return;
     await db.documents.update(id, { name: finalName, lastModified: Date.now() });
     const updated = await db.documents.get(id);
     if (updated && updated.partnerAccess !== "private") {
@@ -1612,6 +1641,8 @@ async function dispatch(actionJson: string) {
     const { id, selected } = payload;
     if (!id) return;
     if (selected) {
+      const document = await db.documents.get(id);
+      if (!document?.content.trim()) return;
       if (!citedDocIds.includes(id)) citedDocIds.push(id);
     } else {
       citedDocIds = citedDocIds.filter(cid => cid !== id);
@@ -1681,9 +1712,13 @@ async function dispatch(actionJson: string) {
       const history = chat.messages.map(m => ({ role: m.role, text: m.text }));
 
       // Include cited document content as context
-      const citedDocs = (await Promise.all(citedDocIds.map(id => db.documents.get(id)))).filter(Boolean) as DebateDocument[];
+      const citedDocs = (await Promise.all(citedDocIds.map(id => db.documents.get(id))))
+        .filter((doc): doc is DebateDocument => Boolean(doc?.content.trim()));
       if (citedDocs.length > 0) {
-        const contextBlock = "--- Cited Documents ---\n" + citedDocs.map(d => `${d.name}:\n${d.content}`).join("\n\n") + "\n\n--- End Cited Documents ---";
+        const contextBlock = "--- User-selected document context ---\n" + citedDocs.map(d => {
+          const contextLabel = d.type === "google_docs" ? "User-provided AI context" : "Document";
+          return `${d.name} (${contextLabel}):\n${d.content}`;
+        }).join("\n\n") + "\n\n--- End document context ---";
         history.unshift({ role: "system", text: contextBlock });
       }
 
@@ -1790,6 +1825,14 @@ async function uniqueDocName(name: string, currentId?: string): Promise<string> 
     i++;
   }
   return candidate;
+}
+
+function normalizeGoogleDocUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const input = value.trim();
+  const match = /^https:\/\/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i.exec(input);
+  if (!match) return null;
+  return `https://docs.google.com/document/d/${match[1]}/edit`;
 }
 
 // ─────────────────────────────────────────────

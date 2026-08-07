@@ -507,26 +507,35 @@ class _CitedFilesPane extends StatelessWidget {
           children: [
             const SectionHeader(
               title: 'Cited files',
-              subtitle: 'Select local documents for AI context',
+              subtitle: 'Select saved document context for AI Coach',
             ),
             const SizedBox(height: 12),
             Expanded(
               child: documents.isEmpty
                   ? const EmptyState(
                       icon: Icons.folder_open_outlined,
-                      message: 'Create documents before citing files.',
+                      message: 'Link a Google Doc or create an offline note first.',
                     )
                   : ListView.builder(
                       itemCount: documents.length,
                       itemBuilder: (context, index) {
                         final doc = documents[index];
                         final isCited = citedDocIds.contains(doc.id);
+                        final hasContext = doc.content.trim().isNotEmpty;
                         return CheckboxListTile(
                           value: isCited,
-                          onChanged: (value) => onToggle(doc, value ?? false),
+                          onChanged: hasContext
+                              ? (value) => onToggle(doc, value ?? false)
+                              : null,
                           title: Text(doc.title),
-                          subtitle: Text(
-                              '${doc.folder} • ${doc.isWritable ? 'writable' : 'read-only'}'),
+                          subtitle: Text(doc.isGoogleDoc
+                              ? hasContext
+                                  ? 'Google Doc • AI context ready'
+                                  : 'Google Doc • Add AI context in Documents'
+                              : '${doc.folder} • ${doc.isWritable ? 'writable' : 'read-only'}'),
+                          secondary: Icon(doc.isGoogleDoc
+                              ? Icons.description_outlined
+                              : Icons.notes_outlined),
                           controlAffinity: ListTileControlAffinity.leading,
                         );
                       },

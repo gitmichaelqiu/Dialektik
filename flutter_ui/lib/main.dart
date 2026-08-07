@@ -9,6 +9,7 @@ import 'dialektik_flutter_ui.dart';
 import 'src/bridge/js_engine_bridge_io.dart'
     if (dart.library.html) 'src/bridge/js_engine_bridge_web.dart';
 import 'src/services/auto_update_service.dart';
+import 'src/services/google_doc_link.dart';
 import 'src/services/join_request_notification_service.dart';
 
 void main() async {
@@ -193,12 +194,54 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'document.linkGoogle') {
+      final requestedName = payload['name'];
+      final url = payload['url'];
+      if (requestedName is! String ||
+          requestedName.trim().isEmpty ||
+          url is! String ||
+          url.trim().isEmpty) {
+        return;
+      }
+      GoogleDocLink link;
+      try {
+        link = GoogleDocLink.parse(url);
+      } on FormatException {
+        return;
+      }
+      final settings =
+          (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
+      _patch({
+        'documents': [
+          ..._documentsJson,
+          {
+            'id': 'gdoc-${DateTime.now().microsecondsSinceEpoch}',
+            'name': requestedName.trim(),
+            'content': payload['aiContext'] is String
+                ? (payload['aiContext']! as String).trim()
+                : '',
+            'sourceType': 'google_docs',
+            'externalUrl': link.editUrl.toString(),
+            'partnerAccess': 'private',
+            'encryptedHash': 'read',
+            'ownerId': settings['userId'] as String? ?? 'preview-user',
+            'ownerName': settings['userName'] as String? ?? '',
+            'lastModified': DateTime.now().millisecondsSinceEpoch,
+          },
+        ],
+      });
+      return;
+    }
+
     if (type == 'document.rename') {
       final id = payload['id'];
       final name = payload['name'];
       if (id is! String || name is! String || name.trim().isEmpty) return;
       final docs = _documentsJson.map((doc) {
         if (doc['id'] == id) {
+          if (doc['sourceType'] == 'google_docs') {
+            return {...doc, 'name': name.trim()};
+          }
           final nextName = _availableDocumentName(
             name.endsWith('.md') ? name : '$name.md',
             currentId: id,
@@ -780,6 +823,30 @@ class PreviewEngineBridge implements EngineBridge {
             };
           }).toList(),
         }
+      });
+      return;
+    }
+
+    if (type == 'ai.toggleCitation') {
+      final id = payload['id'];
+      final selected = payload['selected'] == true;
+      if (id is! String) return;
+      final citedIds = (_aiJson['citedDocIds'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          <String>[];
+      final document = _documentsJson.cast<Map<String, Object?>>().where(
+            (doc) => doc['id'] == id,
+          );
+      if (selected &&
+          (document.isEmpty ||
+              (document.first['content'] as String? ?? '').trim().isEmpty)) {
+        return;
+      }
+      if (selected && !citedIds.contains(id)) citedIds.add(id);
+      if (!selected) citedIds.remove(id);
+      _patch({
+        'ai': {..._aiJson, 'citedDocIds': citedIds},
       });
       return;
     }

@@ -102,6 +102,8 @@ class DebateDocument {
     required this.content,
     required this.folder,
     required this.mode,
+    this.sourceType = 'local',
+    this.externalUrl = '',
     this.ownerId,
     this.ownerName,
     this.lastModified,
@@ -117,6 +119,8 @@ class DebateDocument {
       content: _string(json['content']),
       folder: _string(json['partnerAccess'], fallback: 'private'),
       mode: _string(json['encryptedHash'], fallback: 'write'),
+      sourceType: _string(json['sourceType'], fallback: 'local'),
+      externalUrl: _string(json['externalUrl']),
       ownerId: json['ownerId'] as String?,
       ownerName: json['ownerName'] as String?,
       lastModified: json['lastModified'] is num
@@ -133,6 +137,8 @@ class DebateDocument {
   final String content;
   final String folder;
   final String mode;
+  final String sourceType;
+  final String externalUrl;
   final String? ownerId;
   final String? ownerName;
   final int? lastModified;
@@ -142,6 +148,7 @@ class DebateDocument {
 
   String get title =>
       name.replaceFirst(RegExp(r'\.md$', caseSensitive: false), '');
+  bool get isGoogleDoc => sourceType == 'google_docs';
   bool get isShared => folder != 'private';
   bool get isWritable => mode != 'read';
   bool isOwnedBy({String? userId, required String userName}) {
