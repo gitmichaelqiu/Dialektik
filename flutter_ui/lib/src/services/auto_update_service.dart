@@ -2,13 +2,13 @@ import 'package:auto_updater/auto_updater.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'app_version_service.dart';
+
 class AutoUpdateService {
   const AutoUpdateService._();
 
   static const feedUrl =
       'https://raw.githubusercontent.com/gitmichaelqiu/Dialektik/main/appcast.xml';
-  static const currentVersion = '0.2.0';
-
   static bool get isSupportedDesktop =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.macOS ||
@@ -44,6 +44,9 @@ class AutoUpdateService {
   }
 
   static Future<String?> _checkAppcast() async {
+    final appVersion = await AppVersionService.load();
+    if (appVersion == null) return null;
+
     final response = await http.get(Uri.parse(feedUrl));
     if (response.statusCode != 200) {
       throw Exception('GitHub release metadata returned HTTP ${response.statusCode}');
@@ -52,7 +55,7 @@ class AutoUpdateService {
       r'<sparkle:shortVersionString>\s*([^<]+?)\s*</sparkle:shortVersionString>',
     ).firstMatch(response.body);
     final version = match?.group(1)?.trim();
-    if (version == null || !_isNewer(version, currentVersion)) return null;
+    if (version == null || !_isNewer(version, appVersion.version)) return null;
     return version;
   }
 

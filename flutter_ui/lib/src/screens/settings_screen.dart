@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../services/auto_update_service.dart';
+import '../services/app_version_service.dart';
 import '../services/join_request_notification_service.dart';
 import '../widgets/adaptive_scaffold.dart';
 
@@ -42,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _pendingApiKeyState;
   bool _manualDocumentSync = false;
   bool _joinRequestNotifications = false;
+  AppVersionInfo? _appVersion;
   Timer? _settingsSaveTimer;
 
   @override
@@ -63,6 +65,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiKeyPlaceholderActive = settings.hasAiKey;
     _manualDocumentSync = settings.manualDocumentSync;
     _joinRequestNotifications = settings.joinRequestNotifications;
+    unawaited(_loadAppVersion());
+  }
+
+  Future<void> _loadAppVersion() async {
+    final version = await AppVersionService.load();
+    if (!mounted) return;
+    setState(() => _appVersion = version);
   }
 
   @override
@@ -457,7 +466,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Version 0.1.1',
+              _appVersion == null
+                  ? 'Version unavailable'
+                  : 'Version ${_appVersion!.displayVersion}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
