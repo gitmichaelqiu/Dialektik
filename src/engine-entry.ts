@@ -1945,6 +1945,159 @@ async function dispatch(actionJson: string) {
     return;
   }
 
+  if (type === "workspace.import") {
+    const data = payload.data;
+    if (!data || !Array.isArray(data.documents) ||
+        !Array.isArray(data.cards) || !Array.isArray(data.history)) return;
+    const strategy = ["keepNewest", "keepBoth", "overwrite"].includes(payload.strategy)
+      ? payload.strategy as "keepNewest" | "keepBoth" | "overwrite"
+      : "keepNewest";
+    const now = Date.now();
+    const existingDocs = new Map((await db.documents.toArray()).map(doc => [doc.id, doc]));
+    const existingCards = new Map((await db.cards.toArray()).map(card => [card.id, card]));
+    const existingHistory = new Map((await db.history.toArray()).map(record => [record.id, record]));
+    const docIdMap = new Map<string, string>();
+    const cardIdMap = new Map<string, string>();
+
+    for (const raw of data.documents) {
+      if (!raw || typeof raw.id !== "string") continue;
+      docIdMap.set(raw.id, strategy === "keepBoth" && existingDocs.has(raw.id)
+        ? `${raw.id}-import-${crypto.randomUUID()}`
+        : raw.id);
+    }
+    for (const raw of data.cards) {
+      if (!raw || typeof raw.id !== "string") continue;
+      cardIdMap.set(raw.id, strategy === "keepBoth" && existingCards.has(raw.id)
+        ? `${raw.id}-import-${crypto.randomUUID()}`
+        : raw.id);
+    }
+
+    for (const raw of data.documents) {
+      if (!raw || typeof raw.id !== "string") continue;
+      const id = docIdMap.get(raw.id)!;
+      const existing = existingDocs.get(id);
+      const lastModified = typeof raw.lastModified === "number" ? raw.lastModified : now;
+      if (strategy === "keepNewest" && existing &&
+          (existing.lastModified || 0) >= lastModified) continue;
+      let content = typeof raw.content === "string" ? raw.content : "";
+      for (const [oldCardId, newCardId] of cardIdMap) {
+        if (oldCardId !== newCardId) {
+          content = content.split(`[[${oldCardId}]]`).join(`[[${newCardId}]]`);
+        }
+      }
+      const isGoogleDoc = raw.sourceType === "google_docs";
+      const externalUrl = isGoogleDoc ? normalizeGoogleDocUrl(raw.externalUrl) : null;
+      if (isGoogleDoc && !externalUrl) continue;
+      await db.documents.put({
+        id,
+        name: typeof raw.name === "string" && raw.name.trim()
+          ? raw.name.trim()
+          : isGoogleDoc ? "Linked Google Doc" : "Imported.md",
+        type: isGoogleDoc ? "google_docs" : "markdown",
+        content,
+        externalUrl: externalUrl ?? undefined,
+        lastModified,
+        partnerAccess: "private",
+        encryptedHash: isGoogleDoc ? "read" : "write",
+        ownerId: userId,
+        ownerName: userName,
+        contentRevision: 0,
+      });
+    }
+
+    for (const raw of data.cards) {
+      if (!raw || typeof raw.id !== "string") continue;
+      const id = cardIdMap.get(raw.id)!;
+      if (strategy === "keepNewest" && existingCards.has(id)) continue;
+      await db.cards.put({
+        id,
+        hash: id,
+        timestamp: now,
+        title: typeof raw.title === "string" ? raw.title : "Imported evidence",
+        text: typeof raw.text === "string" ? raw.text : "",
+        sourceUrl: typeof raw.sourceUrl === "string" ? raw.sourceUrl : "",
+        docId: typeof raw.docId === "string" ? docIdMap.get(raw.docId) : undefined,
+        author: typeof raw.author === "string" ? raw.author : userName,
+        folder: "private",
+      });
+    }
+
+    for (const raw of data.history) {
+      if (!raw || typeof raw.id !== "string") continue;
+      const id = strategy === "keepBoth" && existingHistory.has(raw.id)
+        ? `${raw.id}-import-${crypto.randomUUID()}`
+        : raw.id;
+      const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : now;
+      const existing = existingHistory.get(id);
+      if (strategy === "keepNewest" && existing && existing.timestamp >= timestamp) continue;
+      await db.history.put({
+        id,
+        matchName: typeof raw.matchName === "string" ? raw.matchName : "Imported round",
+        opponentName: typeof raw.opponentName === "string" ? raw.opponentName : "",
+        sides: typeof raw.sides === "string" ? raw.sides : "affirmative",
+        winLoss: raw.winLoss === "win" ? "win" : "loss",
+        timestamp,
+        speechOrder: Array.isArray(raw.speechOrder)
+          ? raw.speechOrder.filter((item: unknown): item is string => typeof item === "string")
+          : [],
+        flows: Array.isArray(raw.flows)
+          ? raw.flows.filter((flow: unknown) => Boolean(flow && typeof flow === "object"))
+              .map((flow: any) => ({
+                speechId: typeof flow.speechId === "string" ? flow.speechId : "Speech",
+                notes: typeof flow.notes === "string" ? flow.notes : "",
+              }))
+          : [],
+        tag: "",
+      });
+    }
+
+    if (Array.isArray(data.aiChats)) {
+      for (const raw of data.aiChats) {
+        if (!raw || typeof raw.id !== "string") continue;
+        const existing = await db.aiChats.get(raw.id);
+        const id = strategy === "keepBoth" && existing
+          ? `${raw.id}-import-${crypto.randomUUID()}`
+          : raw.id;
+        if (strategy === "keepNewest" && existing) continue;
+        const chat: AiChat = {
+          id,
+          title: typeof raw.title === "string" ? raw.title : "Imported chat",
+          messages: Array.isArray(raw.messages)
+            ? raw.messages.filter((message: unknown) => Boolean(message && typeof message === "object"))
+                .map((message: any) => ({
+                  role: message.role === "user" ? "user" : "assistant",
+                  text: typeof message.text === "string" ? message.text : "",
+                  thinking: typeof message.thinking === "string" ? message.thinking : undefined,
+                  timestamp: typeof message.timestamp === "number" ? message.timestamp : now,
+                }))
+            : [],
+        };
+        await db.aiChats.put(chat);
+      }
+      aiChats = await db.aiChats.toArray();
+      activeAiChatId ??= aiChats[0]?.id ?? null;
+    }
+
+    const importedSettings = data.settings;
+    if (importedSettings && typeof importedSettings === "object") {
+      if (typeof importedSettings.userName === "string") {
+        userName = importedSettings.userName.trim();
+        await db.settings.put({ key: "user_name", value: userName });
+      }
+      if (typeof importedSettings.aiEndpoint === "string") {
+        aiEndpoint = importedSettings.aiEndpoint.trim();
+        await db.settings.put({ key: "ai_endpoint", value: aiEndpoint });
+      }
+      if (typeof importedSettings.aiModel === "string") {
+        aiModel = importedSettings.aiModel.trim();
+        await db.settings.put({ key: "ai_model", value: aiModel });
+      }
+    }
+    citedDocIds = citedDocIds.filter(id => Boolean(docIdMap.get(id) || existingDocs.has(id)));
+    await emitSnapshot();
+    return;
+  }
+
   // ── Workspace reset ───────────────────────
   if (type === "workspace.reset") {
     const preserveSettings = payload.preserveSettings === true;

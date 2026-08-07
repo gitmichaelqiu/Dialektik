@@ -2,8 +2,8 @@
 
 import 'dart:async';
 import 'dart:convert';
-// ignore: deprecated_member_use
-import 'dart:js_util' as js_util;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -17,7 +17,7 @@ import 'engine_bridge.dart';
 ///
 /// Architecture:
 ///   Flutter dispatch(action) → window.dialektikEngine.dispatch() → JS engine
-///   JS engine state change → window.FlutterChannel.postMessage → Dart stream
+///   JS engine snapshot cache → 500 ms polling → Dart stream
 class JsEngineBridge implements EngineBridge {
   JsEngineBridge() {
     _init();
@@ -48,20 +48,20 @@ class JsEngineBridge implements EngineBridge {
   Widget? buildWebView() => null;
 
   void _callDispatch(String jsonStr) {
-    final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
-    if (engine != null) {
-      js_util.callMethod(engine, 'dispatch', [jsonStr]);
-    }
+    _engine?.callMethod<JSAny?>('dispatch'.toJS, jsonStr.toJS);
   }
 
   Future<void> _pullSnapshot() async {
     if (!_ready) return;
     try {
-      final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
+      final engine = _engine;
       if (engine == null) return;
-      final result = js_util.callMethod(engine, 'getLatestSnapshot', []);
-      if (result is String && result.isNotEmpty) {
-        _pushSnapshot(result);
+      final result = engine.callMethod<JSString?>(
+        'getLatestSnapshot'.toJS,
+      );
+      final json = result?.toDart;
+      if (json != null && json.isNotEmpty) {
+        _pushSnapshot(json);
       }
     } catch (_) {}
   }
@@ -80,10 +80,6 @@ class JsEngineBridge implements EngineBridge {
     }
   }
 
-  void _onMessage(String json) {
-    _pushSnapshot(json);
-  }
-
   void _onReady() {
     _ready = true;
     for (final pending in _pendingActions) {
@@ -98,11 +94,14 @@ class JsEngineBridge implements EngineBridge {
     _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       if (!_ready) return;
       try {
-        final engine = js_util.getProperty(js_util.globalThis, 'dialektikEngine');
+        final engine = _engine;
         if (engine == null) return;
-        final result = js_util.callMethod(engine, 'getLatestSnapshot', []);
-        if (result is String && result.isNotEmpty) {
-          _pushSnapshot(result);
+        final result = engine.callMethod<JSString?>(
+          'getLatestSnapshot'.toJS,
+        );
+        final json = result?.toDart;
+        if (json != null && json.isNotEmpty) {
+          _pushSnapshot(json);
         }
       } catch (_) {}
     });
@@ -113,23 +112,9 @@ class JsEngineBridge implements EngineBridge {
     _initStarted = true;
 
     try {
-      // Set up FlutterChannel.postMessage as a global JS function
-      // that the engine calls to push snapshots back to Dart.
-      final channel = js_util.newObject();
-      js_util.setProperty(
-        channel,
-        'postMessage',
-        js_util.allowInterop((String? msg) {
-          if (msg != null && msg.isNotEmpty) {
-            _onMessage(msg);
-          }
-        }),
-      );
-      js_util.setProperty(js_util.globalThis, 'FlutterChannel', channel);
-
       // Load engine.js from assets and evaluate it in the global scope.
       final engineJs = await rootBundle.loadString('assets/engine.js');
-      js_util.callMethod(js_util.globalThis, 'eval', [engineJs]);
+      globalContext.callMethod<JSAny?>('eval'.toJS, engineJs.toJS);
 
       // Give the engine a tick to bootstrap (loadConfig, DB init, etc.)
       await Future.delayed(const Duration(milliseconds: 800));
@@ -138,6 +123,11 @@ class JsEngineBridge implements EngineBridge {
     } catch (e) {
       // If engine loading fails, the app will just show the initial state
     }
+  }
+
+  JSObject? get _engine {
+    if (!globalContext.has('dialektikEngine')) return null;
+    return globalContext.getProperty<JSObject?>('dialektikEngine'.toJS);
   }
 
   void dispose() {

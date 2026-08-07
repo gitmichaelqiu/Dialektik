@@ -994,6 +994,70 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'workspace.import') {
+      final data = (payload['data'] as Map?)?.cast<String, Object?>();
+      if (data == null) return;
+      final strategy = payload['strategy'] as String? ?? 'keepNewest';
+      List<Map<String, Object?>> merge(
+        List<Map<String, Object?>> current,
+        Object? incoming,
+      ) {
+        final result = [...current];
+        for (final item in _list(incoming)) {
+          final id = item['id'];
+          if (id is! String) continue;
+          final index = result.indexWhere((existing) => existing['id'] == id);
+          if (index < 0) {
+            result.add(item);
+          } else if (strategy == 'overwrite') {
+            result[index] = item;
+          } else if (strategy == 'keepBoth') {
+            result.add({
+              ...item,
+              'id': '$id-import-${DateTime.now().microsecondsSinceEpoch}',
+            });
+          } else {
+            final importedTime = item['lastModified'] is num
+                ? (item['lastModified']! as num).toInt()
+                : item['timestamp'] is num
+                    ? (item['timestamp']! as num).toInt()
+                    : 0;
+            final currentTime = result[index]['lastModified'] is num
+                ? (result[index]['lastModified']! as num).toInt()
+                : result[index]['timestamp'] is num
+                    ? (result[index]['timestamp']! as num).toInt()
+                    : 0;
+            if (importedTime > currentTime) result[index] = item;
+          }
+        }
+        return result;
+      }
+
+      final currentSettings =
+          (_rawState['settings'] as Map?)?.cast<String, Object?>() ?? {};
+      final importedSettings =
+          (data['settings'] as Map?)?.cast<String, Object?>() ?? {};
+      _patch({
+        'documents': merge(_documentsJson, data['documents']),
+        'cards': merge(_cardsJson, data['cards']),
+        'history': merge(_historyJson, data['history']),
+        'ai': {
+          ..._aiJson,
+          'chats': merge(_chatsJson, data['aiChats']),
+        },
+        'settings': {
+          ...currentSettings,
+          if (importedSettings['userName'] is String)
+            'userName': importedSettings['userName'],
+          if (importedSettings['aiEndpoint'] is String)
+            'aiEndpoint': importedSettings['aiEndpoint'],
+          if (importedSettings['aiModel'] is String)
+            'aiModel': importedSettings['aiModel'],
+        },
+      });
+      return;
+    }
+
     if (type == 'workspace.reset') {
       final preserveSettings = payload['preserveSettings'] == true;
       final preservedSettings = preserveSettings

@@ -8,6 +8,7 @@ import '../models/app_snapshot.dart';
 import '../services/auto_update_service.dart';
 import '../services/app_version_service.dart';
 import '../services/join_request_notification_service.dart';
+import '../services/workspace_bundle_service.dart';
 import '../widgets/adaptive_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -36,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _turnCredentialController;
   late final FocusNode _aiKeyFocusNode;
   bool _checkingForUpdates = false;
+  bool _transferringWorkspace = false;
   bool _hasSavedApiKey = false;
   bool _apiKeyPlaceholderActive = false;
   bool _updatingApiKeyField = false;
@@ -54,7 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _aiEndpointController = TextEditingController(text: settings.aiEndpoint);
     _aiModelController = TextEditingController(text: settings.aiModel);
     _turnServerController = TextEditingController(text: settings.turnServerUrl);
-    _turnUsernameController = TextEditingController(text: settings.turnUsername);
+    _turnUsernameController =
+        TextEditingController(text: settings.turnUsername);
     _turnCredentialController =
         TextEditingController(text: settings.turnCredential);
     _aiKeyController = TextEditingController(
@@ -96,7 +99,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (oldWidget.snapshot.settings.turnCredential != settings.turnCredential) {
       _turnCredentialController.text = settings.turnCredential;
     }
-    if (oldWidget.snapshot.settings.manualDocumentSync != settings.manualDocumentSync) {
+    if (oldWidget.snapshot.settings.manualDocumentSync !=
+        settings.manualDocumentSync) {
       _manualDocumentSync = settings.manualDocumentSync;
     }
     if (oldWidget.snapshot.settings.joinRequestNotifications !=
@@ -242,7 +246,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextField(
                   controller: _turnCredentialController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'TURN credential'),
+                  decoration:
+                      const InputDecoration(labelText: 'TURN credential'),
                   onChanged: (_) {
                     setState(() {});
                     _scheduleSettingsSave();
@@ -262,7 +267,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           widget.bridge.dispatch(action('settings.save', {
                             'turnServerUrl': _turnServerController.text.trim(),
                             'turnUsername': _turnUsernameController.text.trim(),
-                            'turnCredential': _turnCredentialController.text.trim(),
+                            'turnCredential':
+                                _turnCredentialController.text.trim(),
                             'manualDocumentSync': value,
                           }));
                         }
@@ -312,6 +318,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(
+                  title: 'Backup and restore',
+                  subtitle: 'Keep your local debate workspace portable',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${widget.snapshot.documents.length} documents • '
+                  '${widget.snapshot.cards.length} evidence cards • '
+                  '${widget.snapshot.history.length} rounds',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Backups include documents, linked Google Doc metadata and '
+                  'AI context, evidence, round history, AI chats, and safe '
+                  'settings. API keys and network credentials are excluded.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed:
+                          _transferringWorkspace ? null : _exportWorkspace,
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Export workspace'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed:
+                          _transferringWorkspace ? null : _importWorkspace,
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('Restore backup'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -323,7 +377,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   builder: (context) => AlertDialog(
                     title: const Text('Reset Workspace'),
                     content: const Text(
-                        'Choose whether to keep your profile, AI, and network settings while clearing local workspace data.'),
+                      'This clears local workspace data. Export a backup first '
+                      'if you may need these documents, evidence cards, or '
+                      'rounds later.',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
@@ -353,6 +410,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _exportWorkspace() async {
+    setState(() => _transferringWorkspace = true);
+    try {
+      final bundle = WorkspaceBundleService.encode(
+        widget.snapshot,
+        appVersion: _appVersion?.version ?? 'unknown',
+      );
+      await WorkspaceBundleService.save(bundle);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Workspace backup exported.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export backup: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _transferringWorkspace = false);
+    }
+  }
+
+  Future<void> _importWorkspace() async {
+    setState(() => _transferringWorkspace = true);
+    try {
+      final bundle = await WorkspaceBundleService.pickAndDecode();
+      if (bundle == null || !mounted) return;
+      final strategy = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Restore workspace backup'),
+          content: SizedBox(
+            width: 480,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${bundle.documentCount} documents • ${bundle.cardCount} '
+                  'evidence cards • ${bundle.historyCount} rounds',
+                ),
+                if (bundle.warnings.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  for (final warning in bundle.warnings)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '• $warning',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Choose how records with the same ID should be handled.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'keepBoth'),
+              child: const Text('Keep both'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context, 'overwrite'),
+              child: const Text('Overwrite'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'keepNewest'),
+              child: const Text('Keep newest'),
+            ),
+          ],
+        ),
+      );
+      if (strategy == null || !mounted) return;
+      await widget.bridge.dispatch(action('workspace.import', {
+        'data': bundle.data,
+        'strategy': strategy,
+      }));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Workspace backup restored.')),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message.toString())),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not restore backup: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _transferringWorkspace = false);
+    }
   }
 
   void _save() {
