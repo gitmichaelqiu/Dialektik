@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.0.1
+
+### Added
+
+- Navigable Markdown heading outline for long offline case files
+- One-click evidence-card drafts from selected document text
+- Direct Evidence Library access from the Google Docs workspace
+- Formatted evidence-card previews with bold and highlight guidance
+
+### Changed
+
+- Refocused the offline editor around a collapsible file list and full-width editor
+- Moved evidence tools into an on-demand drawer instead of a permanent third pane
+- Clarified evidence fields as card title, citation/source, and evidence text
+- Tightened round setup and first-run profile layouts across desktop and mobile
+
+### Fixed
+
+- Preserved card authorship in the preview engine so owners retain edit controls
+- Removed duplicate TURN configuration notices from round setup
+
 ## v1.0.0
 
 ### Added
