@@ -89,6 +89,7 @@ Map<String, Object?> _activeRoundState() {
         'problem': 'Resolved: The test suite should pass.',
         'details': '',
       },
+      'documentIds': <String>[],
       'debaters': <Map<String, Object?>>[
         {
           'id': 'student-1',

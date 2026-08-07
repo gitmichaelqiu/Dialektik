@@ -24,6 +24,7 @@ void main() {
     expect(session.speechOrder[2].durationMs, 3 * 60000);
     expect(session.speechOrder.last.label, 'Final Focus — Team B');
     expect(session.prepDurationMs, 3 * 60000);
+    expect(session.documentIds, isEmpty);
   });
 
   test('Lincoln-Douglas preset and speech advance reset the timer', () async {

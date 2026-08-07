@@ -389,6 +389,7 @@ class PreviewEngineBridge implements EngineBridge {
               : 'Dialektik Team',
           'status': 'lobby',
           'handout': {'title': '', 'problem': '', 'details': ''},
+          'documentIds': <String>[],
           'speechRemainingMs':
               speeches.isEmpty ? 240000 : speeches.first['durationMs'],
           'speechRunning': false,
@@ -461,6 +462,7 @@ class PreviewEngineBridge implements EngineBridge {
             'groupName': 'Joined Group',
             'status': 'pending_approval',
             'handout': {'title': '', 'problem': '', 'details': ''},
+            'documentIds': <String>[],
             'speechRemainingMs': 240000,
             'speechRunning': false,
             'prepRemainingMs': 180000,
@@ -554,6 +556,28 @@ class PreviewEngineBridge implements EngineBridge {
         'status': 'active',
         if (speeches.isNotEmpty)
           'speechRemainingMs': speeches.first['durationMs'],
+      });
+      final selectedIds = (session['documentIds'] as List?)
+              ?.whereType<String>()
+              .where((id) => _documentsJson.any(
+                    (doc) =>
+                        doc['id'] == id &&
+                        (doc['content'] as String? ?? '').trim().isNotEmpty,
+                  ))
+              .toList() ??
+          <String>[];
+      _patch({
+        'ai': {..._aiJson, 'citedDocIds': selectedIds},
+      });
+      return;
+    }
+
+    if (type == 'session.setDocuments') {
+      final ids = (payload['ids'] as List?)?.whereType<String>().toList();
+      if (ids == null) return;
+      final available = _documentsJson.map((doc) => doc['id']).toSet();
+      _patchSession({
+        'documentIds': ids.where(available.contains).toList(),
       });
       return;
     }

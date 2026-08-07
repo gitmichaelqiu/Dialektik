@@ -270,6 +270,7 @@ class SessionState {
     required this.groupName,
     required this.status,
     required this.handout,
+    required this.documentIds,
     required this.debaters,
     this.currentSpeakerId,
     required this.speakerNotes,
@@ -296,6 +297,9 @@ class SessionState {
       status: _string(json['status'], fallback: 'lobby'),
       handout: HandoutState.fromJson(
           (json['handout'] as Map?)?.cast<String, Object?>()),
+      documentIds:
+          (json['documentIds'] as List?)?.whereType<String>().toList() ??
+              const [],
       debaters:
           AppSnapshot._list(json['debaters']).map(Debater.fromJson).toList(),
       currentSpeakerId: json['currentSpeakerId'] as String?,
@@ -330,6 +334,7 @@ class SessionState {
   final String groupName;
   final String status;
   final HandoutState handout;
+  final List<String> documentIds;
   final List<Debater> debaters;
   final String? currentSpeakerId;
   final Map<String, String> speakerNotes;

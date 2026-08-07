@@ -92,6 +92,7 @@ interface SpeechSlot {
 interface SessionState {
   roomCode: string; matchName: string; groupName: string; status: string;
   handout: { title: string; problem: string; details: string };
+  documentIds: string[];
   debaters: Debater[]; currentSpeakerId?: string;
   speakerNotes: Record<string, string>;
   speechRemainingMs: number; speechRunning: boolean;
@@ -1461,6 +1462,7 @@ async function dispatch(actionJson: string) {
       groupName: payload.groupName?.trim() || "Dialektik Team",
       status: "lobby",
       handout: { title: "", problem: "", details: "" },
+      documentIds: [],
       debaters: participate
         ? [{ id: userId, name: userName || "Host", status: "approved", team: "affirmative", position: 1 }]
         : [],
@@ -1502,6 +1504,7 @@ async function dispatch(actionJson: string) {
       roomCode: code, matchName: "", groupName: "",
       status: "pending_approval",
       handout: { title: "", problem: "", details: "" },
+      documentIds: [],
       debaters: [], speakerNotes: {},
       speechRemainingMs: 240000, speechRunning: false,
       prepRemainingMs: 180000, prepDurationMs: 180000, prepRunning: false,
@@ -1626,6 +1629,12 @@ async function dispatch(actionJson: string) {
     if (!session) return;
     session.status = "active";
     selectSpeech(session.currentSpeechIndex);
+    const selectedDocuments = await Promise.all(
+      session.documentIds.map(id => db.documents.get(id)),
+    );
+    citedDocIds = selectedDocuments
+      .filter((doc): doc is DebateDocument => Boolean(doc?.content.trim()))
+      .map(doc => doc.id);
     broadcastSessionState();
     await emitSnapshot();
     return;
@@ -1638,6 +1647,16 @@ async function dispatch(actionJson: string) {
       title: payload.title || "", problem: payload.problem || "", details: payload.details || "",
     };
     if (session.status === "active") broadcastSessionState();
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "session.setDocuments") {
+    if (!session || !session.isHost || !Array.isArray(payload.ids)) return;
+    const availableIds = new Set((await db.documents.toArray()).map(doc => doc.id));
+    session.documentIds = payload.ids
+      .filter((id: unknown): id is string => typeof id === "string" && availableIds.has(id));
+    broadcastSessionState();
     await emitSnapshot();
     return;
   }

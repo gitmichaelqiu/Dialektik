@@ -447,11 +447,16 @@ class _InRoundScreenState extends State<InRoundScreen>
     final handoutPane = active
         ? _HandoutReadPane(
             session: session,
+            documents: widget.snapshot.documents,
             onEdit: session.isHost ? () => _editHandout(session) : null,
+            onOpenDocuments: () => widget.bridge.dispatch(
+              action('app.setActivePage', {'page': 'documents'}),
+            ),
           )
         : _LobbyHandoutPane(
             bridge: widget.bridge,
             session: session,
+            documents: widget.snapshot.documents,
             titleController: _handoutTitleController,
             problemController: _handoutProblemController,
             detailsController: _handoutDetailsController,
@@ -1033,6 +1038,7 @@ class _LobbyHandoutPane extends StatelessWidget {
   const _LobbyHandoutPane({
     required this.bridge,
     required this.session,
+    required this.documents,
     required this.titleController,
     required this.problemController,
     required this.detailsController,
@@ -1046,6 +1052,7 @@ class _LobbyHandoutPane extends StatelessWidget {
 
   final EngineBridge bridge;
   final SessionState session;
+  final List<DebateDocument> documents;
   final TextEditingController titleController;
   final TextEditingController problemController;
   final TextEditingController detailsController;
@@ -1148,6 +1155,49 @@ class _LobbyHandoutPane extends StatelessWidget {
             : null,
       ),
       const SizedBox(height: 16),
+      Text(
+        'Round workspace',
+        style: Theme.of(context)
+            .textTheme
+            .titleSmall
+            ?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Select the prep files for this round. Saved context is also queued '
+        'for AI Coach when the debate starts.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      const SizedBox(height: 8),
+      if (documents.isEmpty)
+        const Text('No linked Docs or offline notes are available yet.')
+      else
+        for (final document in documents)
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: session.documentIds.contains(document.id),
+            onChanged: session.isHost
+                ? (selected) {
+                    final ids = [...session.documentIds];
+                    selected == true
+                        ? ids.add(document.id)
+                        : ids.remove(document.id);
+                    bridge
+                        .dispatch(action('session.setDocuments', {'ids': ids}));
+                  }
+                : null,
+            title: Text(document.title),
+            subtitle: Text(document.isGoogleDoc
+                ? document.content.trim().isEmpty
+                    ? 'Google Doc • no AI context'
+                    : 'Google Doc • AI context ready'
+                : 'Offline note'),
+            secondary: Icon(document.isGoogleDoc
+                ? Icons.description_outlined
+                : Icons.notes_outlined),
+          ),
+      const SizedBox(height: 16),
       SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
@@ -1225,9 +1275,16 @@ class _LobbyHandoutPane extends StatelessWidget {
 }
 
 class _HandoutReadPane extends StatelessWidget {
-  const _HandoutReadPane({required this.session, this.onEdit});
+  const _HandoutReadPane({
+    required this.session,
+    required this.documents,
+    required this.onOpenDocuments,
+    this.onEdit,
+  });
 
   final SessionState session;
+  final List<DebateDocument> documents;
+  final VoidCallback onOpenDocuments;
   final VoidCallback? onEdit;
 
   @override
@@ -1297,6 +1354,43 @@ class _HandoutReadPane extends StatelessWidget {
               Text(session.handout.details.isEmpty
                   ? 'No additional context.'
                   : session.handout.details),
+              const Divider(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Round workspace',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: onOpenDocuments,
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Open'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (session.documentIds.isEmpty)
+                const Text('No documents selected for this round.')
+              else
+                for (final id in session.documentIds)
+                  if (documents
+                          .where((document) => document.id == id)
+                          .firstOrNull
+                      case final document?)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(document.isGoogleDoc
+                          ? Icons.description_outlined
+                          : Icons.notes_outlined),
+                      title: Text(document.title),
+                      subtitle: Text(document.isGoogleDoc
+                          ? 'Google Docs workspace'
+                          : 'Offline workspace'),
+                      onTap: onOpenDocuments,
+                    ),
             ],
           ),
         ),
