@@ -11,10 +11,74 @@ import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/join_request_notification_service.dart';
 
-// Dialektik uses a deep indigo-violet accent rather than Flutter's default
-// teal/green look. Material 3 derives light and dark tonal palettes from this
-// seed while keeping the rest of the UI accessible through ColorScheme.
-const Color _seedColor = Color(0xff5b5bd6);
+// Dialektik is intentionally monochrome-first: white and near-black carry the
+// interface, while green is reserved for primary actions and active states.
+const Color _accentGreen = Color(0xff1f7a4d);
+
+ColorScheme _dialektikColorScheme(Brightness brightness) {
+  final seeded = ColorScheme.fromSeed(
+    seedColor: _accentGreen,
+    brightness: brightness,
+  );
+
+  if (brightness == Brightness.dark) {
+    return seeded.copyWith(
+      primary: const Color(0xff9bd5b0),
+      onPrimary: const Color(0xff00391f),
+      primaryContainer: const Color(0xff07532f),
+      onPrimaryContainer: const Color(0xffb8f2c9),
+      secondary: const Color(0xffb8cbbd),
+      onSecondary: const Color(0xff24352a),
+      secondaryContainer: const Color(0xff394b3e),
+      onSecondaryContainer: const Color(0xffd4e8d8),
+      tertiary: const Color(0xffc0cbc4),
+      onTertiary: const Color(0xff29332d),
+      tertiaryContainer: const Color(0xff414c45),
+      onTertiaryContainer: const Color(0xffdce8df),
+      surface: const Color(0xff111311),
+      onSurface: const Color(0xfff1f3ef),
+      surfaceContainerLowest: const Color(0xff0b0d0b),
+      surfaceContainerLow: const Color(0xff181a18),
+      surfaceContainer: const Color(0xff1d1f1d),
+      surfaceContainerHigh: const Color(0xff272a27),
+      surfaceContainerHighest: const Color(0xff323532),
+      onSurfaceVariant: const Color(0xffc5c9c4),
+      outline: const Color(0xff90958f),
+      outlineVariant: const Color(0xff454a45),
+      inverseSurface: const Color(0xffe2e4df),
+      onInverseSurface: const Color(0xff2e312e),
+      inversePrimary: const Color(0xff176b42),
+    );
+  }
+
+  return seeded.copyWith(
+    primary: _accentGreen,
+    onPrimary: Colors.white,
+    primaryContainer: const Color(0xffc8efd4),
+    onPrimaryContainer: const Color(0xff002114),
+    secondary: const Color(0xff4f6356),
+    onSecondary: Colors.white,
+    secondaryContainer: const Color(0xffd2e8d7),
+    onSecondaryContainer: const Color(0xff0c1f13),
+    tertiary: const Color(0xff53615a),
+    onTertiary: Colors.white,
+    tertiaryContainer: const Color(0xffd6e4da),
+    onTertiaryContainer: const Color(0xff101b14),
+    surface: const Color(0xfffefefc),
+    onSurface: const Color(0xff181a18),
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: const Color(0xfff8f9f7),
+    surfaceContainer: const Color(0xfff3f4f1),
+    surfaceContainerHigh: const Color(0xffedefeb),
+    surfaceContainerHighest: const Color(0xffe7e9e5),
+    onSurfaceVariant: const Color(0xff444844),
+    outline: const Color(0xff747974),
+    outlineVariant: const Color(0xffc5c9c4),
+    inverseSurface: const Color(0xff2e312e),
+    onInverseSurface: const Color(0xfff0f2ed),
+    inversePrimary: const Color(0xff9bd5b0),
+  );
+}
 
 final Map<Brightness, ThemeData> _themeCache = {};
 
@@ -22,10 +86,7 @@ ThemeData _appTheme(Brightness brightness) {
   // Cache theme data per brightness — avoids creating a new ThemeData on
   // every snapshot tick, which would rebuild the entire widget tree.
   return _themeCache.putIfAbsent(brightness, () {
-    final colors = ColorScheme.fromSeed(
-      seedColor: _seedColor,
-      brightness: brightness,
-    );
+    final colors = _dialektikColorScheme(brightness);
     final outline = colors.outlineVariant.withAlpha(150);
     final radius = BorderRadius.circular(12);
 
@@ -38,18 +99,18 @@ ThemeData _appTheme(Brightness brightness) {
         foregroundColor: colors.onSurface,
         elevation: 0,
         scrolledUnderElevation: 1,
-        surfaceTintColor: colors.primary.withAlpha(18),
+        surfaceTintColor: Colors.transparent,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colors.surface,
-        indicatorColor: colors.secondaryContainer,
-        surfaceTintColor: colors.primary.withAlpha(12),
+        indicatorColor: colors.primaryContainer,
+        surfaceTintColor: Colors.transparent,
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: colors.surface,
-        indicatorColor: colors.secondaryContainer,
+        indicatorColor: colors.primaryContainer,
         selectedIconTheme: IconThemeData(
-          color: colors.onSecondaryContainer,
+          color: colors.onPrimaryContainer,
         ),
         selectedLabelTextStyle: TextStyle(
           color: colors.onSurface,
@@ -61,7 +122,7 @@ ThemeData _appTheme(Brightness brightness) {
         margin: EdgeInsets.zero,
         elevation: 0,
         color: colors.surfaceContainerLow,
-        surfaceTintColor: colors.primary.withAlpha(12),
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: radius,
           side: BorderSide(color: outline),
