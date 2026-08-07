@@ -819,7 +819,7 @@ class _FilesPane extends StatelessWidget {
                 builder: (context, constraints) {
                   final useRow = constraints.maxWidth >= 320;
                   final folder = DropdownButtonFormField<String>(
-                    value: newFolder,
+                    initialValue: newFolder,
                     decoration: const InputDecoration(labelText: 'Folder'),
                     isExpanded: true,
                     items: const [
@@ -833,7 +833,7 @@ class _FilesPane extends StatelessWidget {
                     },
                   );
                   final mode = DropdownButtonFormField<String>(
-                    value: newFolder == 'private' ? 'write' : newMode,
+                    initialValue: newFolder == 'private' ? 'write' : newMode,
                     decoration: const InputDecoration(labelText: 'Mode'),
                     isExpanded: true,
                     items: const [
@@ -1337,7 +1337,7 @@ class _ReadMode extends StatelessWidget {
             icon: const Icon(Icons.copy_rounded, size: 18),
             tooltip: 'Copy raw text',
             onPressed: () {
-              final prefix = docTitle != null ? '# ${docTitle}\n\n' : '';
+              final prefix = docTitle != null ? '# $docTitle\n\n' : '';
               Clipboard.setData(ClipboardData(text: '$prefix$content'));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -1521,25 +1521,25 @@ class _ReadMode extends StatelessWidget {
       if (code != null) {
         spans.add(TextSpan(
           text: code,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'monospace',
-            backgroundColor: const Color(0x1A000000),
+            backgroundColor: Color(0x1A000000),
           ),
         ));
       } else if (bold1 != null || bold2 != null) {
         spans.add(TextSpan(
           text: bold1 ?? bold2,
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ));
       } else if (italic1 != null || italic2 != null) {
         spans.add(TextSpan(
           text: italic1 ?? italic2,
-          style: TextStyle(fontStyle: FontStyle.italic),
+          style: const TextStyle(fontStyle: FontStyle.italic),
         ));
       } else if (strike != null) {
         spans.add(TextSpan(
           text: strike,
-          style: TextStyle(decoration: TextDecoration.lineThrough),
+          style: const TextStyle(decoration: TextDecoration.lineThrough),
         ));
       } else if (highlight != null) {
         spans.add(TextSpan(
@@ -1564,18 +1564,16 @@ class _InlineMarkdown extends StatelessWidget {
     required this.documents,
     required this.cards,
     required this.onNavigateDoc,
-    this.style,
   });
 
   final String text;
-  final TextStyle? style;
   final List<DebateDocument> documents;
   final List<EvidenceCard> cards;
   final ValueChanged<DebateDocument> onNavigateDoc;
 
   @override
   Widget build(BuildContext context) {
-    final baseStyle = style ?? Theme.of(context).textTheme.bodyMedium;
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
     final citationParts = _splitCitations(text);
     return SelectableText.rich(
       TextSpan(
@@ -1647,12 +1645,12 @@ class _InlineMarkdown extends StatelessWidget {
       } else if (bold1 != null || bold2 != null) {
         spans.add(TextSpan(
           text: bold1 ?? bold2,
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ));
       } else if (italic1 != null || italic2 != null) {
         spans.add(TextSpan(
           text: italic1 ?? italic2,
-          style: TextStyle(fontStyle: FontStyle.italic),
+          style: const TextStyle(fontStyle: FontStyle.italic),
         ));
       } else if (linkText != null && linkUrl != null) {
         spans.add(TextSpan(
@@ -1665,7 +1663,7 @@ class _InlineMarkdown extends StatelessWidget {
       } else if (strike != null) {
         spans.add(TextSpan(
           text: strike,
-          style: TextStyle(decoration: TextDecoration.lineThrough),
+          style: const TextStyle(decoration: TextDecoration.lineThrough),
         ));
       } else if (highlight != null) {
         spans.add(TextSpan(

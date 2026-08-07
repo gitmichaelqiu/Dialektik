@@ -680,7 +680,7 @@ class PreviewEngineBridge implements EngineBridge {
 
     if (type == 'session.saveRound') {
       final winner = payload['winner'] as String? ?? 'affirmative';
-      final mySide = 'affirmative';
+      const mySide = 'affirmative';
       final isWin = winner == mySide;
 
       final session = _sessionJson;
