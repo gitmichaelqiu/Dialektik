@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.0.0
+
+### Added
+
+- Google Docs-first workspace with safe external sign-in, native embedding, and an offline Markdown fallback
+- Explicit local AI context for linked Google Docs, with citation guardrails
+- Official guided round templates for Public Forum, Lincoln-Douglas, Policy, Congress, and World Schools
+- Event speech timelines, phase-aware timers, speaker cues, and optional auto-advance
+- Round-specific document selection that carries into the live handout and AI Coach
+- Compact live-round HUD with persistent room status, 48sp timer, and speech strip
+- Cross-platform full-workspace backup and restore with conflict handling and integrity warnings
+- Dynamic build version display in Settings
+
+### Changed
+
+- Reworked the visual system around white, near-black, and restrained green accents
+- Modernized Flutter web JavaScript interop and restored clean production web builds
+- Required a resolution before starting a hosted debate
+- Reset imported sharing scopes to private and excluded credentials from backups
+
+### Fixed
+
+- Connected the previously inactive reset-all-timers control
+- Removed hard-coded application version text
+- Cleared all Flutter analyzer issues
+
 ## v0.1.0
 
 ### Added

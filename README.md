@@ -14,9 +14,9 @@ Download the latest release for your platform:
 
 | Platform | File |
 |---|---|
-| **macOS** | `Dialektik_macOS_v0.1.1.dmg` — open and drag to Applications |
-| **iOS & iPadOS** | `Dialektik_iOS_iPadOS_v0.1.1.ipa` — install via TestFlight or sideload |
-| **Web** | `Dialektik_web_v0.1.1.zip` — extract and serve the `Dialektik/` folder |
+| **macOS** | `Dialektik_macOS_v1.0.0.dmg` — open and drag to Applications |
+| **iOS & iPadOS** | `Dialektik_iOS_iPadOS_v1.0.0.ipa` — install via TestFlight or sideload |
+| **Web** | `Dialektik_web_v1.0.0.zip` — extract and serve the `Dialektik/` folder |
 
 > [!NOTE]
 > Because I do **NOT** have an Apple developer account for the app releases, you may receive alerts such as "Developer is not verified" on macOS.
@@ -26,7 +26,7 @@ Download the latest release for your platform:
 ### Web quick start
 
 ```bash
-unzip Dialektik_web_v0.1.1.zip
+unzip Dialektik_web_v1.0.0.zip
 cd Dialektik && python3 -m http.server 8080
 # Open http://localhost:8080
 ```
@@ -97,7 +97,7 @@ All builds require `npm run engine:build` first.
 #### macOS
 ```bash
 flutter build macos --release
-npx create-dmg build/macos/Build/Products/Release/Dialektik.app Dialektik_macOS_v0.1.1.dmg
+npx create-dmg build/macos/Build/Products/Release/Dialektik.app Dialektik_macOS_v1.0.0.dmg
 ```
 
 #### iOS & iPadOS
@@ -138,7 +138,7 @@ Flutter UI ──EngineBridge──> Hidden WebView ──> engine.js (TypeScrip
 ### Key patterns
 
 - **Unidirectional data flow**: Flutter sends JSON `{type, payload}` actions via `EngineBridge.dispatch()`. The JS engine processes them, updates IndexedDB, and pushes a full `AppSnapshot` JSON blob back. Flutter rebuilds its widget tree from the snapshot stream.
-- **Platform-dependent bridge**: `EngineBridge` has two implementations — `JsEngineBridge` (native) uses a hidden `HeadlessInAppWebView` with the compiled `engine.js` bundle; `JsEngineBridge` (web) uses `dart:js_util` to call `window.dialektikEngine` directly.
+- **Platform-dependent bridge**: `EngineBridge` has two implementations — `JsEngineBridge` (native) uses a hidden `HeadlessInAppWebView` with the compiled `engine.js` bundle; `JsEngineBridge` (web) uses modern `dart:js_interop` to call `window.dialektikEngine` directly.
 - **Poll-based sync**: The bridge polls `getLatestSnapshot()` every 500ms (synchronous read of a cached `__latestSnapshot` string) to catch dropped messages.
 - **Snapshot model**: Immutable `AppSnapshot` Dart classes parsed from JSON with top-level fields `activePage`, `documents`, `cards`, `history`, `session`, `ai`, and `settings`.
 
