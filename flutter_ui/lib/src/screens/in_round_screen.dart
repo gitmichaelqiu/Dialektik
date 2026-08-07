@@ -66,9 +66,7 @@ class _InRoundScreenState extends State<InRoundScreen>
   }
 
   final Set<String> _shownDisconnectedIds = {};
-  bool _wasPending = false;
   bool _isJoining = false;
-  bool _userInitiatedExit = false;
   bool _showSpeakerPosition = false;
   String? _previousSpeakerId;
   bool _speakerInitialized = false;
@@ -85,15 +83,10 @@ class _InRoundScreenState extends State<InRoundScreen>
       _isJoining = false;
     }
     if (session == null) {
-      _wasPending = false;
       _isJoining = false;
-      _userInitiatedExit = false;
       _speakerInitialized = false;
       _copiedRoomCode = null;
       return;
-    }
-    if (session.status == 'pending_approval') {
-      _wasPending = true;
     }
     final roomWasJustCreated = oldWidget.snapshot.session == null &&
         session.isHost &&
@@ -218,7 +211,7 @@ class _InRoundScreenState extends State<InRoundScreen>
                     color: Theme.of(context).colorScheme.onPrimary,
                     size: 20,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'You are the active speaker!',
@@ -229,7 +222,7 @@ class _InRoundScreenState extends State<InRoundScreen>
                   ),
                 ],
               ),
-              duration: Duration(seconds: 3),
+              duration: const Duration(seconds: 3),
             ),
           );
         });
@@ -422,7 +415,6 @@ class _InRoundScreenState extends State<InRoundScreen>
                   const SizedBox(height: 24),
                   OutlinedButton.icon(
                     onPressed: () {
-                      _userInitiatedExit = true;
                       widget.bridge.dispatch(action('session.exit'));
                     },
                     icon: const Icon(Icons.close),
@@ -476,7 +468,6 @@ class _InRoundScreenState extends State<InRoundScreen>
                 content: 'Are you sure you want to cancel and exit this lobby?',
               );
               if (confirm) {
-                _userInitiatedExit = true;
                 widget.bridge.dispatch(action('session.exit'));
               }
             },
@@ -535,7 +526,6 @@ class _InRoundScreenState extends State<InRoundScreen>
                     'Are you sure you want to exit? Any unsaved round progress will be lost.',
               );
               if (confirm) {
-                _userInitiatedExit = true;
                 widget.bridge.dispatch(action('session.exit'));
               }
             },
@@ -564,28 +554,46 @@ class _InRoundScreenState extends State<InRoundScreen>
                 ],
               ),
             ),
-            body: TabBarView(
-              controller: _tabController,
+            body: Column(
               children: [
-                FocusTraversalGroup(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: handoutPane,
+                _CompactRoomStatusBar(session: session),
+                if (active)
+                  _CompactTimerRibbon(
+                    bridge: widget.bridge,
+                    session: session,
+                    onExpand: () => _tabController?.animateTo(1),
+                  ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      FocusTraversalGroup(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: handoutPane,
+                        ),
+                      ),
+                      if (active)
+                        FocusTraversalGroup(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: timersPane,
+                          ),
+                        ),
+                      FocusTraversalGroup(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: debatersOrNotesPane,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (active)
-                  FocusTraversalGroup(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: timersPane,
-                    ),
+                  _CompactSpeechStrip(
+                    bridge: widget.bridge,
+                    session: session,
                   ),
-                FocusTraversalGroup(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: debatersOrNotesPane,
-                  ),
-                ),
               ],
             ),
           )
@@ -1051,7 +1059,7 @@ class _LobbyHandoutPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final header = <Widget>[
-      SectionHeader(
+      const SectionHeader(
         title: 'Debate handout',
         subtitle: 'Draft the resolution',
       ),
@@ -1290,6 +1298,193 @@ class _HandoutReadPane extends StatelessWidget {
                   ? 'No additional context.'
                   : session.handout.details),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactRoomStatusBar extends StatelessWidget {
+  const _CompactRoomStatusBar({required this.session});
+
+  final SessionState session;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final connected =
+        session.debaters.where((debater) => !debater.disconnected).length;
+    return Material(
+      color: colors.surfaceContainer,
+      child: SizedBox(
+        height: 36,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Icons.circle, size: 9, color: colors.primary),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  '$connected connected • ${session.eventName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              Text(
+                session.roomCode,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints.tightFor(width: 40, height: 36),
+                tooltip: 'Copy room code',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: session.roomCode));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Room code copied.'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactTimerRibbon extends StatelessWidget {
+  const _CompactTimerRibbon({
+    required this.bridge,
+    required this.session,
+    required this.onExpand,
+  });
+
+  final EngineBridge bridge;
+  final SessionState session;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final slot = session.currentSpeech;
+    return Material(
+      color: colors.inverseSurface,
+      child: InkWell(
+        onTap: onExpand,
+        child: SizedBox(
+          height: 92,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        slot?.label ?? 'Speech timer',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.onInverseSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(session.speechRemainingMs),
+                        style: TextStyle(
+                          color: colors.onInverseSurface,
+                          fontSize: 48,
+                          height: 1.05,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (session.isHost)
+                  IconButton.filled(
+                    tooltip: session.speechRunning ? 'Pause' : 'Start',
+                    iconSize: 30,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 56,
+                      height: 56,
+                    ),
+                    onPressed: () => bridge.dispatch(action('timer.action', {
+                      'timerType': 'speech',
+                      'action': session.speechRunning ? 'pause' : 'start',
+                    })),
+                    icon: Icon(
+                      session.speechRunning ? Icons.pause : Icons.play_arrow,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactSpeechStrip extends StatelessWidget {
+  const _CompactSpeechStrip({required this.bridge, required this.session});
+
+  final EngineBridge bridge;
+  final SessionState session;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 58,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            itemCount: session.speechOrder.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final slot = session.speechOrder[index];
+              final selected = index == session.currentSpeechIndex;
+              return ActionChip(
+                avatar:
+                    selected ? const Icon(Icons.play_arrow, size: 16) : null,
+                backgroundColor:
+                    selected ? colors.primaryContainer : colors.surface,
+                side: BorderSide(
+                  color: selected ? colors.primary : colors.outlineVariant,
+                ),
+                label: Text(
+                  '${index + 1}. ${slot.label}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onPressed: session.isHost
+                    ? () => bridge.dispatch(
+                          action('session.selectSpeech', {'index': index}),
+                        )
+                    : null,
+              );
+            },
           ),
         ),
       ),
