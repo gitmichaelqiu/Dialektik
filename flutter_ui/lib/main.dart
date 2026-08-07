@@ -320,6 +320,8 @@ class PreviewEngineBridge implements EngineBridge {
             'docId': payload['docId'],
             'folder':
                 payload['folder'] is String ? payload['folder'] : 'private',
+            'author':
+                ((_rawState['settings'] as Map?)?['userName'] as String?) ?? '',
           },
         ],
       });

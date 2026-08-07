@@ -14,10 +14,12 @@ class DocumentsScreen extends StatefulWidget {
     super.key,
     required this.bridge,
     required this.snapshot,
+    this.openEvidenceOnStart = false,
   });
 
   final EngineBridge bridge;
   final AppSnapshot snapshot;
+  final bool openEvidenceOnStart;
 
   @override
   State<DocumentsScreen> createState() => _DocumentsScreenState();
@@ -61,6 +63,11 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     _selectedId = _cachedSelectedId;
     _readMode = _cachedReadMode;
     _contentFocusNode.addListener(_handleEditorFocusChanged);
+    if (widget.openEvidenceOnStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scaffoldKey.currentState?.openEndDrawer();
+      });
+    }
   }
 
   final HighlightingTextController _contentController =
@@ -358,6 +365,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         _selectedId = doc.id;
         _cachedSelectedId = doc.id;
       }),
+      onOpenEvidence: () => _scaffoldKey.currentState?.openEndDrawer(),
+      onCreateCardFromSelection: _createCardFromSelection,
+      onShowOutline: () => _showDocumentOutline(selected),
       isMobile: compact,
     );
 
@@ -456,8 +466,22 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         drawer: Drawer(child: SafeArea(child: filesPane)),
         endDrawer: Drawer(child: SafeArea(child: evidencePane)),
         appBar: AppBar(
-          toolbarHeight: 36,
+          toolbarHeight: 44,
+          leading: _filteredDocs.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.folder_open_outlined),
+                  tooltip: 'Documents',
+                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
           actions: [
+            if (selected != null &&
+                _markdownHeadings(selected.content).isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.format_list_bulleted, size: 20),
+                tooltip: 'Document outline',
+                onPressed: () => _showDocumentOutline(selected),
+              ),
             IconButton.outlined(
               icon: const Icon(Icons.style, size: 18),
               tooltip: 'Evidence',
@@ -469,15 +493,130 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       );
     }
 
-    return ResponsivePane(
-      cacheKey: 'documents',
-      mainPaneIndex: 1,
-      children: [
-        FocusTraversalGroup(child: filesPane),
-        FocusTraversalGroup(child: editorPane),
-        FocusTraversalGroup(child: evidencePane),
-      ],
+    return Scaffold(
+      key: _scaffoldKey,
+      endDrawer: Drawer(
+        width: 420,
+        child: SafeArea(child: evidencePane),
+      ),
+      body: ResponsivePane(
+        cacheKey: 'documents_focused',
+        mainPaneIndex: 1,
+        collapsiblePaneIndices: const {0},
+        children: [
+          FocusTraversalGroup(child: filesPane),
+          FocusTraversalGroup(child: editorPane),
+        ],
+      ),
     );
+  }
+
+  void _createCardFromSelection() {
+    final selection = _contentController.selection;
+    if (!selection.isValid || selection.isCollapsed) return;
+    final start =
+        selection.start < selection.end ? selection.start : selection.end;
+    final end =
+        selection.start < selection.end ? selection.end : selection.start;
+    final selectedText = _contentController.text.substring(start, end).trim();
+    if (selectedText.isEmpty) return;
+
+    final firstLine = selectedText
+        .split('\n')
+        .firstWhere((line) => line.trim().isNotEmpty, orElse: () => 'Evidence');
+    var title = firstLine
+        .replaceFirst(RegExp(r'^#{1,6}\s+'), '')
+        .replaceAll(RegExp(r'[*_~=`]'), '')
+        .trim();
+    if (title.length > 72) title = '${title.substring(0, 69)}...';
+
+    _cardTitleController.text = title.isEmpty ? 'Evidence' : title;
+    _cardTextController.text = selectedText;
+    _cardSourceController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scaffoldKey.currentState?.openEndDrawer();
+    });
+  }
+
+  Future<void> _showDocumentOutline(DebateDocument? document) async {
+    if (document == null) return;
+    final headings = _markdownHeadings(_contentController.text);
+    if (headings.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add Markdown headings such as # Case or ## Blocks.'),
+        ),
+      );
+      return;
+    }
+
+    final offset = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 560),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                child: Text(
+                  'Document outline',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: headings.length,
+                  itemBuilder: (context, index) {
+                    final heading = headings[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.only(
+                        left: 20 + (heading.level - 1) * 20,
+                        right: 20,
+                      ),
+                      dense: heading.level > 2,
+                      leading: Icon(
+                        heading.level == 1
+                            ? Icons.article_outlined
+                            : Icons.subdirectory_arrow_right,
+                        size: 20,
+                      ),
+                      title: Text(
+                        heading.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: heading.level <= 2
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                      onTap: () => Navigator.pop(context, heading.offset),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (offset == null || !mounted) return;
+    setState(() {
+      _readMode = false;
+      _cachedReadMode = false;
+      _contentController.selection = TextSelection.collapsed(offset: offset);
+    });
+    _contentFocusNode.requestFocus();
   }
 
   bool _isSelfCitation(DebateDocument document, String citation) {
@@ -988,6 +1127,9 @@ class _EditorPane extends StatelessWidget {
     required this.onModeChanged,
     required this.onInsertCitation,
     required this.onNavigateDoc,
+    required this.onOpenEvidence,
+    required this.onCreateCardFromSelection,
+    required this.onShowOutline,
     required this.manualDocumentSync,
     required this.onSync,
     this.isMobile = false,
@@ -1009,6 +1151,9 @@ class _EditorPane extends StatelessWidget {
   final ValueChanged<String> onModeChanged;
   final ValueChanged<String> onInsertCitation;
   final ValueChanged<DebateDocument> onNavigateDoc;
+  final VoidCallback onOpenEvidence;
+  final VoidCallback onCreateCardFromSelection;
+  final VoidCallback onShowOutline;
   final bool manualDocumentSync;
   final VoidCallback onSync;
   final bool isMobile;
@@ -1109,37 +1254,67 @@ class _EditorPane extends StatelessWidget {
                     )
                   : Column(
                       children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: MenuAnchor(
-                            builder: (context, controller, child) {
-                              return TextButton.icon(
-                                onPressed: () => controller.isOpen
-                                    ? controller.close()
-                                    : controller.open(),
-                                icon: const Icon(Icons.add_link),
-                                label: const Text('Insert citation'),
-                              );
-                            },
-                            menuChildren: [
-                              for (final target in documents)
-                                if (target.id != doc.id)
-                                  MenuItemButton(
-                                    leadingIcon:
-                                        const Icon(Icons.description_outlined),
-                                    child: Text(target.title),
-                                    onPressed: () => onInsertCitation(
-                                        '${target.folder}/${target.title}'),
-                                  ),
-                              for (final card in cards
-                                  .where((card) => card.docId != doc.id))
-                                MenuItemButton(
-                                  leadingIcon:
-                                      const Icon(Icons.fact_check_outlined),
-                                  child: Text(card.title),
-                                  onPressed: () => onInsertCitation(card.id),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: contentController,
+                          builder: (context, value, child) => Align(
+                            alignment: Alignment.centerLeft,
+                            child: Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                MenuAnchor(
+                                  builder: (context, controller, child) {
+                                    return TextButton.icon(
+                                      onPressed: () => controller.isOpen
+                                          ? controller.close()
+                                          : controller.open(),
+                                      icon: const Icon(Icons.add_link),
+                                      label: const Text('Insert citation'),
+                                    );
+                                  },
+                                  menuChildren: [
+                                    for (final target in documents)
+                                      if (target.id != doc.id)
+                                        MenuItemButton(
+                                          leadingIcon: const Icon(
+                                              Icons.description_outlined),
+                                          child: Text(target.title),
+                                          onPressed: () => onInsertCitation(
+                                            '${target.folder}/${target.title}',
+                                          ),
+                                        ),
+                                    for (final card in cards
+                                        .where((card) => card.docId != doc.id))
+                                      MenuItemButton(
+                                        leadingIcon: const Icon(
+                                            Icons.fact_check_outlined),
+                                        child: Text(card.title),
+                                        onPressed: () =>
+                                            onInsertCitation(card.id),
+                                      ),
+                                  ],
                                 ),
-                            ],
+                                TextButton.icon(
+                                  onPressed: value.selection.isValid &&
+                                          !value.selection.isCollapsed
+                                      ? onCreateCardFromSelection
+                                      : null,
+                                  icon: const Icon(Icons.library_add_outlined),
+                                  label: const Text('Make card'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: onShowOutline,
+                                  icon: const Icon(Icons.format_list_bulleted),
+                                  label: const Text('Outline'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: onOpenEvidence,
+                                  icon: const Icon(Icons.style_outlined),
+                                  label: const Text('Evidence'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1912,12 +2087,18 @@ class _EvidencePane extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: titleController,
-              decoration: const InputDecoration(labelText: 'Citation'),
+              decoration: const InputDecoration(
+                labelText: 'Card title',
+                hintText: 'Short claim or takeaway',
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: sourceController,
-              decoration: const InputDecoration(labelText: 'Source URL'),
+              decoration: const InputDecoration(
+                labelText: 'Citation / source',
+                hintText: 'Author, date, publication, and URL',
+              ),
             ),
             const SizedBox(height: 8),
             Row(
@@ -2017,8 +2198,13 @@ class _CardFolderGroup extends StatelessWidget {
             size: 18,
           ),
           title: Text(card.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle:
-              Text(card.text, maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            card.sourceUrl.trim().isEmpty
+                ? card.text
+                : '${card.sourceUrl}\n${card.text}',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
           trailing: Wrap(
             children: [
               IconButton(
@@ -2050,8 +2236,76 @@ class _CardFolderGroup extends StatelessWidget {
                 ),
             ],
           ),
+          onTap: () => _showEvidenceCard(context, card),
         );
       }).toList(),
+    );
+  }
+
+  void _showEvidenceCard(BuildContext context, EvidenceCard card) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640, maxHeight: 680),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        card.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                if (card.sourceUrl.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    card.sourceUrl,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: _InlineMarkdown(
+                      text: card.text,
+                      documents: const <DebateDocument>[],
+                      cards: const <EvidenceCard>[],
+                      onNavigateDoc: (_) {},
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tip: use **bold** for key warrants and ==highlight== for '
+                  'the most important quoted text.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2082,6 +2336,31 @@ List<_TextPart> _splitCitations(String text) {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _MarkdownHeading {
+  const _MarkdownHeading({
+    required this.level,
+    required this.title,
+    required this.offset,
+  });
+
+  final int level;
+  final String title;
+  final int offset;
+}
+
+List<_MarkdownHeading> _markdownHeadings(String content) {
+  final headings = <_MarkdownHeading>[];
+  final expression = RegExp(r'^(#{1,6})\s+(.+?)\s*#*$', multiLine: true);
+  for (final match in expression.allMatches(content)) {
+    headings.add(_MarkdownHeading(
+      level: match.group(1)!.length,
+      title: match.group(2)!.trim(),
+      offset: match.start,
+    ));
+  }
+  return headings;
 }
 
 class _TextEditOp {

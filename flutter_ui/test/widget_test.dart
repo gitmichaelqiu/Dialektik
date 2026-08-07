@@ -23,6 +23,11 @@ void main() {
         findsOneWidget);
     expect(find.text('Link your debate workspace'), findsOneWidget);
     expect(find.text('Offline workspace'), findsOneWidget);
+    expect(find.text('Evidence library'), findsOneWidget);
+
+    await tester.tap(find.text('Evidence library'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cards available for citation'), findsOneWidget);
   });
 
   testWidgets('links a Google Doc through the workspace', (tester) async {
@@ -71,6 +76,92 @@ void main() {
     expect(find.text('4:00'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('keeps offline editing focused and opens tools on demand',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 820);
+    tester.view.devicePixelRatio = 1.0;
+    await tester.pumpWidget(
+      DialektikFlutterApp(
+        bridge: PreviewEngineBridge(initialState: _offlineWorkspaceState()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Offline workspace'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Outline'), findsOneWidget);
+    expect(find.text('Cards available for citation'), findsNothing);
+
+    await tester.tap(find.text('Outline'));
+    await tester.pumpAndSettle();
+    expect(find.text('Document outline'), findsOneWidget);
+    expect(find.text('Case'), findsOneWidget);
+    expect(find.text('Blocks'), findsOneWidget);
+    await tester.tap(find.text('Case'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Evidence'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cards available for citation'), findsOneWidget);
+    expect(find.text('Card title'), findsOneWidget);
+    expect(find.text('Citation / source'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('preview evidence cards retain their author', () async {
+    final bridge = PreviewEngineBridge(initialState: _offlineWorkspaceState());
+    final nextSnapshot = bridge.snapshots.firstWhere((state) =>
+        state.cards.any((card) => card.title == 'Selected evidence'));
+
+    await bridge.dispatch(action('card.create', {
+      'title': 'Selected evidence',
+      'text': 'A useful quote.',
+      'sourceUrl': 'Author, 2026',
+      'folder': 'private',
+    }));
+
+    final snapshot = await nextSnapshot;
+    final card =
+        snapshot.cards.firstWhere((item) => item.title == 'Selected evidence');
+    expect(card.author, 'Student');
+  });
+}
+
+Map<String, Object?> _offlineWorkspaceState() {
+  return {
+    'activePage': 'documents',
+    'documents': <Map<String, Object?>>[
+      {
+        'id': 'doc-1',
+        'name': 'PF case.md',
+        'content': '# Case\n\n## Blocks\n\nEvidence text',
+        'partnerAccess': 'private',
+        'encryptedHash': 'write',
+        'sourceType': 'local',
+        'ownerId': 'student-1',
+        'ownerName': 'Student',
+      },
+    ],
+    'cards': <Map<String, Object?>>[],
+    'history': <Map<String, Object?>>[],
+    'session': null,
+    'ai': <String, Object?>{
+      'activeChatId': null,
+      'loading': false,
+      'chats': <Map<String, Object?>>[],
+    },
+    'settings': <String, Object?>{
+      'userId': 'student-1',
+      'userName': 'Student',
+      'aiEndpoint': '',
+      'aiModel': '',
+      'hasAiKey': false,
+      'manualDocumentSync': false,
+      'joinRequestNotifications': false,
+    },
+  };
 }
 
 Map<String, Object?> _activeRoundState() {

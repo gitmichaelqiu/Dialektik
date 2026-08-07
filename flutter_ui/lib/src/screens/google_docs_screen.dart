@@ -27,6 +27,7 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
 
   String? _selectedId = _cachedSelectedId;
   bool _showOfflineWorkspace = false;
+  bool _openEvidenceOnStart = false;
 
   List<DebateDocument> get _googleDocs =>
       widget.snapshot.documents.where((doc) => doc.isGoogleDoc).toList();
@@ -67,8 +68,10 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
                   children: [
                     IconButton(
                       tooltip: 'Back to Google Docs',
-                      onPressed: () =>
-                          setState(() => _showOfflineWorkspace = false),
+                      onPressed: () => setState(() {
+                        _showOfflineWorkspace = false;
+                        _openEvidenceOnStart = false;
+                      }),
                       icon: const Icon(Icons.arrow_back),
                     ),
                     const SizedBox(width: 4),
@@ -85,8 +88,12 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
           ),
           Expanded(
             child: DocumentsScreen(
+              key: ValueKey(
+                _openEvidenceOnStart ? 'evidence-library' : 'offline-editor',
+              ),
               bridge: widget.bridge,
               snapshot: widget.snapshot,
+              openEvidenceOnStart: _openEvidenceOnStart,
             ),
           ),
         ],
@@ -118,6 +125,7 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
               localDocumentCount: widget.snapshot.documents
                   .where((doc) => !doc.isGoogleDoc)
                   .length,
+              evidenceCardCount: widget.snapshot.cards.length,
               selectedId: selected?.id,
               onSelect: (doc) => setState(() {
                 _selectedId = doc.id;
@@ -125,7 +133,14 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
               }),
               onAdd: _showLinkDialog,
               onCreate: _createGoogleDoc,
-              onOpenOffline: () => setState(() => _showOfflineWorkspace = true),
+              onOpenOffline: () => setState(() {
+                _openEvidenceOnStart = false;
+                _showOfflineWorkspace = true;
+              }),
+              onOpenEvidence: () => setState(() {
+                _openEvidenceOnStart = true;
+                _showOfflineWorkspace = true;
+              }),
             ),
           ),
           if (!compact) ...[
@@ -211,20 +226,24 @@ class _GoogleDocsLibrary extends StatelessWidget {
   const _GoogleDocsLibrary({
     required this.documents,
     required this.localDocumentCount,
+    required this.evidenceCardCount,
     required this.selectedId,
     required this.onSelect,
     required this.onAdd,
     required this.onCreate,
     required this.onOpenOffline,
+    required this.onOpenEvidence,
   });
 
   final List<DebateDocument> documents;
   final int localDocumentCount;
+  final int evidenceCardCount;
   final String? selectedId;
   final ValueChanged<DebateDocument> onSelect;
   final VoidCallback onAdd;
   final VoidCallback onCreate;
   final VoidCallback onOpenOffline;
+  final VoidCallback onOpenEvidence;
 
   @override
   Widget build(BuildContext context) {
@@ -300,6 +319,13 @@ class _GoogleDocsLibrary extends StatelessWidget {
                     ),
             ),
             const Divider(),
+            TextButton.icon(
+              onPressed: onOpenEvidence,
+              icon: const Icon(Icons.style_outlined),
+              label: Text(evidenceCardCount == 0
+                  ? 'Evidence library'
+                  : 'Evidence library ($evidenceCardCount)'),
+            ),
             TextButton.icon(
               onPressed: onOpenOffline,
               icon: const Icon(Icons.offline_bolt_outlined),

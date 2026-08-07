@@ -271,17 +271,35 @@ class _InRoundScreenState extends State<InRoundScreen>
     final session = widget.snapshot.session;
 
     if (!hasUsername && session == null) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: EmptyState(
-            icon: Icons.person_off_outlined,
-            message: 'A user name is required to host or join debate sessions.',
-            action: FilledButton(
-              onPressed: () => widget.bridge.dispatch(
-                action('app.setActivePage', {'page': 'settings'}),
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Card(
+            margin: const EdgeInsets.all(24),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.person_off_outlined,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Add your name once, then host or join debate sessions.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => widget.bridge.dispatch(
+                      action('app.setActivePage', {'page': 'settings'}),
+                    ),
+                    child: const Text('Set up profile'),
+                  ),
+                ],
               ),
-              child: const Text('Configure Username in Settings'),
             ),
           ),
         ),
@@ -321,7 +339,7 @@ class _InRoundScreenState extends State<InRoundScreen>
         'eventFormat': _eventFormat,
         'participate': _hostIsDebater,
       })),
-      showNetworkHint: !turnConfigured,
+      showNetworkHint: false,
       onConfigureNetwork: openNetworkSettings,
     );
 
@@ -360,7 +378,7 @@ class _InRoundScreenState extends State<InRoundScreen>
       },
       rejoinLabel: rejoinLabel,
       onRejoin: rejoinAction,
-      showNetworkHint: !turnConfigured,
+      showNetworkHint: false,
       onConfigureNetwork: openNetworkSettings,
     );
 
@@ -369,20 +387,39 @@ class _InRoundScreenState extends State<InRoundScreen>
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (!turnConfigured) ...[
+              _NetworkConnectionHint(onConfigure: openNetworkSettings),
+              const SizedBox(height: 16),
+            ],
             startSessionPane,
             const SizedBox(height: 16),
             joinSessionPane,
           ],
         );
       }
-      return ResponsivePane(
-        cacheKey: 'in_round_setup',
-        mainPaneIndex: 0,
-        collapsiblePaneIndices: const {},
-        children: [
-          startSessionPane,
-          joinSessionPane,
-        ],
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: Column(
+              children: [
+                if (!turnConfigured) ...[
+                  _NetworkConnectionHint(onConfigure: openNetworkSettings),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: startSessionPane),
+                    const SizedBox(width: 16),
+                    Expanded(child: joinSessionPane),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
