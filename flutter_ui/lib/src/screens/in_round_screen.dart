@@ -21,6 +21,8 @@ class InRoundScreen extends StatefulWidget {
 
 class _InRoundScreenState extends State<InRoundScreen>
     with TickerProviderStateMixin {
+  static String _lastEventFormat = 'pf';
+
   final _matchController = TextEditingController();
   final _groupController = TextEditingController();
   final _joinCodeController = TextEditingController();
@@ -34,6 +36,7 @@ class _InRoundScreenState extends State<InRoundScreen>
   final _customTimerDurationController = TextEditingController(text: '01:00');
   final _notesController = TextEditingController();
   int _teamSize = 1;
+  String _eventFormat = _lastEventFormat;
   String? _localActiveSpeakerId;
   bool _hostIsDebater = true;
   String _lastLocalHandoutTitle = '';
@@ -175,9 +178,7 @@ class _InRoundScreenState extends State<InRoundScreen>
                       child: Text(
                         '${d.name} disconnected.',
                         style: TextStyle(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onErrorContainer,
+                          color: Theme.of(context).colorScheme.onErrorContainer,
                         ),
                       ),
                     ),
@@ -241,12 +242,11 @@ class _InRoundScreenState extends State<InRoundScreen>
     if (_tabController != null && _tabController!.length == tabCount) return;
     final previousIndex = _tabController?.index ?? _savedTabIndex;
     _tabController?.dispose();
-    _tabController =
-        TabController(
-          length: tabCount,
-          vsync: this,
-          initialIndex: previousIndex.clamp(0, tabCount - 1),
-        );
+    _tabController = TabController(
+      length: tabCount,
+      vsync: this,
+      initialIndex: previousIndex.clamp(0, tabCount - 1),
+    );
     _tabController!.addListener(() {
       if (!_tabController!.indexIsChanging) {
         _savedTabIndex = _tabController!.index;
@@ -296,9 +296,10 @@ class _InRoundScreenState extends State<InRoundScreen>
     }
 
     final compact = MediaQuery.sizeOf(context).width < 840;
-    final turnConfigured = widget.snapshot.settings.turnServerUrl.trim().isNotEmpty &&
-        widget.snapshot.settings.turnUsername.trim().isNotEmpty &&
-        widget.snapshot.settings.turnCredential.trim().isNotEmpty;
+    final turnConfigured =
+        widget.snapshot.settings.turnServerUrl.trim().isNotEmpty &&
+            widget.snapshot.settings.turnUsername.trim().isNotEmpty &&
+            widget.snapshot.settings.turnCredential.trim().isNotEmpty;
     void openNetworkSettings() {
       widget.bridge.dispatch(action('app.setActivePage', {'page': 'settings'}));
     }
@@ -308,12 +309,23 @@ class _InRoundScreenState extends State<InRoundScreen>
       groupController: _groupController,
       teamSize: _teamSize,
       onTeamSizeChanged: (value) => setState(() => _teamSize = value),
+      eventFormat: _eventFormat,
+      onEventFormatChanged: (value) => setState(() {
+        _eventFormat = value;
+        _lastEventFormat = value;
+        _teamSize = switch (value) {
+          'pf' || 'policy' => 2,
+          'worlds' => 3,
+          _ => 1,
+        };
+      }),
       hostIsDebater: _hostIsDebater,
       onHostIsDebaterChanged: (value) => setState(() => _hostIsDebater = value),
       onHost: () => widget.bridge.dispatch(action('session.host', {
         'matchName': _matchController.text.trim(),
         'groupName': _groupController.text.trim(),
         'teamSize': _teamSize,
+        'eventFormat': _eventFormat,
         'participate': _hostIsDebater,
       })),
       showNetworkHint: !turnConfigured,
@@ -330,7 +342,8 @@ class _InRoundScreenState extends State<InRoundScreen>
                 action('session.host', {
                   'matchName': 'Practice Round',
                   'groupName': 'Dialektik Team',
-                  'teamSize': 1
+                  'teamSize': 1,
+                  'eventFormat': _eventFormat,
                 }),
               );
             } else {
@@ -445,6 +458,7 @@ class _InRoundScreenState extends State<InRoundScreen>
             onEdit: session.isHost ? () => _editHandout(session) : null,
           )
         : _LobbyHandoutPane(
+            bridge: widget.bridge,
             session: session,
             titleController: _handoutTitleController,
             problemController: _handoutProblemController,
@@ -712,6 +726,8 @@ class _StartSessionPane extends StatelessWidget {
     required this.groupController,
     required this.teamSize,
     required this.onTeamSizeChanged,
+    required this.eventFormat,
+    required this.onEventFormatChanged,
     required this.hostIsDebater,
     required this.onHostIsDebaterChanged,
     required this.onHost,
@@ -723,6 +739,8 @@ class _StartSessionPane extends StatelessWidget {
   final TextEditingController groupController;
   final int teamSize;
   final ValueChanged<int> onTeamSizeChanged;
+  final String eventFormat;
+  final ValueChanged<String> onEventFormatChanged;
   final bool hostIsDebater;
   final ValueChanged<bool> onHostIsDebaterChanged;
   final VoidCallback onHost;
@@ -736,73 +754,143 @@ class _StartSessionPane extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: FocusTraversalGroup(
           policy: ReadingOrderTraversalPolicy(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SectionHeader(
-                title: 'Start debate session',
-                subtitle:
-                    'Host a synced room for partner prep and round management',
-              ),
-              const SizedBox(height: 16),
-              if (showNetworkHint) ...[
-                _NetworkConnectionHint(onConfigure: onConfigureNetwork),
-                const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: matchController,
-                decoration: const InputDecoration(labelText: 'Match name'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: groupController,
-                decoration: const InputDecoration(labelText: 'School or group'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: teamSize,
-                decoration: const InputDecoration(labelText: 'Team size'),
-                items: [1, 2, 3, 4]
-                    .map((value) =>
-                        DropdownMenuItem(value: value, child: Text('$value')))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) onTeamSizeChanged(value);
-                },
-              ),
-              const SizedBox(height: 8),
-              CheckboxListTile(
-                title: const Text('Participate as debater'),
-                value: hostIsDebater,
-                onChanged: (val) => onHostIsDebaterChanged(val ?? true),
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    if (matchController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Please enter a match name.')),
-                      );
-                      return;
-                    }
-                    onHost();
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Host room'),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SectionHeader(
+                  title: 'Start debate session',
+                  subtitle:
+                      'Host a synced room for partner prep and round management',
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                if (showNetworkHint) ...[
+                  _NetworkConnectionHint(onConfigure: onConfigureNetwork),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: matchController,
+                  decoration: const InputDecoration(labelText: 'Match name'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: groupController,
+                  decoration:
+                      const InputDecoration(labelText: 'School or group'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: eventFormat,
+                  decoration: const InputDecoration(labelText: 'Debate format'),
+                  items: _eventTemplateOptions
+                      .map((option) => DropdownMenuItem(
+                            value: option.id,
+                            child: Text(option.name),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onEventFormatChanged(value);
+                  },
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _eventTemplateOptions
+                      .firstWhere((option) => option.id == eventFormat)
+                      .description,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: teamSize,
+                  decoration: const InputDecoration(labelText: 'Team size'),
+                  items: [1, 2, 3, 4]
+                      .map((value) =>
+                          DropdownMenuItem(value: value, child: Text('$value')))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) onTeamSizeChanged(value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  title: const Text('Participate as debater'),
+                  value: hostIsDebater,
+                  onChanged: (val) => onHostIsDebaterChanged(val ?? true),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      if (matchController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Please enter a match name.')),
+                        );
+                        return;
+                      }
+                      onHost();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Host room'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+class _EventTemplateOption {
+  const _EventTemplateOption(
+    this.id,
+    this.name,
+    this.description,
+  );
+
+  final String id;
+  final String name;
+  final String description;
+}
+
+const _eventTemplateOptions = [
+  _EventTemplateOption(
+    'pf',
+    'Public Forum',
+    '11 timed blocks • about 35 minutes • 3 minutes prep per team',
+  ),
+  _EventTemplateOption(
+    'ld',
+    'Lincoln-Douglas',
+    '7 timed blocks • about 32 minutes • 4 minutes prep per debater',
+  ),
+  _EventTemplateOption(
+    'policy',
+    'Policy',
+    '12 timed blocks • about 60 minutes • 8 minutes prep per team',
+  ),
+  _EventTemplateOption(
+    'congress',
+    'Congress',
+    'Legislation cycle with speeches and direct questioning',
+  ),
+  _EventTemplateOption(
+    'worlds',
+    'World Schools',
+    '6 substantive speeches plus 2 reply speeches • about 56 minutes',
+  ),
+  _EventTemplateOption(
+    'custom',
+    'Custom',
+    'Start with a flexible speech timer and add custom timers',
+  ),
+];
 
 class _NetworkConnectionHint extends StatelessWidget {
   const _NetworkConnectionHint({required this.onConfigure});
@@ -826,7 +914,8 @@ class _NetworkConnectionHint extends StatelessWidget {
           Expanded(
             child: Text.rich(
               TextSpan(
-                text: 'Connecting across different networks may require a TURN server. ',
+                text:
+                    'Connecting across different networks may require a TURN server. ',
                 style: TextStyle(color: colors.onSecondaryContainer),
                 children: [
                   WidgetSpan(
@@ -934,6 +1023,7 @@ class _JoinSessionPane extends StatelessWidget {
 
 class _LobbyHandoutPane extends StatelessWidget {
   const _LobbyHandoutPane({
+    required this.bridge,
     required this.session,
     required this.titleController,
     required this.problemController,
@@ -946,6 +1036,7 @@ class _LobbyHandoutPane extends StatelessWidget {
     required this.onCancel,
   });
 
+  final EngineBridge bridge;
   final SessionState session;
   final TextEditingController titleController;
   final TextEditingController problemController;
@@ -1032,10 +1123,39 @@ class _LobbyHandoutPane extends StatelessWidget {
         onChanged: (_) => onChanged(),
       ),
       const SizedBox(height: 16),
+      Text(
+        '${session.eventName} speech order',
+        style: Theme.of(context)
+            .textTheme
+            .titleSmall
+            ?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 8),
+      _SpeechTimeline(
+        session: session,
+        onSelect: session.isHost
+            ? (index) => bridge.dispatch(
+                  action('session.selectSpeech', {'index': index}),
+                )
+            : null,
+      ),
+      const SizedBox(height: 16),
       SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
-          onPressed: session.isHost ? onStart : null,
+          onPressed: session.isHost
+              ? () {
+                  if (problemController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Add the debate resolution first.'),
+                      ),
+                    );
+                    return;
+                  }
+                  onStart();
+                }
+              : null,
           icon: const Icon(Icons.play_arrow),
           label: Text(
               session.isHost ? 'Start debate' : 'Waiting for host to start...'),
@@ -1177,6 +1297,156 @@ class _HandoutReadPane extends StatelessWidget {
   }
 }
 
+class _SpeechTimeline extends StatelessWidget {
+  const _SpeechTimeline({required this.session, this.onSelect});
+
+  final SessionState session;
+  final ValueChanged<int>? onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (session.speechOrder.isEmpty) {
+      return const Text('No speech order configured.');
+    }
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: session.speechOrder.length,
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          indent: 48,
+          color: colors.outlineVariant,
+        ),
+        itemBuilder: (context, index) {
+          final slot = session.speechOrder[index];
+          final selected = index == session.currentSpeechIndex;
+          return ListTile(
+            dense: true,
+            selected: selected,
+            selectedTileColor: colors.primaryContainer.withAlpha(90),
+            leading: CircleAvatar(
+              radius: 13,
+              backgroundColor:
+                  selected ? colors.primary : colors.surfaceContainerHighest,
+              foregroundColor:
+                  selected ? colors.onPrimary : colors.onSurfaceVariant,
+              child: Text('${index + 1}', style: const TextStyle(fontSize: 11)),
+            ),
+            title: Text(slot.label),
+            subtitle: slot.team == null
+                ? null
+                : Text(slot.team == 'affirmative'
+                    ? 'Affirmative / Team A'
+                    : 'Negative / Team B'),
+            trailing: Text(
+              slot.durationLabel,
+            ),
+            onTap: onSelect == null ? null : () => onSelect!(index),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CurrentSpeechControls extends StatelessWidget {
+  const _CurrentSpeechControls({required this.bridge, required this.session});
+
+  final EngineBridge bridge;
+  final SessionState session;
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = session.currentSpeech;
+    if (slot == null) return const SizedBox.shrink();
+    final index = session.currentSpeechIndex;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${session.eventName} • ${index + 1} of ${session.speechOrder.length}',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            slot.label,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          if (session.isHost) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton.outlined(
+                  tooltip: 'Previous speech',
+                  onPressed: index == 0
+                      ? null
+                      : () => bridge.dispatch(action(
+                            'session.advanceSpeech',
+                            {'direction': 'previous'},
+                          )),
+                  icon: const Icon(Icons.skip_previous),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Auto-advance'),
+                    subtitle: const Text('Cue the next timer at zero'),
+                    value: session.autoAdvance,
+                    onChanged: (value) => bridge.dispatch(action(
+                      'session.setAutoAdvance',
+                      {'enabled': value},
+                    )),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  tooltip: 'Next speech',
+                  onPressed: index >= session.speechOrder.length - 1
+                      ? null
+                      : () => bridge.dispatch(action(
+                            'session.advanceSpeech',
+                            {'direction': 'next'},
+                          )),
+                  icon: const Icon(Icons.skip_next),
+                ),
+              ],
+            ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Full speech order'),
+              children: [
+                _SpeechTimeline(
+                  session: session,
+                  onSelect: (selected) => bridge.dispatch(
+                    action('session.selectSpeech', {'index': selected}),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _TimersPane extends StatelessWidget {
   const _TimersPane({
     required this.bridge,
@@ -1221,144 +1491,156 @@ class _TimersPane extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-              _TimerTile(
-                name: 'Speech',
-                remainingMs: session.speechRemainingMs,
-                running: session.speechRunning,
-                enabled: session.isHost,
-                durationMs: 240000,
-                onDurationChanged: session.isHost
-                    ? (ms) => bridge.dispatch(action('timer.action', {
-                          'timerType': 'speech',
-                          'action': 'reset',
-                          'durationSeconds': (ms / 1000).round(),
-                        }))
-                    : null,
-                onAction: (timerAction) =>
-                    bridge.dispatch(action('timer.action', {
-                  'timerType': 'speech',
-                  'action': timerAction,
-                })),
-              ),
-              _TimerTile(
-                name: 'Prep',
-                remainingMs: session.prepRemainingMs,
-                running: session.prepRunning,
-                enabled: session.isHost,
-                durationMs: 180000,
-                onDurationChanged: session.isHost
-                    ? (ms) => bridge.dispatch(action('timer.action', {
-                          'timerType': 'prep',
-                          'action': 'reset',
-                          'durationSeconds': (ms / 1000).round(),
-                        }))
-                    : null,
-                onAction: (timerAction) =>
-                    bridge.dispatch(action('timer.action', {
-                  'timerType': 'prep',
-                  'action': timerAction,
-                })),
-              ),
-              const Divider(height: 24),
-              if (session.isHost) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: customNameController,
-                        decoration:
-                            const InputDecoration(labelText: 'Custom timer'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 96,
-                      child: TextField(
-                        controller: customDurationController,
-                        decoration: const InputDecoration(labelText: 'MM:SS'),
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      onPressed: () {
-                        if (customNameController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Please enter a timer name.')),
-                          );
-                          return;
-                        }
-                        bridge.dispatch(action('customTimer.create', {
-                          'name': customNameController.text.trim(),
-                          'duration': customDurationController.text.trim(),
-                        }));
-                        customNameController.clear();
-                      },
-                      icon: const Icon(Icons.add),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-              if (session.customTimers.isEmpty)
-                const EmptyState(
-                    icon: Icons.timer_outlined, message: 'No custom timers.')
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: session.customTimers.length,
-                  itemBuilder: (context, index) {
-                    final timer = session.customTimers[index];
-                    return _TimerTile(
-                      name: timer.name,
-                      remainingMs: timer.remainingMs,
-                      running: timer.running,
-                      removable: true,
+                    if (session.currentSpeech != null) ...[
+                      _CurrentSpeechControls(bridge: bridge, session: session),
+                      const SizedBox(height: 12),
+                    ],
+                    _TimerTile(
+                      name: session.currentSpeech?.label ?? 'Speech',
+                      remainingMs: session.speechRemainingMs,
+                      running: session.speechRunning,
                       enabled: session.isHost,
-                      onRemove: () => bridge.dispatch(
-                          action('customTimer.delete', {'id': timer.id})),
+                      durationMs: session.currentSpeech?.durationMs ?? 240000,
+                      onDurationChanged: session.isHost
+                          ? (ms) => bridge.dispatch(action('timer.action', {
+                                'timerType': 'speech',
+                                'action': 'reset',
+                                'durationSeconds': (ms / 1000).round(),
+                              }))
+                          : null,
                       onAction: (timerAction) =>
-                          bridge.dispatch(action('customTimer.action', {
-                        'id': timer.id,
+                          bridge.dispatch(action('timer.action', {
+                        'timerType': 'speech',
                         'action': timerAction,
                       })),
-                    );
-                  },
-                ),
-              if (onSpeakerSelected != null && session.debaters.isNotEmpty) ...[
-                const Divider(height: 16),
-                Text('Active speaker',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                // Affirmative row
-                _SpeakerTeamRow(
-                  label: 'Affirmative',
-                  color: Theme.of(context).colorScheme.primary,
-                  debaters: session.debaters
-                      .where((d) => !d.disconnected && d.team == 'affirmative')
-                      .toList(),
-                  currentSpeakerId: session.currentSpeakerId,
-                  showPosition: showPosition,
-                  isHost: session.isHost,
-                  onSelect: onSpeakerSelected!,
-                ),
-                const SizedBox(height: 6),
-                // Negative row
-                _SpeakerTeamRow(
-                  label: 'Negative',
-                  color: Theme.of(context).colorScheme.tertiary,
-                  debaters: session.debaters
-                      .where((d) => !d.disconnected && d.team == 'negative')
-                      .toList(),
-                  currentSpeakerId: session.currentSpeakerId,
-                  showPosition: showPosition,
-                  isHost: session.isHost,
-                  onSelect: onSpeakerSelected!,
-                ),
-              ],
+                    ),
+                    if (session.prepDurationMs > 0)
+                      _TimerTile(
+                        name: 'Prep',
+                        remainingMs: session.prepRemainingMs,
+                        running: session.prepRunning,
+                        enabled: session.isHost,
+                        durationMs: session.prepDurationMs,
+                        onDurationChanged: session.isHost
+                            ? (ms) => bridge.dispatch(action('timer.action', {
+                                  'timerType': 'prep',
+                                  'action': 'reset',
+                                  'durationSeconds': (ms / 1000).round(),
+                                }))
+                            : null,
+                        onAction: (timerAction) =>
+                            bridge.dispatch(action('timer.action', {
+                          'timerType': 'prep',
+                          'action': timerAction,
+                        })),
+                      ),
+                    const Divider(height: 24),
+                    if (session.isHost) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: customNameController,
+                              decoration: const InputDecoration(
+                                  labelText: 'Custom timer'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 96,
+                            child: TextField(
+                              controller: customDurationController,
+                              decoration:
+                                  const InputDecoration(labelText: 'MM:SS'),
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: () {
+                              if (customNameController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Please enter a timer name.')),
+                                );
+                                return;
+                              }
+                              bridge.dispatch(action('customTimer.create', {
+                                'name': customNameController.text.trim(),
+                                'duration':
+                                    customDurationController.text.trim(),
+                              }));
+                              customNameController.clear();
+                            },
+                            icon: const Icon(Icons.add),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (session.customTimers.isEmpty)
+                      const EmptyState(
+                          icon: Icons.timer_outlined,
+                          message: 'No custom timers.')
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: session.customTimers.length,
+                        itemBuilder: (context, index) {
+                          final timer = session.customTimers[index];
+                          return _TimerTile(
+                            name: timer.name,
+                            remainingMs: timer.remainingMs,
+                            running: timer.running,
+                            removable: true,
+                            enabled: session.isHost,
+                            onRemove: () => bridge.dispatch(
+                                action('customTimer.delete', {'id': timer.id})),
+                            onAction: (timerAction) =>
+                                bridge.dispatch(action('customTimer.action', {
+                              'id': timer.id,
+                              'action': timerAction,
+                            })),
+                          );
+                        },
+                      ),
+                    if (onSpeakerSelected != null &&
+                        session.debaters.isNotEmpty) ...[
+                      const Divider(height: 16),
+                      Text('Active speaker',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      // Affirmative row
+                      _SpeakerTeamRow(
+                        label: 'Affirmative',
+                        color: Theme.of(context).colorScheme.primary,
+                        debaters: session.debaters
+                            .where((d) =>
+                                !d.disconnected && d.team == 'affirmative')
+                            .toList(),
+                        currentSpeakerId: session.currentSpeakerId,
+                        showPosition: showPosition,
+                        isHost: session.isHost,
+                        onSelect: onSpeakerSelected!,
+                      ),
+                      const SizedBox(height: 6),
+                      // Negative row
+                      _SpeakerTeamRow(
+                        label: 'Negative',
+                        color: Theme.of(context).colorScheme.tertiary,
+                        debaters: session.debaters
+                            .where(
+                                (d) => !d.disconnected && d.team == 'negative')
+                            .toList(),
+                        currentSpeakerId: session.currentSpeakerId,
+                        showPosition: showPosition,
+                        isHost: session.isHost,
+                        onSelect: onSpeakerSelected!,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1405,9 +1687,7 @@ class _SpeakerTeamRow extends StatelessWidget {
           width: 80,
           child: Text(label,
               style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  color: color)),
+                  fontWeight: FontWeight.w600, fontSize: 12, color: color)),
         ),
         const SizedBox(width: 8),
         Expanded(

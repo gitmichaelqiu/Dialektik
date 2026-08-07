@@ -81,13 +81,23 @@ const db = new DialektikDB();
 // Engine State
 // ─────────────────────────────────────────────
 interface Debater { id: string; name: string; status: string; team?: string; position?: number; disconnected?: boolean }
+interface SpeechSlot {
+  id: string;
+  label: string;
+  durationMs: number;
+  kind: "speech" | "crossfire" | "cross_examination" | "questioning" | "reply";
+  team?: "affirmative" | "negative";
+  position?: number;
+}
 interface SessionState {
   roomCode: string; matchName: string; groupName: string; status: string;
   handout: { title: string; problem: string; details: string };
   debaters: Debater[]; currentSpeakerId?: string;
   speakerNotes: Record<string, string>;
   speechRemainingMs: number; speechRunning: boolean;
-  prepRemainingMs: number; prepRunning: boolean;
+  prepRemainingMs: number; prepDurationMs: number; prepRunning: boolean;
+  eventFormat: string; eventName: string;
+  speechOrder: SpeechSlot[]; currentSpeechIndex: number; autoAdvance: boolean;
   customTimers: { id: string; name: string; remainingMs: number; running: boolean; durationMs: number }[];
   pendingRequests: { id: string; name: string }[];
   isHost: boolean;
@@ -349,6 +359,123 @@ async function emitSnapshot() {
 // ─────────────────────────────────────────────
 // Timer tick
 // ─────────────────────────────────────────────
+function speechSlot(
+  id: string,
+  label: string,
+  minutes: number,
+  kind: SpeechSlot["kind"] = "speech",
+  team?: SpeechSlot["team"],
+  position?: number,
+): SpeechSlot {
+  return { id, label, durationMs: minutes * 60000, kind, team, position };
+}
+
+function roundTemplate(format: string): {
+  format: string;
+  name: string;
+  prepMs: number;
+  speeches: SpeechSlot[];
+} {
+  switch (format) {
+    case "ld":
+      return {
+        format, name: "Lincoln-Douglas", prepMs: 4 * 60000,
+        speeches: [
+          speechSlot("ac", "Affirmative Constructive", 6, "speech", "affirmative", 1),
+          speechSlot("neg-cx", "Negative Cross-Examination", 3, "cross_examination", "negative", 1),
+          speechSlot("nc", "Negative Constructive", 7, "speech", "negative", 1),
+          speechSlot("aff-cx", "Affirmative Cross-Examination", 3, "cross_examination", "affirmative", 1),
+          speechSlot("1ar", "First Affirmative Rebuttal", 4, "speech", "affirmative", 1),
+          speechSlot("nr", "Negative Rebuttal", 6, "speech", "negative", 1),
+          speechSlot("2ar", "Second Affirmative Rebuttal", 3, "speech", "affirmative", 1),
+        ],
+      };
+    case "policy":
+      return {
+        format, name: "Policy", prepMs: 8 * 60000,
+        speeches: [
+          speechSlot("1ac", "First Affirmative Constructive", 8, "speech", "affirmative", 1),
+          speechSlot("cx-1ac", "Negative Cross-Examination", 3, "cross_examination", "negative", 2),
+          speechSlot("1nc", "First Negative Constructive", 8, "speech", "negative", 1),
+          speechSlot("cx-1nc", "Affirmative Cross-Examination", 3, "cross_examination", "affirmative", 1),
+          speechSlot("2ac", "Second Affirmative Constructive", 8, "speech", "affirmative", 2),
+          speechSlot("cx-2ac", "Negative Cross-Examination", 3, "cross_examination", "negative", 1),
+          speechSlot("2nc", "Second Negative Constructive", 8, "speech", "negative", 2),
+          speechSlot("cx-2nc", "Affirmative Cross-Examination", 3, "cross_examination", "affirmative", 2),
+          speechSlot("1nr", "First Negative Rebuttal", 5, "speech", "negative", 1),
+          speechSlot("1ar", "First Affirmative Rebuttal", 5, "speech", "affirmative", 1),
+          speechSlot("2nr", "Second Negative Rebuttal", 5, "speech", "negative", 2),
+          speechSlot("2ar", "Second Affirmative Rebuttal", 5, "speech", "affirmative", 2),
+        ],
+      };
+    case "congress":
+      return {
+        format, name: "Congress", prepMs: 0,
+        speeches: [
+          speechSlot("sponsor", "Authorship or Sponsorship", 3),
+          speechSlot("sponsor-q", "Questioning of Sponsor", 2, "questioning"),
+          speechSlot("first-neg", "First Negative Speech", 3, "speech", "negative"),
+          speechSlot("first-neg-q", "Questioning of First Negative", 2, "questioning"),
+          speechSlot("floor-speech", "Floor Speech", 3),
+          speechSlot("floor-q", "Questioning", 1, "questioning"),
+        ],
+      };
+    case "worlds":
+      return {
+        format, name: "World Schools", prepMs: 0,
+        speeches: [
+          speechSlot("prop-1", "Proposition Speaker 1", 8, "speech", "affirmative", 1),
+          speechSlot("opp-1", "Opposition Speaker 1", 8, "speech", "negative", 1),
+          speechSlot("prop-2", "Proposition Speaker 2", 8, "speech", "affirmative", 2),
+          speechSlot("opp-2", "Opposition Speaker 2", 8, "speech", "negative", 2),
+          speechSlot("prop-3", "Proposition Speaker 3", 8, "speech", "affirmative", 3),
+          speechSlot("opp-3", "Opposition Speaker 3", 8, "speech", "negative", 3),
+          speechSlot("opp-reply", "Opposition Reply", 4, "reply", "negative"),
+          speechSlot("prop-reply", "Proposition Reply", 4, "reply", "affirmative"),
+        ],
+      };
+    case "custom":
+      return {
+        format, name: "Custom", prepMs: 3 * 60000,
+        speeches: [speechSlot("open", "Opening Speech", 4)],
+      };
+    default:
+      return {
+        format: "pf", name: "Public Forum", prepMs: 3 * 60000,
+        speeches: [
+          speechSlot("team-a-1", "First Speaker — Team A", 4, "speech", "affirmative", 1),
+          speechSlot("team-b-1", "First Speaker — Team B", 4, "speech", "negative", 1),
+          speechSlot("crossfire-1", "Crossfire", 3, "crossfire"),
+          speechSlot("team-a-2", "Second Speaker — Team A", 4, "speech", "affirmative", 2),
+          speechSlot("team-b-2", "Second Speaker — Team B", 4, "speech", "negative", 2),
+          speechSlot("crossfire-2", "Crossfire", 3, "crossfire"),
+          speechSlot("summary-a", "Summary — Team A", 3, "speech", "affirmative", 1),
+          speechSlot("summary-b", "Summary — Team B", 3, "speech", "negative", 1),
+          speechSlot("grand-crossfire", "Grand Crossfire", 3, "crossfire"),
+          speechSlot("final-a", "Final Focus — Team A", 2, "speech", "affirmative", 2),
+          speechSlot("final-b", "Final Focus — Team B", 2, "speech", "negative", 2),
+        ],
+      };
+  }
+}
+
+function selectSpeech(index: number) {
+  if (!session || session.speechOrder.length === 0) return;
+  const nextIndex = Math.max(0, Math.min(index, session.speechOrder.length - 1));
+  const slot = session.speechOrder[nextIndex];
+  session.currentSpeechIndex = nextIndex;
+  session.speechRemainingMs = slot.durationMs;
+  session.speechRunning = false;
+  if (slot.team) {
+    session.currentSpeakerId = session.debaters.find(debater =>
+      debater.team === slot.team &&
+      (slot.position == null || debater.position === slot.position)
+    )?.id;
+  } else {
+    session.currentSpeakerId = undefined;
+  }
+}
+
 function startTimerLoop() {
   if (timerInterval) return;
   lastTick = Date.now();
@@ -362,7 +489,14 @@ function startTimerLoop() {
 
     if (session.speechRunning && session.speechRemainingMs > 0) {
       session.speechRemainingMs = Math.max(0, session.speechRemainingMs - elapsed);
-      if (session.speechRemainingMs === 0) session.speechRunning = false;
+      if (session.speechRemainingMs === 0) {
+        session.speechRunning = false;
+        if (session.autoAdvance && mesh.isHost &&
+            session.currentSpeechIndex < session.speechOrder.length - 1) {
+          selectSpeech(session.currentSpeechIndex + 1);
+          broadcastSessionState();
+        }
+      }
       changed = true;
     }
     if (session.prepRunning && session.prepRemainingMs > 0) {
@@ -887,6 +1021,7 @@ async function handlePeerMessage(msg: PeerMessage) {
             session.prepRunning = false;
           } else if (action === "reset") {
             session.prepRemainingMs = (durationSeconds || 180) * 1000;
+            session.prepDurationMs = session.prepRemainingMs;
             session.prepRunning = false;
           }
         }
@@ -1317,6 +1452,7 @@ async function dispatch(actionJson: string) {
   if (type === "session.host") {
     const code = generateRoomCode();
     const participate = payload.participate !== false;
+    const template = roundTemplate(payload.eventFormat || "pf");
     lastRoomCode = code;
     lastRoomIsHost = true;
     session = {
@@ -1330,8 +1466,10 @@ async function dispatch(actionJson: string) {
         : [],
       currentSpeakerId: undefined,
       speakerNotes: {},
-      speechRemainingMs: 240000, speechRunning: false,
-      prepRemainingMs: 180000, prepRunning: false,
+      speechRemainingMs: template.speeches[0]?.durationMs ?? 240000, speechRunning: false,
+      prepRemainingMs: template.prepMs, prepDurationMs: template.prepMs, prepRunning: false,
+      eventFormat: template.format, eventName: template.name,
+      speechOrder: template.speeches, currentSpeechIndex: 0, autoAdvance: false,
       customTimers: [],
       pendingRequests: [],
       isHost: true,
@@ -1366,7 +1504,9 @@ async function dispatch(actionJson: string) {
       handout: { title: "", problem: "", details: "" },
       debaters: [], speakerNotes: {},
       speechRemainingMs: 240000, speechRunning: false,
-      prepRemainingMs: 180000, prepRunning: false,
+      prepRemainingMs: 180000, prepDurationMs: 180000, prepRunning: false,
+      eventFormat: "pf", eventName: "Public Forum",
+      speechOrder: roundTemplate("pf").speeches, currentSpeechIndex: 0, autoAdvance: false,
       customTimers: [], pendingRequests: [], isHost: false,
     };
     startTimerLoop();
@@ -1485,6 +1625,7 @@ async function dispatch(actionJson: string) {
   if (type === "session.startDebate") {
     if (!session) return;
     session.status = "active";
+    selectSpeech(session.currentSpeechIndex);
     broadcastSessionState();
     await emitSnapshot();
     return;
@@ -1538,6 +1679,31 @@ async function dispatch(actionJson: string) {
     return;
   }
 
+  if (type === "session.selectSpeech") {
+    if (!session || !session.isHost || typeof payload.index !== "number") return;
+    selectSpeech(payload.index);
+    broadcastSessionState();
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "session.advanceSpeech") {
+    if (!session || !session.isHost) return;
+    const direction = payload.direction === "previous" ? -1 : 1;
+    selectSpeech(session.currentSpeechIndex + direction);
+    broadcastSessionState();
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "session.setAutoAdvance") {
+    if (!session || !session.isHost) return;
+    session.autoAdvance = payload.enabled === true;
+    broadcastSessionState();
+    await emitSnapshot();
+    return;
+  }
+
   // ── Session: Speaker notes ────────────────
   if (type === "session.updateNotes") {
     if (!session) return;
@@ -1562,7 +1728,8 @@ async function dispatch(actionJson: string) {
       id: `history-${Date.now()}`,
       matchName: session.matchName, opponentName: session.groupName,
       sides: mySide, winLoss: isWin ? "win" : "loss",
-      speechOrder: [], flows, tag: "", timestamp: Date.now(),
+      speechOrder: session.speechOrder.map(slot => slot.label),
+      flows, tag: "", timestamp: Date.now(),
     };
     await db.history.put(record);
     mesh.terminateSession();
@@ -1578,7 +1745,11 @@ async function dispatch(actionJson: string) {
   if (type === "timer.action") {
     if (!session) return;
     const { timerType, action: act, durationSeconds } = payload;
-    const durMs = (durationSeconds || (timerType === "speech" ? 240 : 180)) * 1000;
+    const currentSpeechDuration = session.speechOrder[session.currentSpeechIndex]?.durationMs ?? 240000;
+    const defaultSeconds = timerType === "speech"
+      ? currentSpeechDuration / 1000
+      : session.prepDurationMs / 1000;
+    const durMs = (durationSeconds ?? defaultSeconds) * 1000;
     if (timerType === "speech") {
       if (act === "start") session.speechRunning = true;
       else if (act === "pause") session.speechRunning = false;
@@ -1586,15 +1757,40 @@ async function dispatch(actionJson: string) {
     } else if (timerType === "prep") {
       if (act === "start") session.prepRunning = true;
       else if (act === "pause") session.prepRunning = false;
-      else if (act === "reset") { session.prepRemainingMs = durMs; session.prepRunning = false; }
+      else if (act === "reset") {
+        session.prepRemainingMs = durMs;
+        session.prepDurationMs = durMs;
+        session.prepRunning = false;
+      }
     }
     if (mesh.isHost) {
       const targetTime = act === "start" ? Date.now() + (timerType === "speech" ? session.speechRemainingMs : session.prepRemainingMs) : undefined;
       broadcastRoomMessage({
         type: "timer-action", senderId: mesh.peerId,
-        payload: { timerType, action: act, durationSeconds, targetTime },
+        payload: {
+          timerType,
+          action: act,
+          durationSeconds: act === "reset" ? durMs / 1000 : durationSeconds,
+          targetTime,
+        },
       });
     }
+    await emitSnapshot();
+    return;
+  }
+
+  if (type === "timer.resetAll") {
+    if (!session || !session.isHost) return;
+    selectSpeech(session.currentSpeechIndex);
+    session.prepRemainingMs = session.prepDurationMs;
+    session.prepRunning = false;
+    session.customTimers = session.customTimers.map(timer => ({
+      ...timer,
+      remainingMs: timer.durationMs,
+      running: false,
+    }));
+    broadcastSessionState();
+    broadcastCustomTimers();
     await emitSnapshot();
     return;
   }

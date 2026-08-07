@@ -276,7 +276,13 @@ class SessionState {
     required this.speechRemainingMs,
     required this.speechRunning,
     required this.prepRemainingMs,
+    required this.prepDurationMs,
     required this.prepRunning,
+    required this.eventFormat,
+    required this.eventName,
+    required this.speechOrder,
+    required this.currentSpeechIndex,
+    required this.autoAdvance,
     required this.customTimers,
     required this.pendingRequests,
     required this.isHost,
@@ -300,7 +306,15 @@ class SessionState {
       speechRemainingMs: _number(json['speechRemainingMs'], fallback: 240000),
       speechRunning: json['speechRunning'] == true,
       prepRemainingMs: _number(json['prepRemainingMs'], fallback: 180000),
+      prepDurationMs: _number(json['prepDurationMs'], fallback: 180000),
       prepRunning: json['prepRunning'] == true,
+      eventFormat: _string(json['eventFormat'], fallback: 'pf'),
+      eventName: _string(json['eventName'], fallback: 'Public Forum'),
+      speechOrder: AppSnapshot._list(json['speechOrder'])
+          .map(SpeechSlot.fromJson)
+          .toList(),
+      currentSpeechIndex: _number(json['currentSpeechIndex'], fallback: 0),
+      autoAdvance: json['autoAdvance'] == true,
       customTimers: AppSnapshot._list(json['customTimers'])
           .map(RoundTimer.fromJson)
           .toList(),
@@ -322,10 +336,60 @@ class SessionState {
   final int speechRemainingMs;
   final bool speechRunning;
   final int prepRemainingMs;
+  final int prepDurationMs;
   final bool prepRunning;
+  final String eventFormat;
+  final String eventName;
+  final List<SpeechSlot> speechOrder;
+  final int currentSpeechIndex;
+  final bool autoAdvance;
   final List<RoundTimer> customTimers;
   final List<JoinRequest> pendingRequests;
   final bool isHost;
+
+  SpeechSlot? get currentSpeech {
+    if (speechOrder.isEmpty || currentSpeechIndex >= speechOrder.length) {
+      return null;
+    }
+    return speechOrder[currentSpeechIndex];
+  }
+}
+
+class SpeechSlot {
+  const SpeechSlot({
+    required this.id,
+    required this.label,
+    required this.durationMs,
+    required this.kind,
+    this.team,
+    this.position,
+  });
+
+  factory SpeechSlot.fromJson(Map<String, Object?> json) {
+    return SpeechSlot(
+      id: _string(json['id']),
+      label: _string(json['label'], fallback: 'Speech'),
+      durationMs: _number(json['durationMs'], fallback: 240000),
+      kind: _string(json['kind'], fallback: 'speech'),
+      team: json['team'] as String?,
+      position:
+          json['position'] is num ? (json['position']! as num).toInt() : null,
+    );
+  }
+
+  final String id;
+  final String label;
+  final int durationMs;
+  final String kind;
+  final String? team;
+  final int? position;
+
+  String get durationLabel {
+    final totalSeconds = durationMs ~/ 1000;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
 }
 
 class HandoutState {

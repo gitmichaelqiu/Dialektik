@@ -371,6 +371,10 @@ class PreviewEngineBridge implements EngineBridge {
       final hostName = userName.isNotEmpty ? userName : 'Host';
       final randomCode = _generateRoomCode();
       final participate = payload['participate'] != false;
+      final template = _previewRoundTemplate(
+        payload['eventFormat'] as String? ?? 'pf',
+      );
+      final speeches = _list(template['speeches']);
       _patch({
         'activePage': 'inround',
         'session': {
@@ -385,10 +389,17 @@ class PreviewEngineBridge implements EngineBridge {
               : 'Dialektik Team',
           'status': 'lobby',
           'handout': {'title': '', 'problem': '', 'details': ''},
-          'speechRemainingMs': 240000,
+          'speechRemainingMs':
+              speeches.isEmpty ? 240000 : speeches.first['durationMs'],
           'speechRunning': false,
-          'prepRemainingMs': 180000,
+          'prepRemainingMs': template['prepMs'],
+          'prepDurationMs': template['prepMs'],
           'prepRunning': false,
+          'eventFormat': template['format'],
+          'eventName': template['name'],
+          'speechOrder': speeches,
+          'currentSpeechIndex': 0,
+          'autoAdvance': false,
           'debaters': participate
               ? [
                   {
@@ -453,7 +464,13 @@ class PreviewEngineBridge implements EngineBridge {
             'speechRemainingMs': 240000,
             'speechRunning': false,
             'prepRemainingMs': 180000,
+            'prepDurationMs': 180000,
             'prepRunning': false,
+            'eventFormat': 'pf',
+            'eventName': 'Public Forum',
+            'speechOrder': _previewRoundTemplate('pf')['speeches'],
+            'currentSpeechIndex': 0,
+            'autoAdvance': false,
             'debaters': [
               {
                 'id': 'debater-host',
@@ -531,7 +548,13 @@ class PreviewEngineBridge implements EngineBridge {
     }
 
     if (type == 'session.startDebate') {
-      _patchSession({'status': 'active'});
+      final session = _sessionJson;
+      final speeches = _list(session['speechOrder']);
+      _patchSession({
+        'status': 'active',
+        if (speeches.isNotEmpty)
+          'speechRemainingMs': speeches.first['durationMs'],
+      });
       return;
     }
 
@@ -598,6 +621,41 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'session.selectSpeech' || type == 'session.advanceSpeech') {
+      final session = _sessionJson;
+      final speeches = _list(session['speechOrder']);
+      if (speeches.isEmpty) return;
+      final current = session['currentSpeechIndex'] is num
+          ? (session['currentSpeechIndex']! as num).toInt()
+          : 0;
+      final requested = type == 'session.selectSpeech'
+          ? (payload['index'] is num
+              ? (payload['index']! as num).toInt()
+              : current)
+          : current + (payload['direction'] == 'previous' ? -1 : 1);
+      final next = requested.clamp(0, speeches.length - 1);
+      final slot = speeches[next];
+      final debaters = _list(session['debaters']);
+      final speaker = debaters.where((debater) {
+        return slot['team'] != null &&
+            debater['team'] == slot['team'] &&
+            (slot['position'] == null ||
+                debater['position'] == slot['position']);
+      });
+      _patchSession({
+        'currentSpeechIndex': next,
+        'speechRemainingMs': slot['durationMs'],
+        'speechRunning': false,
+        'currentSpeakerId': speaker.isEmpty ? null : speaker.first['id'],
+      });
+      return;
+    }
+
+    if (type == 'session.setAutoAdvance') {
+      _patchSession({'autoAdvance': payload['enabled'] == true});
+      return;
+    }
+
     if (type == 'session.updateNotes') {
       final speakerId = payload['speakerId'];
       final text = payload['text'];
@@ -647,6 +705,10 @@ class PreviewEngineBridge implements EngineBridge {
         'opponentName': session['groupName'] ?? 'Dialektik Team',
         'sides': mySide,
         'winLoss': isWin ? 'win' : 'loss',
+        'speechOrder': _list(session['speechOrder'])
+            .map((slot) => slot['label'])
+            .whereType<String>()
+            .toList(),
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'flows': flows,
       };
@@ -663,33 +725,65 @@ class PreviewEngineBridge implements EngineBridge {
       final timerType = payload['timerType'];
       final actionName = payload['action'];
       if (timerType == 'speech') {
+        final session = _sessionJson;
+        final speeches = _list(session['speechOrder']);
+        final index = session['currentSpeechIndex'] is num
+            ? (session['currentSpeechIndex']! as num).toInt()
+            : 0;
+        final defaultDuration = speeches.isNotEmpty && index < speeches.length
+            ? speeches[index]['durationMs'] as int? ?? 240000
+            : 240000;
+        final durationMs = payload['durationSeconds'] is num
+            ? ((payload['durationSeconds']! as num) * 1000).round()
+            : defaultDuration;
         _patchSession({
           if (actionName == 'start') 'speechRunning': true,
           if (actionName == 'pause') 'speechRunning': false,
           if (actionName == 'reset') ...{
-            'speechRemainingMs': 240000,
+            'speechRemainingMs': durationMs,
             'speechRunning': false,
           },
         });
         return;
       }
       if (timerType == 'prep') {
+        final durationMs = payload['durationSeconds'] is num
+            ? ((payload['durationSeconds']! as num) * 1000).round()
+            : (_sessionJson['prepDurationMs'] as int? ?? 180000);
         _patchSession({
           if (actionName == 'start') 'prepRunning': true,
           if (actionName == 'pause') 'prepRunning': false,
           if (actionName == 'reset') ...{
-            'prepRemainingMs': 180000,
+            'prepRemainingMs': durationMs,
+            'prepDurationMs': durationMs,
             'prepRunning': false,
           },
         });
         return;
       }
-      if (timerType == 'speech' && actionName == 'reset') {
-        _patchSession({'speechRemainingMs': 240000});
-      }
-      if (timerType == 'prep' && actionName == 'reset') {
-        _patchSession({'prepRemainingMs': 180000});
-      }
+      return;
+    }
+
+    if (type == 'timer.resetAll') {
+      final session = _sessionJson;
+      final speeches = _list(session['speechOrder']);
+      final index = session['currentSpeechIndex'] is num
+          ? (session['currentSpeechIndex']! as num).toInt()
+          : 0;
+      _patchSession({
+        if (speeches.isNotEmpty && index < speeches.length)
+          'speechRemainingMs': speeches[index]['durationMs'],
+        'speechRunning': false,
+        'prepRemainingMs': session['prepDurationMs'] ?? 180000,
+        'prepRunning': false,
+        'customTimers': _customTimersJson
+            .map((timer) => {
+                  ...timer,
+                  'remainingMs': timer['durationMs'],
+                  'running': false,
+                })
+            .toList(),
+      });
       return;
     }
 
@@ -831,10 +925,9 @@ class PreviewEngineBridge implements EngineBridge {
       final id = payload['id'];
       final selected = payload['selected'] == true;
       if (id is! String) return;
-      final citedIds = (_aiJson['citedDocIds'] as List?)
-              ?.whereType<String>()
-              .toList() ??
-          <String>[];
+      final citedIds =
+          (_aiJson['citedDocIds'] as List?)?.whereType<String>().toList() ??
+              <String>[];
       final document = _documentsJson.cast<Map<String, Object?>>().where(
             (doc) => doc['id'] == id,
           );
@@ -977,7 +1070,18 @@ class PreviewEngineBridge implements EngineBridge {
     if (session['speechRunning'] == true) {
       final next = _decrement(session['speechRemainingMs'], elapsedMs);
       patch['speechRemainingMs'] = next;
-      if (next == 0) patch['speechRunning'] = false;
+      if (next == 0) {
+        patch['speechRunning'] = false;
+        final speeches = _list(session['speechOrder']);
+        final index = session['currentSpeechIndex'] is num
+            ? (session['currentSpeechIndex']! as num).toInt()
+            : 0;
+        if (session['autoAdvance'] == true && index < speeches.length - 1) {
+          final nextSlot = speeches[index + 1];
+          patch['currentSpeechIndex'] = index + 1;
+          patch['speechRemainingMs'] = nextSlot['durationMs'];
+        }
+      }
     }
 
     if (session['prepRunning'] == true) {
@@ -1087,6 +1191,155 @@ String _applyTextSplice(
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+Map<String, Object?> _previewSpeech(
+  String id,
+  String label,
+  int minutes, {
+  String kind = 'speech',
+  String? team,
+  int? position,
+}) {
+  return {
+    'id': id,
+    'label': label,
+    'durationMs': minutes * 60000,
+    'kind': kind,
+    if (team != null) 'team': team,
+    if (position != null) 'position': position,
+  };
+}
+
+Map<String, Object?> _previewRoundTemplate(String requestedFormat) {
+  final format = const {'pf', 'ld', 'policy', 'congress', 'worlds', 'custom'}
+          .contains(requestedFormat)
+      ? requestedFormat
+      : 'pf';
+  final details = switch (format) {
+    'ld' => (
+        name: 'Lincoln-Douglas',
+        prep: 4,
+        speeches: [
+          _previewSpeech('ac', 'Affirmative Constructive', 6,
+              team: 'affirmative', position: 1),
+          _previewSpeech('neg-cx', 'Negative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'negative', position: 1),
+          _previewSpeech('nc', 'Negative Constructive', 7,
+              team: 'negative', position: 1),
+          _previewSpeech('aff-cx', 'Affirmative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'affirmative', position: 1),
+          _previewSpeech('1ar', 'First Affirmative Rebuttal', 4,
+              team: 'affirmative', position: 1),
+          _previewSpeech('nr', 'Negative Rebuttal', 6,
+              team: 'negative', position: 1),
+          _previewSpeech('2ar', 'Second Affirmative Rebuttal', 3,
+              team: 'affirmative', position: 1),
+        ],
+      ),
+    'policy' => (
+        name: 'Policy',
+        prep: 8,
+        speeches: [
+          _previewSpeech('1ac', 'First Affirmative Constructive', 8,
+              team: 'affirmative', position: 1),
+          _previewSpeech('cx-1ac', 'Negative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'negative', position: 2),
+          _previewSpeech('1nc', 'First Negative Constructive', 8,
+              team: 'negative', position: 1),
+          _previewSpeech('cx-1nc', 'Affirmative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'affirmative', position: 1),
+          _previewSpeech('2ac', 'Second Affirmative Constructive', 8,
+              team: 'affirmative', position: 2),
+          _previewSpeech('cx-2ac', 'Negative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'negative', position: 1),
+          _previewSpeech('2nc', 'Second Negative Constructive', 8,
+              team: 'negative', position: 2),
+          _previewSpeech('cx-2nc', 'Affirmative Cross-Examination', 3,
+              kind: 'cross_examination', team: 'affirmative', position: 2),
+          _previewSpeech('1nr', 'First Negative Rebuttal', 5,
+              team: 'negative', position: 1),
+          _previewSpeech('1ar', 'First Affirmative Rebuttal', 5,
+              team: 'affirmative', position: 1),
+          _previewSpeech('2nr', 'Second Negative Rebuttal', 5,
+              team: 'negative', position: 2),
+          _previewSpeech('2ar', 'Second Affirmative Rebuttal', 5,
+              team: 'affirmative', position: 2),
+        ],
+      ),
+    'congress' => (
+        name: 'Congress',
+        prep: 0,
+        speeches: [
+          _previewSpeech('sponsor', 'Authorship or Sponsorship', 3),
+          _previewSpeech('sponsor-q', 'Questioning of Sponsor', 2,
+              kind: 'questioning'),
+          _previewSpeech('first-neg', 'First Negative Speech', 3,
+              team: 'negative'),
+          _previewSpeech('first-neg-q', 'Questioning of First Negative', 2,
+              kind: 'questioning'),
+          _previewSpeech('floor-speech', 'Floor Speech', 3),
+          _previewSpeech('floor-q', 'Questioning', 1, kind: 'questioning'),
+        ],
+      ),
+    'worlds' => (
+        name: 'World Schools',
+        prep: 0,
+        speeches: [
+          for (final entry in [
+            ('prop-1', 'Proposition Speaker 1', 'affirmative', 1),
+            ('opp-1', 'Opposition Speaker 1', 'negative', 1),
+            ('prop-2', 'Proposition Speaker 2', 'affirmative', 2),
+            ('opp-2', 'Opposition Speaker 2', 'negative', 2),
+            ('prop-3', 'Proposition Speaker 3', 'affirmative', 3),
+            ('opp-3', 'Opposition Speaker 3', 'negative', 3),
+          ])
+            _previewSpeech(entry.$1, entry.$2, 8,
+                team: entry.$3, position: entry.$4),
+          _previewSpeech('opp-reply', 'Opposition Reply', 4,
+              kind: 'reply', team: 'negative'),
+          _previewSpeech('prop-reply', 'Proposition Reply', 4,
+              kind: 'reply', team: 'affirmative'),
+        ],
+      ),
+    'custom' => (
+        name: 'Custom',
+        prep: 3,
+        speeches: [_previewSpeech('open', 'Opening Speech', 4)],
+      ),
+    _ => (
+        name: 'Public Forum',
+        prep: 3,
+        speeches: [
+          _previewSpeech('team-a-1', 'First Speaker — Team A', 4,
+              team: 'affirmative', position: 1),
+          _previewSpeech('team-b-1', 'First Speaker — Team B', 4,
+              team: 'negative', position: 1),
+          _previewSpeech('crossfire-1', 'Crossfire', 3, kind: 'crossfire'),
+          _previewSpeech('team-a-2', 'Second Speaker — Team A', 4,
+              team: 'affirmative', position: 2),
+          _previewSpeech('team-b-2', 'Second Speaker — Team B', 4,
+              team: 'negative', position: 2),
+          _previewSpeech('crossfire-2', 'Crossfire', 3, kind: 'crossfire'),
+          _previewSpeech('summary-a', 'Summary — Team A', 3,
+              team: 'affirmative', position: 1),
+          _previewSpeech('summary-b', 'Summary — Team B', 3,
+              team: 'negative', position: 1),
+          _previewSpeech('grand-crossfire', 'Grand Crossfire', 3,
+              kind: 'crossfire'),
+          _previewSpeech('final-a', 'Final Focus — Team A', 2,
+              team: 'affirmative', position: 2),
+          _previewSpeech('final-b', 'Final Focus — Team B', 2,
+              team: 'negative', position: 2),
+        ],
+      ),
+  };
+  return {
+    'format': format,
+    'name': details.name,
+    'prepMs': details.prep * 60000,
+    'speeches': details.speeches,
+  };
 }
 
 final Map<String, Object?> _initialPreviewState = {
