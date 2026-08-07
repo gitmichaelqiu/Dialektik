@@ -2152,7 +2152,8 @@ class HighlightingTextController extends TextEditingController {
           text: lineText,
           style: (style ?? const TextStyle()).copyWith(
             backgroundColor:
-                highlightColor ?? Colors.teal.shade50.withAlpha(76),
+            highlightColor ??
+                Theme.of(context).colorScheme.primaryContainer.withAlpha(76),
           ),
         ));
       } else {

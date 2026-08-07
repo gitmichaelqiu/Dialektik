@@ -104,15 +104,21 @@ class _InRoundScreenState extends State<InRoundScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
-            backgroundColor: Colors.teal.shade700,
+            backgroundColor: Theme.of(context).colorScheme.primary,
             content: Row(
               children: [
-                const Icon(Icons.copy, color: Colors.white70, size: 20),
+                Icon(
+                  Icons.copy,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Room code ${session.roomCode} copied to clipboard!',
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -156,14 +162,24 @@ class _InRoundScreenState extends State<InRoundScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 behavior: SnackBarBehavior.fixed,
-                backgroundColor: Colors.orange.shade800,
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 content: Row(
                   children: [
-                    const Icon(Icons.link_off, color: Colors.white70, size: 20),
+                    Icon(
+                      Icons.link_off,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                      size: 20,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text('${d.name} disconnected.',
-                          style: const TextStyle(color: Colors.white)),
+                      child: Text(
+                        '${d.name} disconnected.',
+                        style: TextStyle(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onErrorContainer,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -193,14 +209,22 @@ class _InRoundScreenState extends State<InRoundScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               behavior: SnackBarBehavior.fixed,
-              backgroundColor: Colors.teal.shade700,
-              content: const Row(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              content: Row(
                 children: [
-                  Icon(Icons.mic, color: Colors.white70, size: 20),
+                  Icon(
+                    Icons.mic,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    size: 20,
+                  ),
                   SizedBox(width: 12),
                   Expanded(
-                    child: Text('You are the active speaker!',
-                        style: TextStyle(color: Colors.white)),
+                    child: Text(
+                      'You are the active speaker!',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1025,8 +1049,8 @@ class _LobbyHandoutPane extends StatelessWidget {
           icon: const Icon(Icons.cancel_outlined),
           label: Text(session.isHost ? 'Cancel session' : 'Exit session'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red),
+            foregroundColor: Theme.of(context).colorScheme.error,
+            side: BorderSide(color: Theme.of(context).colorScheme.error),
           ),
         ),
       ),
@@ -1312,7 +1336,7 @@ class _TimersPane extends StatelessWidget {
                 // Affirmative row
                 _SpeakerTeamRow(
                   label: 'Affirmative',
-                  color: Colors.teal,
+                  color: Theme.of(context).colorScheme.primary,
                   debaters: session.debaters
                       .where((d) => !d.disconnected && d.team == 'affirmative')
                       .toList(),
@@ -1325,7 +1349,7 @@ class _TimersPane extends StatelessWidget {
                 // Negative row
                 _SpeakerTeamRow(
                   label: 'Negative',
-                  color: Colors.deepOrange,
+                  color: Theme.of(context).colorScheme.tertiary,
                   debaters: session.debaters
                       .where((d) => !d.disconnected && d.team == 'negative')
                       .toList(),
@@ -1358,7 +1382,7 @@ class _SpeakerTeamRow extends StatelessWidget {
   });
 
   final String label;
-  final MaterialColor color;
+  final Color color;
   final List<Debater> debaters;
   final String? currentSpeakerId;
   final bool showPosition;
@@ -1369,9 +1393,12 @@ class _SpeakerTeamRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // Use filled chip style for selected with proper contrast in both themes.
-    final selectedColor = isDark ? color.shade200 : color.shade100;
-    final selectedTextColor = isDark ? Colors.black : color.shade900;
+    // Use a subtle theme-derived tint for selected chips in both themes.
+    final selectedColor = Color.alphaBlend(
+      color.withAlpha(isDark ? 72 : 34),
+      theme.colorScheme.surface,
+    );
+    final selectedTextColor = color;
     return Row(
       children: [
         SizedBox(
@@ -1380,7 +1407,7 @@ class _SpeakerTeamRow extends StatelessWidget {
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
-                  color: isDark ? color.shade200 : color.shade700)),
+                  color: color)),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -1643,7 +1670,7 @@ class _PendingRequestTile extends StatelessWidget {
         OutlinedButton(
           onPressed: onReject,
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
+            foregroundColor: Theme.of(context).colorScheme.error,
             visualDensity: VisualDensity.compact,
           ),
           child: const Text('Reject'),

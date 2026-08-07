@@ -327,7 +327,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 children: [
                                   Badge(
                                     label: Text(flow.speechId),
-                                    backgroundColor: Colors.teal.shade700,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                   const SizedBox(height: 8),
                                   Expanded(

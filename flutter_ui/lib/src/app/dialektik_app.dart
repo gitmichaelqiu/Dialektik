@@ -11,30 +11,102 @@ import '../screens/in_round_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/join_request_notification_service.dart';
 
-const Color _seedColor = Color(0xff0f766e);
+// Dialektik uses a deep indigo-violet accent rather than Flutter's default
+// teal/green look. Material 3 derives light and dark tonal palettes from this
+// seed while keeping the rest of the UI accessible through ColorScheme.
+const Color _seedColor = Color(0xff5b5bd6);
 
 final Map<Brightness, ThemeData> _themeCache = {};
 
 ThemeData _appTheme(Brightness brightness) {
   // Cache theme data per brightness — avoids creating a new ThemeData on
   // every snapshot tick, which would rebuild the entire widget tree.
-  return _themeCache.putIfAbsent(
-      brightness,
-      () => ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: _seedColor,
-              brightness: brightness,
-            ),
-            cardTheme: const CardThemeData(
-              clipBehavior: Clip.antiAlias,
-              margin: EdgeInsets.zero,
-            ),
-            inputDecorationTheme: const InputDecorationTheme(
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-          ));
+  return _themeCache.putIfAbsent(brightness, () {
+    final colors = ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      brightness: brightness,
+    );
+    final outline = colors.outlineVariant.withAlpha(150);
+    final radius = BorderRadius.circular(12);
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colors,
+      scaffoldBackgroundColor: colors.surface,
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.surface,
+        foregroundColor: colors.onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        surfaceTintColor: colors.primary.withAlpha(18),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: colors.surface,
+        indicatorColor: colors.secondaryContainer,
+        surfaceTintColor: colors.primary.withAlpha(12),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: colors.surface,
+        indicatorColor: colors.secondaryContainer,
+        selectedIconTheme: IconThemeData(
+          color: colors.onSecondaryContainer,
+        ),
+        selectedLabelTextStyle: TextStyle(
+          color: colors.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color: colors.surfaceContainerLow,
+        surfaceTintColor: colors.primary.withAlpha(12),
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: outline),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colors.surfaceContainerLowest,
+        border: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: colors.primary, width: 2),
+        ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: radius),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: radius),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: colors.inverseSurface,
+        contentTextStyle: TextStyle(color: colors.onInverseSurface),
+        actionTextColor: colors.inversePrimary,
+        shape: RoundedRectangleBorder(borderRadius: radius),
+      ),
+    );
+  });
 }
 
 class DialektikFlutterApp extends StatelessWidget {
@@ -216,16 +288,20 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.fixed,
-            backgroundColor: Colors.black87,
+            backgroundColor: Theme.of(context).colorScheme.inverseSurface,
             content: Row(
               children: [
-                const Icon(Icons.person_add, color: Colors.white70, size: 20),
+                Icon(
+                  Icons.person_add,
+                  color: Theme.of(context).colorScheme.onInverseSurface,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Join request from ${request.name}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onInverseSurface,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -236,8 +312,12 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
                         action('session.rejectJoin', {'id': request.id}));
                     ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   },
-                  child: const Text('Reject',
-                      style: TextStyle(color: Colors.redAccent)),
+                  child: Text(
+                    'Reject',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -246,8 +326,8 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
                     ScaffoldMessenger.of(context).hideCurrentSnackBar();
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
                   child: const Text('Approve'),
