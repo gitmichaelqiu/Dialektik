@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.3
+
+### Fixed
+
+- Kept Google Docs sign-in and embedded-editor failures inside Dialektik until the user explicitly selects **Open in browser**
+
+### Changed
+
+- Removed redundant Documents workspace helper copy
+
 ## v1.0.2
 
 ### Added
