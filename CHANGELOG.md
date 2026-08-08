@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.2
+
+### Added
+
+- First-class native Google Docs WebView with shared cookies, progress, reload, and recoverable error states
+- Task-focused initial pane proportions with persistent resizing and collapsible utility panels
+- Desktop pane-proportion regression coverage
+
+### Changed
+
+- Made the document, chat, handout, and history-detail canvases dominant on desktop
+- Reduced desktop panel gutters and replaced equal-width defaults with purpose-specific layouts
+- Centered Settings in a readable 960px column instead of stretching forms across the window
+
 ## v1.0.1
 
 ### Added
