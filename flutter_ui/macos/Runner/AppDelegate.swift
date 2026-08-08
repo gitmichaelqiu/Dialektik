@@ -63,6 +63,7 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
           let url = URL(string: urlString),
           let frame = flutterFrame(from: arguments),
           let contentView = NSApp.mainWindow?.contentView else {
+      print("[Dialektik] Unable to mount embedded Google Docs WebView: \(String(describing: arguments))")
       return
     }
     let webView = embeddedEditorWebView ?? makeEmbeddedEditor()
@@ -92,10 +93,10 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   }
 
   private func flutterFrame(from arguments: [String: Any]) -> NSRect? {
-    guard let x = arguments["x"] as? Double,
-          let y = arguments["y"] as? Double,
-          let width = arguments["width"] as? Double,
-          let height = arguments["height"] as? Double,
+    guard let x = (arguments["x"] as? NSNumber)?.doubleValue,
+          let y = (arguments["y"] as? NSNumber)?.doubleValue,
+          let width = (arguments["width"] as? NSNumber)?.doubleValue,
+          let height = (arguments["height"] as? NSNumber)?.doubleValue,
           let contentView = NSApp.mainWindow?.contentView else {
       return nil
     }
