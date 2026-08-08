@@ -71,7 +71,12 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     if webView.superview == nil {
       contentView.addSubview(webView, positioned: .above, relativeTo: nil)
     }
+    webView.isHidden = false
+    webView.alphaValue = 1
+    webView.wantsLayer = true
+    webView.layer?.zPosition = 1000
     webView.frame = frame
+    webView.needsLayout = true
     if webView.url != url {
       webView.load(URLRequest(url: url))
     }
