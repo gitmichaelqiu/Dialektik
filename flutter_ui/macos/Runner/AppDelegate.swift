@@ -5,12 +5,15 @@ import WebKit
 
 @main
 class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
-  private var webViewFocusMonitor: Any?
+  private var embeddedEditorChannel: FlutterMethodChannel?
+  private var embeddedEditorWebView: WKWebView?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     super.applicationDidFinishLaunching(notification)
-    installWebViewFocusMonitor()
+    DispatchQueue.main.async { [weak self] in
+      self?.installEmbeddedEditorChannel()
+    }
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -21,52 +24,91 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     return true
   }
 
-  deinit {
-    if let webViewFocusMonitor {
-      NSEvent.removeMonitor(webViewFocusMonitor)
-    }
-  }
-
-  /// Flutter's macOS platform views do not forward a focus handoff back to a
-  /// nested WKWebView after another Flutter control owns first responder.
-  /// Restore it before AppKit delivers the click, so Google Docs remains
-  /// interactive after the user moves between the document and the sidebar.
-  private func installWebViewFocusMonitor() {
-    webViewFocusMonitor = NSEvent.addLocalMonitorForEvents(
-      matching: [.leftMouseDown]
-    ) { [weak self] event in
-      self?.focusWebView(for: event)
-      return event
-    }
-  }
-
-  private func focusWebView(for event: NSEvent) {
-    guard let contentView = event.window?.contentView else {
+  /// The Flutter AppKit platform-view path does not reliably deliver focus or
+  /// pointer input to WKWebView. Mount the editor as a direct window subview
+  /// instead, while Flutter supplies its document-pane bounds over this channel.
+  private func installEmbeddedEditorChannel() {
+    guard let flutterViewController = NSApp.windows
+      .compactMap({ $0.contentViewController as? FlutterViewController })
+      .first else {
       return
     }
-    let point = contentView.convert(event.locationInWindow, from: nil)
-    guard let webView = visibleWebView(in: contentView, at: point) else {
-      return
+    let channel = FlutterMethodChannel(
+      name: "dialektik/embedded_google_docs",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterError(code: "unavailable", message: nil, details: nil))
+        return
+      }
+      switch call.method {
+      case "show":
+        self.showEmbeddedEditor(with: call.arguments as? [String: Any])
+        result(nil)
+      case "hide":
+        self.embeddedEditorWebView?.removeFromSuperview()
+        result(nil)
+      case "reload":
+        self.embeddedEditorWebView?.reload()
+        result(nil)
+      case "load":
+        self.loadEmbeddedEditor(urlString: (call.arguments as? [String: Any])?["url"] as? String)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
-    event.window?.makeFirstResponder(webView)
+    embeddedEditorChannel = channel
   }
 
-  private func visibleWebView(in view: NSView, at point: NSPoint) -> WKWebView? {
-    for subview in view.subviews.reversed() {
-      guard !subview.isHidden, subview.alphaValue > 0 else {
-        continue
-      }
-      let pointInSubview = subview.convert(point, from: view)
-      guard subview.bounds.contains(pointInSubview) else {
-        continue
-      }
-      if let webView = subview as? WKWebView {
-        return webView
-      }
-      if let webView = visibleWebView(in: subview, at: pointInSubview) {
-        return webView
-      }
+  private func showEmbeddedEditor(with arguments: [String: Any]?) {
+    guard let arguments,
+          let urlString = arguments["url"] as? String,
+          let url = URL(string: urlString),
+          let frame = flutterFrame(from: arguments),
+          let contentView = NSApp.mainWindow?.contentView else {
+      return
     }
-    return nil
+    let webView = embeddedEditorWebView ?? makeEmbeddedEditor()
+    embeddedEditorWebView = webView
+    if webView.superview == nil {
+      contentView.addSubview(webView, positioned: .above, relativeTo: nil)
+    }
+    webView.frame = frame
+    if webView.url != url {
+      webView.load(URLRequest(url: url))
+    }
+  }
+
+  private func makeEmbeddedEditor() -> WKWebView {
+    let configuration = WKWebViewConfiguration()
+    configuration.websiteDataStore = .default()
+    let webView = WKWebView(frame: .zero, configuration: configuration)
+    webView.autoresizingMask = []
+    return webView
+  }
+
+  private func loadEmbeddedEditor(urlString: String?) {
+    guard let urlString, let url = URL(string: urlString) else {
+      return
+    }
+    embeddedEditorWebView?.load(URLRequest(url: url))
+  }
+
+  private func flutterFrame(from arguments: [String: Any]) -> NSRect? {
+    guard let x = arguments["x"] as? Double,
+          let y = arguments["y"] as? Double,
+          let width = arguments["width"] as? Double,
+          let height = arguments["height"] as? Double,
+          let contentView = NSApp.mainWindow?.contentView else {
+      return nil
+    }
+    return NSRect(
+      x: x,
+      y: contentView.bounds.height - y - height,
+      width: width,
+      height: height
+    )
   }
 }
