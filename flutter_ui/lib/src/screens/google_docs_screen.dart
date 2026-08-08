@@ -264,11 +264,6 @@ class _GoogleDocsLibrary extends StatelessWidget {
                   .titleLarge
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Your live prep documents, in one place.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onAdd,
@@ -559,7 +554,15 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                             final target = action.request.url;
                             if (target != null &&
                                 target.host.contains('accounts.google.com')) {
-                              await _openExternal(Uri.parse(target.toString()));
+                              if (mounted) {
+                                setState(() {
+                                  _loadProgress = 1;
+                                  _loadError =
+                                      'Google sign-in needs to be completed in '
+                                      'your browser. Dialektik will only open it '
+                                      'when you choose Open in browser.';
+                                });
+                              }
                               return NavigationActionPolicy.CANCEL;
                             }
                             return NavigationActionPolicy.ALLOW;
@@ -795,8 +798,8 @@ class _ExternalEditorFallback extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Google sign-in opens in your browser for security. Return to '
-                'Dialektik when you are ready to prep or add AI context.',
+                'Open this document when you are ready. Google Docs manages '
+                'sign-in, access, and sharing in your browser.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),

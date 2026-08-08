@@ -22,6 +22,7 @@ void main() {
             'No Google Docs linked yet.\n\nLink a case, block file, or shared round document to begin.'),
         findsOneWidget);
     expect(find.text('Link your debate workspace'), findsOneWidget);
+    expect(find.text('Your live prep documents, in one place.'), findsNothing);
     expect(find.text('Offline workspace'), findsOneWidget);
     expect(find.text('Evidence library'), findsOneWidget);
 
@@ -54,6 +55,8 @@ void main() {
 
     expect(find.text('PF blocks'), findsWidgets);
     expect(find.text('Sharing is managed in Google Docs'), findsOneWidget);
+    expect(find.text('Continue in Google Docs'), findsOneWidget);
+    expect(find.text('Open Google Docs'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 
