@@ -327,9 +327,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 children: [
                                   Badge(
                                     label: Text(flow.speechId),
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                   const SizedBox(height: 8),
                                   Expanded(
@@ -502,8 +501,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     return ResponsivePane(
-      cacheKey: 'history',
+      cacheKey: 'history_desktop_v2',
       mainPaneIndex: 1,
+      initialFractions: const [0.3, 0.7],
       children: [
         FocusTraversalGroup(
           child: historyListPane,

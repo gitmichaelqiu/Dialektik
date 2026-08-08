@@ -145,8 +145,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final centeredPadding = (MediaQuery.sizeOf(context).width - 960) / 2;
+    final horizontalPadding = centeredPadding > 16 ? centeredPadding : 16.0;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        16,
+        horizontalPadding,
+        16,
+      ),
       children: [
         _buildAboutCard(context),
         const SizedBox(height: 16),

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../services/google_doc_link.dart';
+import '../widgets/adaptive_scaffold.dart';
 import 'documents_screen.dart';
 
 class GoogleDocsScreen extends StatefulWidget {
@@ -114,50 +115,53 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          SizedBox(
-            width: compact ? MediaQuery.sizeOf(context).width - 32 : 300,
-            child: _GoogleDocsLibrary(
-              documents: _googleDocs,
-              localDocumentCount: widget.snapshot.documents
-                  .where((doc) => !doc.isGoogleDoc)
-                  .length,
-              evidenceCardCount: widget.snapshot.cards.length,
-              selectedId: selected?.id,
-              onSelect: (doc) => setState(() {
-                _selectedId = doc.id;
-                _cachedSelectedId = doc.id;
-              }),
-              onAdd: _showLinkDialog,
-              onCreate: _createGoogleDoc,
-              onOpenOffline: () => setState(() {
-                _openEvidenceOnStart = false;
-                _showOfflineWorkspace = true;
-              }),
-              onOpenEvidence: () => setState(() {
-                _openEvidenceOnStart = true;
-                _showOfflineWorkspace = true;
-              }),
-            ),
-          ),
-          if (!compact) ...[
-            const SizedBox(width: 16),
-            Expanded(
-              child: selected == null
-                  ? const _WelcomePanel()
-                  : _DocumentWorkspace(
-                      key: ValueKey(selected.id),
-                      document: selected,
-                      bridge: widget.bridge,
-                      onRemove: () => _removeDocument(selected),
-                    ),
-            ),
-          ],
-        ],
-      ),
+    final library = _GoogleDocsLibrary(
+      documents: _googleDocs,
+      localDocumentCount:
+          widget.snapshot.documents.where((doc) => !doc.isGoogleDoc).length,
+      evidenceCardCount: widget.snapshot.cards.length,
+      selectedId: selected?.id,
+      onSelect: (doc) => setState(() {
+        _selectedId = doc.id;
+        _cachedSelectedId = doc.id;
+      }),
+      onAdd: _showLinkDialog,
+      onCreate: _createGoogleDoc,
+      onOpenOffline: () => setState(() {
+        _openEvidenceOnStart = false;
+        _showOfflineWorkspace = true;
+      }),
+      onOpenEvidence: () => setState(() {
+        _openEvidenceOnStart = true;
+        _showOfflineWorkspace = true;
+      }),
+    );
+
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: library,
+      );
+    }
+
+    return ResponsivePane(
+      cacheKey: 'google_docs_desktop_v2',
+      mainPaneIndex: 1,
+      collapsiblePaneIndices: const {0},
+      initialFractions: const [0.23, 0.77],
+      children: [
+        FocusTraversalGroup(child: library),
+        FocusTraversalGroup(
+          child: selected == null
+              ? const _WelcomePanel()
+              : _DocumentWorkspace(
+                  key: ValueKey(selected.id),
+                  document: selected,
+                  bridge: widget.bridge,
+                  onRemove: () => _removeDocument(selected),
+                ),
+        ),
+      ],
     );
   }
 
@@ -397,7 +401,10 @@ class _DocumentWorkspace extends StatefulWidget {
 
 class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   late final TextEditingController _contextController;
+  InAppWebViewController? _webViewController;
   bool _showContext = false;
+  double _loadProgress = 0;
+  String? _loadError;
 
   bool get _supportsEmbed =>
       !kIsWeb &&
@@ -422,6 +429,7 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   Widget build(BuildContext context) {
     final uri = Uri.tryParse(widget.document.externalUrl);
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           Padding(
@@ -451,6 +459,15 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                     ],
                   ),
                 ),
+                if (_supportsEmbed && MediaQuery.sizeOf(context).width >= 1000)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 4),
+                    child: Chip(
+                      avatar: Icon(Icons.web_asset_outlined, size: 16),
+                      label: Text('Embedded editor'),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                 IconButton(
                   tooltip: 'AI context',
                   onPressed: () => setState(() => _showContext = !_showContext),
@@ -458,6 +475,14 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                       ? Icons.auto_awesome
                       : Icons.auto_awesome_outlined),
                 ),
+                if (_supportsEmbed && !_showContext)
+                  IconButton(
+                    tooltip: 'Reload embedded editor',
+                    onPressed: _webViewController == null
+                        ? null
+                        : () => _webViewController!.reload(),
+                    icon: const Icon(Icons.refresh),
+                  ),
                 IconButton(
                   tooltip: 'Open in browser',
                   onPressed: uri == null ? null : () => _openExternal(uri),
@@ -491,22 +516,73 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
           else
             Expanded(
               child: _supportsEmbed && uri != null
-                  ? InAppWebView(
-                      key: ValueKey(uri.toString()),
-                      initialUrlRequest: URLRequest(url: WebUri.uri(uri)),
-                      initialSettings: InAppWebViewSettings(
-                        javaScriptEnabled: true,
-                        useShouldOverrideUrlLoading: true,
-                      ),
-                      shouldOverrideUrlLoading: (controller, action) async {
-                        final target = action.request.url;
-                        if (target != null &&
-                            target.host.contains('accounts.google.com')) {
-                          await _openExternal(Uri.parse(target.toString()));
-                          return NavigationActionPolicy.CANCEL;
-                        }
-                        return NavigationActionPolicy.ALLOW;
-                      },
+                  ? Stack(
+                      children: [
+                        InAppWebView(
+                          key: ValueKey(uri.toString()),
+                          initialUrlRequest: URLRequest(url: WebUri.uri(uri)),
+                          initialSettings: InAppWebViewSettings(
+                            javaScriptEnabled: true,
+                            domStorageEnabled: true,
+                            cacheEnabled: true,
+                            sharedCookiesEnabled: true,
+                            thirdPartyCookiesEnabled: true,
+                            supportZoom: true,
+                            allowsBackForwardNavigationGestures: true,
+                            useShouldOverrideUrlLoading: true,
+                          ),
+                          onWebViewCreated: (controller) {
+                            _webViewController = controller;
+                          },
+                          onLoadStart: (controller, url) {
+                            if (!mounted) return;
+                            setState(() {
+                              _loadError = null;
+                              _loadProgress = 0;
+                            });
+                          },
+                          onLoadStop: (controller, url) {
+                            if (!mounted) return;
+                            setState(() => _loadProgress = 1);
+                          },
+                          onProgressChanged: (controller, progress) {
+                            if (!mounted) return;
+                            setState(() => _loadProgress = progress / 100);
+                          },
+                          onReceivedError: (controller, request, error) {
+                            if (!mounted || request.isForMainFrame != true) {
+                              return;
+                            }
+                            setState(() => _loadError = error.description);
+                          },
+                          shouldOverrideUrlLoading: (controller, action) async {
+                            final target = action.request.url;
+                            if (target != null &&
+                                target.host.contains('accounts.google.com')) {
+                              await _openExternal(Uri.parse(target.toString()));
+                              return NavigationActionPolicy.CANCEL;
+                            }
+                            return NavigationActionPolicy.ALLOW;
+                          },
+                        ),
+                        if (_loadProgress < 1)
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(
+                              value: _loadProgress == 0 ? null : _loadProgress,
+                              minHeight: 2,
+                            ),
+                          ),
+                        if (_loadError != null)
+                          _EmbeddedEditorError(
+                            message: _loadError!,
+                            onRetry: () {
+                              setState(() => _loadError = null);
+                              _webViewController?.reload();
+                            },
+                            onOpenExternal: () => _openExternal(uri),
+                          ),
+                      ],
                     )
                   : _ExternalEditorFallback(onOpen: () {
                       if (uri != null) _openExternal(uri);
@@ -566,6 +642,74 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
         const SnackBar(content: Text('Unable to open Google Docs.')),
       );
     }
+  }
+}
+
+class _EmbeddedEditorError extends StatelessWidget {
+  const _EmbeddedEditorError({
+    required this.message,
+    required this.onRetry,
+    required this.onOpenExternal,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final VoidCallback onOpenExternal;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 40),
+                const SizedBox(height: 12),
+                Text(
+                  'The embedded editor could not load',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: onOpenExternal,
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open in browser'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

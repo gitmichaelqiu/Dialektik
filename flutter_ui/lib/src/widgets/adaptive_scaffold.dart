@@ -137,12 +137,18 @@ class ResponsivePane extends StatefulWidget {
     this.cacheKey,
     this.mainPaneIndex = 1,
     this.collapsiblePaneIndices,
+    this.initialFractions,
+    this.desktopPadding = 16,
+    this.dividerWidth = 12,
   });
 
   final List<Widget> children;
   final String? cacheKey;
   final int mainPaneIndex;
   final Set<int>? collapsiblePaneIndices;
+  final List<double>? initialFractions;
+  final double desktopPadding;
+  final double dividerWidth;
 
   @override
   State<ResponsivePane> createState() => _ResponsivePaneState();
@@ -228,8 +234,8 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         if (count == 0) return const SizedBox.shrink();
         _ensureFractions(count);
 
-        const outerPadding = 24.0;
-        const dividerWidth = 16.0;
+        final outerPadding = widget.desktopPadding;
+        final dividerWidth = widget.dividerWidth;
         final availableWidth = (constraints.maxWidth -
                 (outerPadding * 2) -
                 dividerWidth * (count - 1))
@@ -259,7 +265,7 @@ class _ResponsivePaneState extends State<ResponsivePane> {
         }).toList();
 
         return Padding(
-          padding: const EdgeInsets.all(outerPadding),
+          padding: EdgeInsets.all(outerPadding),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -305,7 +311,15 @@ class _ResponsivePaneState extends State<ResponsivePane> {
       }
     }
     if (_fractions.length == count) return;
-    _fractions = List<double>.filled(count, 1 / count);
+    final requested = widget.initialFractions;
+    if (requested != null &&
+        requested.length == count &&
+        requested.every((value) => value > 0)) {
+      final total = requested.fold<double>(0, (sum, value) => sum + value);
+      _fractions = requested.map((value) => value / total).toList();
+    } else {
+      _fractions = List<double>.filled(count, 1 / count);
+    }
     if (key != null) {
       _fractionsCache[key] = _fractions;
       _saveCache();

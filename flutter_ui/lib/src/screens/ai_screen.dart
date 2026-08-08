@@ -149,8 +149,9 @@ class _AiScreenState extends State<AiScreen> {
     }
 
     return ResponsivePane(
-      cacheKey: 'ai',
+      cacheKey: 'ai_desktop_v2',
       mainPaneIndex: 1,
+      initialFractions: const [0.22, 0.56, 0.22],
       children: [
         FocusTraversalGroup(child: chatListPane),
         FocusTraversalGroup(child: chatPane),
@@ -514,7 +515,8 @@ class _CitedFilesPane extends StatelessWidget {
               child: documents.isEmpty
                   ? const EmptyState(
                       icon: Icons.folder_open_outlined,
-                      message: 'Link a Google Doc or create an offline note first.',
+                      message:
+                          'Link a Google Doc or create an offline note first.',
                     )
                   : ListView.builder(
                       itemCount: documents.length,

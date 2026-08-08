@@ -500,9 +500,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         child: SafeArea(child: evidencePane),
       ),
       body: ResponsivePane(
-        cacheKey: 'documents_focused',
+        cacheKey: 'documents_focused_v2',
         mainPaneIndex: 1,
         collapsiblePaneIndices: const {0},
+        initialFractions: const [0.24, 0.76],
         children: [
           FocusTraversalGroup(child: filesPane),
           FocusTraversalGroup(child: editorPane),

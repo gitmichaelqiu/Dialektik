@@ -640,8 +640,13 @@ class _InRoundScreenState extends State<InRoundScreen>
             ),
           )
         : ResponsivePane(
-            cacheKey: 'in_round_active',
+            cacheKey: active
+                ? 'in_round_active_desktop_v2'
+                : 'in_round_lobby_desktop_v2',
             mainPaneIndex: 0,
+            collapsiblePaneIndices: active ? const {1, 2} : const {1},
+            initialFractions:
+                active ? const [0.54, 0.21, 0.25] : const [0.62, 0.38],
             children: [
               FocusTraversalGroup(child: handoutPane),
               if (active) FocusTraversalGroup(child: timersPane),
