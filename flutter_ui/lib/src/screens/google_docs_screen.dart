@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -478,6 +479,14 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                         : () => _webViewController!.reload(),
                     icon: const Icon(Icons.refresh),
                   ),
+                if (_supportsEmbed && !_showContext)
+                  IconButton(
+                    tooltip: 'Sign in to Google',
+                    onPressed: _webViewController == null
+                        ? null
+                        : () => _signInToGoogle(uri),
+                    icon: const Icon(Icons.account_circle_outlined),
+                  ),
                 IconButton(
                   tooltip: 'Open in browser',
                   onPressed: uri == null ? null : () => _openExternal(uri),
@@ -516,6 +525,11 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                         InAppWebView(
                           key: ValueKey(uri.toString()),
                           initialUrlRequest: URLRequest(url: WebUri.uri(uri)),
+                          gestureRecognizers: {
+                            Factory<EagerGestureRecognizer>(
+                              () => EagerGestureRecognizer(),
+                            ),
+                          },
                           initialSettings: InAppWebViewSettings(
                             javaScriptEnabled: true,
                             domStorageEnabled: true,
@@ -636,6 +650,20 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
         const SnackBar(content: Text('Unable to open Google Docs.')),
       );
     }
+  }
+
+  Future<void> _signInToGoogle(Uri? documentUri) async {
+    final controller = _webViewController;
+    if (controller == null) return;
+    final continueUri = documentUri?.toString() ?? 'https://docs.google.com/';
+    final signInUri = Uri.https('accounts.google.com', '/ServiceLogin', {
+      'service': 'wise',
+      'continue': continueUri,
+    });
+    setState(() => _loadError = null);
+    await controller.loadUrl(
+      urlRequest: URLRequest(url: WebUri.uri(signInUri)),
+    );
   }
 }
 
