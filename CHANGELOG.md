@@ -45,6 +45,7 @@
 - Allowed Google authentication redirects inside the embedded editor and ignored benign WebKit redirect interruptions
 - Restored pointer input for the macOS embedded WebView and added persistent in-app Google sign-in
 - Kept the embedded editor responsive after focus moves to another desktop control
+- Restored first-responder status to the native macOS WebView before each document click
 
 ## v0.1.0
 
