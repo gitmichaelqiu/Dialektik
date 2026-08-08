@@ -44,6 +44,7 @@
 - Removed duplicate TURN configuration notices from round setup
 - Allowed Google authentication redirects inside the embedded editor and ignored benign WebKit redirect interruptions
 - Restored pointer input for the macOS embedded WebView and added persistent in-app Google sign-in
+- Kept the embedded editor responsive after focus moves to another desktop control
 
 ## v0.1.0
 

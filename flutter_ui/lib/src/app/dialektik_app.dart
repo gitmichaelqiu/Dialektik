@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../bridge/engine_bridge.dart';
@@ -200,9 +201,16 @@ class _KeyboardDismissRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final usesTouchKeyboard = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.android);
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
+        // On desktop, native platform views such as the embedded WKWebView
+        // must own first-responder changes. Unfocusing here races that handoff
+        // after the user clicks back into the editor.
+        if (!usesTouchKeyboard) return;
         final focus = FocusManager.instance.primaryFocus;
         final focusContext = focus?.context;
         if (focus == null || focusContext == null) return;
