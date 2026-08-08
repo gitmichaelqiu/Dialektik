@@ -524,7 +524,6 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                             thirdPartyCookiesEnabled: true,
                             supportZoom: true,
                             allowsBackForwardNavigationGestures: true,
-                            useShouldOverrideUrlLoading: true,
                           ),
                           onWebViewCreated: (controller) {
                             _webViewController = controller;
@@ -548,24 +547,16 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                             if (!mounted || request.isForMainFrame != true) {
                               return;
                             }
-                            setState(() => _loadError = error.description);
-                          },
-                          shouldOverrideUrlLoading: (controller, action) async {
-                            final target = action.request.url;
-                            if (target != null &&
-                                target.host.contains('accounts.google.com')) {
-                              if (mounted) {
-                                setState(() {
-                                  _loadProgress = 1;
-                                  _loadError =
-                                      'Google sign-in needs to be completed in '
-                                      'your browser. Dialektik will only open it '
-                                      'when you choose Open in browser.';
-                                });
-                              }
-                              return NavigationActionPolicy.CANCEL;
+                            // WebKit reports code 102 while replacing a frame
+                            // during a redirect. Google Docs uses redirects for
+                            // authentication and document routing; it is not a
+                            // terminal load failure.
+                            if (error.description.contains('code=102') ||
+                                error.description
+                                    .contains('Frame load interrupted')) {
+                              return;
                             }
-                            return NavigationActionPolicy.ALLOW;
+                            setState(() => _loadError = error.description);
                           },
                         ),
                         if (_loadProgress < 1)
