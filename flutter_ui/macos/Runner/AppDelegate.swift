@@ -11,9 +11,6 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   override func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     super.applicationDidFinishLaunching(notification)
-    DispatchQueue.main.async { [weak self] in
-      self?.installEmbeddedEditorChannel()
-    }
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -27,10 +24,8 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   /// The Flutter AppKit platform-view path does not reliably deliver focus or
   /// pointer input to WKWebView. Mount the editor as a direct window subview
   /// instead, while Flutter supplies its document-pane bounds over this channel.
-  private func installEmbeddedEditorChannel() {
-    guard let flutterViewController = NSApp.windows
-      .compactMap({ $0.contentViewController as? FlutterViewController })
-      .first else {
+  func installEmbeddedEditorChannel(with flutterViewController: FlutterViewController) {
+    guard embeddedEditorChannel == nil else {
       return
     }
     let channel = FlutterMethodChannel(

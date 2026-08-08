@@ -686,7 +686,7 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
 class _MacNativeEditor {
   static const _channel = MethodChannel('dialektik/embedded_google_docs');
 
-  static Future<void> show(Uri uri, Rect bounds) => _channel.invokeMethod<void>(
+  static Future<void> show(Uri uri, Rect bounds) => _invoke(
         'show',
         {
           'url': uri.toString(),
@@ -697,12 +697,20 @@ class _MacNativeEditor {
         },
       );
 
-  static Future<void> hide() => _channel.invokeMethod<void>('hide');
+  static Future<void> hide() => _invoke('hide');
 
-  static Future<void> reload() => _channel.invokeMethod<void>('reload');
+  static Future<void> reload() => _invoke('reload');
 
-  static Future<void> load(Uri uri) =>
-      _channel.invokeMethod<void>('load', {'url': uri.toString()});
+  static Future<void> load(Uri uri) => _invoke('load', {'url': uri.toString()});
+
+  static Future<void> _invoke(String method, [Object? arguments]) async {
+    try {
+      await _channel.invokeMethod<void>(method, arguments);
+    } on MissingPluginException {
+      // A teardown can occur while macOS is finishing native plugin setup.
+      // The next layout pass retries `show` once the channel is available.
+    }
+  }
 }
 
 class _MacNativeDocumentView extends StatefulWidget {
