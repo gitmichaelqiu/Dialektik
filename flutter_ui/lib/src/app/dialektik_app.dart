@@ -110,11 +110,16 @@ ThemeData _appTheme(Brightness brightness) {
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: colors.surface,
+        minWidth: 104,
         indicatorColor: colors.primaryContainer,
         selectedIconTheme: IconThemeData(
           color: colors.onPrimaryContainer,
         ),
         selectedLabelTextStyle: TextStyle(
+          color: colors.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: TextStyle(
           color: colors.onSurface,
           fontWeight: FontWeight.w600,
         ),
