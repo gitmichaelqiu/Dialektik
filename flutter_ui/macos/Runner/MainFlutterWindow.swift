@@ -10,6 +10,10 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    (NSApp.delegate as? AppDelegate)?.installEmbeddedEditorChannel(
+      with: flutterViewController
+    )
+
     super.awakeFromNib()
   }
 }
