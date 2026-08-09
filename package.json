@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/flutter-dev.mjs",
+    "dev": "npm run frontend:dev",
+    "frontend:dev": "vite --config frontend/vite.config.ts",
+    "frontend:build": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
+    "frontend:preview": "vite preview --config frontend/vite.config.ts",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "flutter:dev": "node scripts/flutter-dev.mjs",
     "flutter:web": "cd flutter_ui && flutter run -d chrome",
     "flutter:ios": "node scripts/flutter-dev.mjs -d ios",
@@ -14,15 +19,24 @@
     "flutter:build:ios": "cd flutter_ui && flutter build ios",
     "relay:start": "node server/relay-server.mjs",
     "preview": "cd flutter_ui && flutter run -d chrome",
-    "engine:build": "vite build --config vite.config.engine.ts"
+    "engine:build": "vite build --config vite.config.engine.ts && node scripts/sync-engine-asset.mjs"
   },
   "dependencies": {
+    "@carbon/icons-react": "^11.80.0",
+    "@carbon/react": "^1.112.0",
     "dexie": "^4.4.4",
     "peerjs": "^1.5.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "ws": "^8.18.0",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.8.4",
+    "@vitejs/plugin-react": "^5.0.2",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "sass": "^1.89.2",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }
