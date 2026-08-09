@@ -62,6 +62,7 @@ export interface SessionState {
 
 export interface Snapshot {
   activePage: Page;
+  systemBrightness?: "light" | "dark";
   documents: DebateDocument[];
   cards: EvidenceCard[];
   history: HistoryRecord[];

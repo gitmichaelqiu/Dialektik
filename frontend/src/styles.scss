@@ -272,6 +272,93 @@ button, input, textarea, select { font: inherit; }
 .search-results button { display: flex; align-items: center; gap: .75rem; min-height: 3.25rem; padding: .5rem .75rem; border: 0; background: #f4f4f4; color: #161616; text-align: left; cursor: pointer; }
 .search-results button:hover { background: #e8f5e9; }
 .search-results svg { fill: #0e6027; }
+
+// Dark mode follows the engine's system-brightness snapshot while preserving
+// green as the interactive accent and keeping content surfaces readable.
+.app-shell.theme-dark {
+  color-scheme: dark;
+  background: #161616;
+  color: #f4f4f4;
+}
+.theme-dark .app-nav,
+.theme-dark .chat-list,
+.theme-dark .document-list,
+.theme-dark .cds--tile { background: #262626 !important; }
+.theme-dark .app-nav,
+.theme-dark .sidebar-brand,
+.theme-dark .app-pagebar,
+.theme-dark .list-heading,
+.theme-dark .document-row,
+.theme-dark .chat-row,
+.theme-dark .editor-footer,
+.theme-dark .frame-toolbar,
+.theme-dark .settings-section,
+.theme-dark .ai-layout,
+.theme-dark .google-frame-shell { border-color: #525252; }
+.theme-dark .app-nav,
+.theme-dark .sidebar-brand,
+.theme-dark .app-pagebar,
+.theme-dark .document-detail,
+.theme-dark .document-detail-standalone,
+.theme-dark .chat-panel,
+.theme-dark .page-content,
+.theme-dark .editor-footer,
+.theme-dark .markdown-preview,
+.theme-dark .offline-editor,
+.theme-dark .google-frame-shell { background: #161616; }
+.theme-dark .app-nav .cds--side-nav__link,
+.theme-dark .document-item,
+.theme-dark .chat-item,
+.theme-dark .sidebar-account,
+.theme-dark .sidebar-settings,
+.theme-dark .document-menu-trigger { color: #f4f4f4; }
+.theme-dark .app-nav .cds--side-nav__link[aria-current="page"],
+.theme-dark .document-row:hover,
+.theme-dark .sidebar-account:hover,
+.theme-dark .sidebar-settings:hover,
+.theme-dark .document-menu-trigger:hover { background: #393939; }
+.theme-dark .document-row.is-selected,
+.theme-dark .chat-row.is-selected { background: #1f3b28; }
+.theme-dark .document-row.is-selected:hover { background: #244a30; }
+.theme-dark .sidebar-brand span,
+.theme-dark .app-pagebar h1,
+.theme-dark .document-item strong,
+.theme-dark .chat-item,
+.theme-dark .settings-section h2,
+.theme-dark .markdown-preview,
+.theme-dark .message p { color: #f4f4f4; }
+.theme-dark .docs-side-heading,
+.theme-dark .helper-text,
+.theme-dark .muted-copy,
+.theme-dark .document-item small,
+.theme-dark .pagebar-status,
+.theme-dark .detail-source,
+.theme-dark .message p,
+.theme-dark .evidence-tile p { color: #c6c6c6; }
+.theme-dark .docs-side-actions button,
+.theme-dark .search-results button,
+.theme-dark .chat-composer .cds--form-item,
+.theme-dark .chat-composer .cds--text-area,
+.theme-dark .chat-composer .cds--text-area__field,
+.theme-dark .chat-composer-actions .cite-menu-trigger,
+.theme-dark .settings-section .cds--text-input,
+.theme-dark .settings-section .cds--text-area,
+.theme-dark .settings-section .cds--select-input,
+.theme-dark .cds--text-input,
+.theme-dark .cds--text-area,
+.theme-dark .cds--select-input { background: #262626 !important; color: #f4f4f4 !important; }
+.theme-dark .docs-side-actions button { border-color: #6f6f6f; }
+.theme-dark .document-context-menu,
+.theme-dark .cds--menu,
+.theme-dark .cds--overflow-menu-options { background: #262626 !important; color: #f4f4f4; }
+.theme-dark .document-context-menu button,
+.theme-dark .cds--menu-item,
+.theme-dark .cds--overflow-menu-options__option { color: #f4f4f4 !important; }
+.theme-dark .document-context-menu button:hover,
+.theme-dark .cds--menu-item:hover,
+.theme-dark .cds--overflow-menu-options__option:hover { background: #393939 !important; }
+.theme-dark .compact-preview-content { background: #f4f4f4; color: #161616; }
+.theme-dark .google-doc-frame { background: #ffffff; }
 .search-results span { display: flex; flex-direction: column; gap: .25rem; }
 .search-results small { color: #6f6f6f; }
 .empty-state { min-height: 18rem; display: grid; place-items: center; align-content: center; gap: .5rem; padding: 2rem; color: #525252; text-align: center; }

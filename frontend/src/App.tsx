@@ -178,11 +178,12 @@ function App() {
 
   const selectedDocument = snapshot.documents.find((document) => document.id === selectedDocumentId) ?? snapshot.documents[0];
   const currentPage = activePage ?? snapshot.activePage;
+  const darkTheme = snapshot.systemBrightness === "dark";
   const pageTitle = currentPage === "documents" ? selectedDocument?.name ?? "Documents" : currentPage === "inround" && snapshot.session?.matchName ? snapshot.session.matchName : currentPage === "settings" ? "Settings" : navItems.find((item) => item.page === currentPage)?.label ?? "Dialektik";
 
   return (
-    <Theme theme="white">
-      <div className={`app-shell ${!isMobile && !navExpanded ? "nav-collapsed" : ""}`}>
+    <Theme theme={darkTheme ? "g100" : "white"}>
+      <div className={`app-shell ${darkTheme ? "theme-dark" : ""} ${!isMobile && !navExpanded ? "nav-collapsed" : ""}`}>
         <Header aria-label="Dialektik" className="app-titlebar">
           <button className="sidebar-toggle mobile-only" aria-expanded={mobileNav} onClick={() => setMobileNav((open) => !open)}>
             <span className="visually-hidden">Open navigation</span>
