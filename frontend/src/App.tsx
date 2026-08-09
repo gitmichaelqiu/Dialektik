@@ -173,7 +173,8 @@ function App() {
     <Theme theme="white">
       <div className={`app-shell ${!isMobile && !navExpanded ? "nav-collapsed" : ""}`}>
         <Header aria-label="Dialektik" className="app-titlebar">
-          <button className="sidebar-toggle mobile-only" aria-label="Open navigation" aria-expanded={mobileNav} onClick={() => setMobileNav((open) => !open)}>
+          <button className="sidebar-toggle mobile-only" aria-expanded={mobileNav} onClick={() => setMobileNav((open) => !open)}>
+            <span className="visually-hidden">Open navigation</span>
             <Menu />
           </button>
           <span className="app-wordmark">Dialektik</span>
@@ -186,7 +187,7 @@ function App() {
           addFocusListeners={false}
           className="app-nav"
         >
-          <div className="sidebar-brand"><button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}><Menu /></button><span>Dialektik</span></div>
+          <div className="sidebar-brand"><button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}><span className="visually-hidden">Toggle sidebar</span><Menu /></button><span>Dialektik</span></div>
           <div className="sidebar-navigation"><SideNavItems>
             {navItems.map(({ page, label, icon: Icon }) => {
               const link = <SideNavLink

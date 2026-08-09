@@ -20,6 +20,7 @@ html, body, #root { width: 100%; height: 100%; }
 html, body { overflow: hidden; overscroll-behavior: none; }
 body { margin: 0; min-width: 320px; background: #ffffff; }
 button, input, textarea, select { font: inherit; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .app-shell { width: 100%; height: 100vh; overflow: hidden; background: #ffffff; user-select: none; -webkit-user-select: none; }
 .app-shell input, .app-shell textarea, .app-shell select, .app-shell [contenteditable="true"], .app-shell .google-frame-shell { user-select: text; -webkit-user-select: text; }
