@@ -54,7 +54,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('PF blocks'), findsWidgets);
-    expect(find.text('Sharing is managed in Google Docs'), findsOneWidget);
+    expect(find.text('Sharing is managed in Google Docs'), findsNothing);
     expect(find.text('Continue in Google Docs'), findsOneWidget);
     expect(find.text('Open Google Docs'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;

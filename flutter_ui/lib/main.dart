@@ -233,6 +233,38 @@ class PreviewEngineBridge implements EngineBridge {
       return;
     }
 
+    if (type == 'document.updateGoogle') {
+      final id = payload['id'];
+      final requestedName = payload['name'];
+      final url = payload['url'];
+      if (id is! String ||
+          requestedName is! String ||
+          requestedName.trim().isEmpty ||
+          url is! String ||
+          url.trim().isEmpty) {
+        return;
+      }
+      GoogleDocLink link;
+      try {
+        link = GoogleDocLink.parse(url);
+      } on FormatException {
+        return;
+      }
+      final docs = _documentsJson.map((doc) {
+        if (doc['id'] != id) return doc;
+        return {
+          ...doc,
+          'name': requestedName.trim(),
+          'externalUrl': link.editUrl.toString(),
+          if (payload['aiContext'] is String)
+            'content': (payload['aiContext']! as String).trim(),
+          'lastModified': DateTime.now().millisecondsSinceEpoch,
+        };
+      }).toList();
+      _patch({'documents': docs});
+      return;
+    }
+
     if (type == 'document.rename') {
       final id = payload['id'];
       final name = payload['name'];

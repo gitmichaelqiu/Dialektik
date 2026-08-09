@@ -1169,6 +1169,23 @@ async function dispatch(actionJson: string) {
     return;
   }
 
+  if (type === "document.updateGoogle") {
+    const id = typeof payload.id === "string" ? payload.id : "";
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    const externalUrl = normalizeGoogleDocUrl(payload.url);
+    if (!id || !name || !externalUrl) return;
+    const existing = await db.documents.get(id);
+    if (!existing || existing.type !== "google_docs") return;
+    await db.documents.update(id, {
+      name,
+      externalUrl,
+      content: typeof payload.aiContext === "string" ? payload.aiContext.trim() : existing.content,
+      lastModified: Date.now(),
+    });
+    await emitSnapshot();
+    return;
+  }
+
   if (type === "document.create") {
     const name = (payload.name || "Untitled").trim();
     const safeName = name.endsWith(".md") ? name : `${name}.md`;

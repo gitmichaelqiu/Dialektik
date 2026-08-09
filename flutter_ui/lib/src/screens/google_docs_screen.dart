@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_cef/webview_cef.dart' as cef;
@@ -135,8 +136,12 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
         _selectedId = doc.id;
         _cachedSelectedId = doc.id;
       }),
-      onAdd: _showLinkDialog,
+      onAdd: () => _showLinkDialog(),
       onCreate: _createGoogleDoc,
+      onRename: _renameDocument,
+      onEditLink: (doc) => _showLinkDialog(existing: doc),
+      onCopyLink: _copyDocumentLink,
+      onRemove: _removeDocument,
       onOpenOffline: () => setState(() {
         _openEvidenceOnStart = false;
         _showOfflineWorkspace = true;
@@ -175,17 +180,21 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
     );
   }
 
-  Future<void> _showLinkDialog() async {
+  Future<void> _showLinkDialog({DebateDocument? existing}) async {
     final result = await showDialog<_LinkedDocumentDraft>(
       context: context,
-      builder: (context) => const _LinkGoogleDocDialog(),
+      builder: (context) => _LinkGoogleDocDialog(existing: existing),
     );
     if (result == null) return;
-    widget.bridge.dispatch(action('document.linkGoogle', {
-      'name': result.name,
-      'url': result.url,
-      'aiContext': result.aiContext,
-    }));
+    widget.bridge.dispatch(action(
+      existing == null ? 'document.linkGoogle' : 'document.updateGoogle',
+      {
+        'id': existing?.id,
+        'name': result.name,
+        'url': result.url,
+        'aiContext': result.aiContext,
+      },
+    ));
   }
 
   Future<void> _createGoogleDoc() async {
@@ -193,10 +202,61 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Created it? Link the document when it is ready.'),
+        content: Row(
+          children: [
+            const Expanded(
+              child: Text('Created it? Link the document when it is ready.'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
         action: SnackBarAction(label: 'Link', onPressed: _showLinkDialog),
       ),
     );
+  }
+
+  Future<void> _copyDocumentLink(DebateDocument document) async {
+    await Clipboard.setData(ClipboardData(text: document.externalUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google Docs link copied.')),
+    );
+  }
+
+  Future<void> _renameDocument(DebateDocument document) async {
+    final controller = TextEditingController(text: document.title);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename linked document'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Display name'),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty || name == document.title) return;
+    widget.bridge.dispatch(action('document.rename', {
+      'id': document.id,
+      'name': name,
+    }));
   }
 
   Future<void> _removeDocument(DebateDocument document) async {
@@ -245,6 +305,10 @@ class _GoogleDocsLibrary extends StatelessWidget {
     required this.onSelect,
     required this.onAdd,
     required this.onCreate,
+    required this.onRename,
+    required this.onEditLink,
+    required this.onCopyLink,
+    required this.onRemove,
     required this.onOpenOffline,
     required this.onOpenEvidence,
   });
@@ -256,6 +320,10 @@ class _GoogleDocsLibrary extends StatelessWidget {
   final ValueChanged<DebateDocument> onSelect;
   final VoidCallback onAdd;
   final VoidCallback onCreate;
+  final ValueChanged<DebateDocument> onRename;
+  final ValueChanged<DebateDocument> onEditLink;
+  final ValueChanged<DebateDocument> onCopyLink;
+  final ValueChanged<DebateDocument> onRemove;
   final VoidCallback onOpenOffline;
   final VoidCallback onOpenEvidence;
 
@@ -267,13 +335,7 @@ class _GoogleDocsLibrary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Google Docs',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            const SectionHeader(title: 'Google Docs'),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onAdd,
@@ -322,6 +384,39 @@ class _GoogleDocsLibrary extends StatelessWidget {
                           subtitle: Text(doc.content.trim().isEmpty
                               ? 'AI context not added'
                               : 'AI context ready'),
+                          trailing: PopupMenuButton<_DocumentAction>(
+                            tooltip: 'Document actions',
+                            onSelected: (action) {
+                              switch (action) {
+                                case _DocumentAction.rename:
+                                  onRename(doc);
+                                case _DocumentAction.editLink:
+                                  onEditLink(doc);
+                                case _DocumentAction.copyLink:
+                                  onCopyLink(doc);
+                                case _DocumentAction.remove:
+                                  onRemove(doc);
+                              }
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: _DocumentAction.rename,
+                                child: Text('Rename'),
+                              ),
+                              PopupMenuItem(
+                                value: _DocumentAction.editLink,
+                                child: Text('Edit link'),
+                              ),
+                              PopupMenuItem(
+                                value: _DocumentAction.copyLink,
+                                child: Text('Copy link'),
+                              ),
+                              PopupMenuItem(
+                                value: _DocumentAction.remove,
+                                child: Text('Remove'),
+                              ),
+                            ],
+                          ),
                           onTap: () => onSelect(doc),
                         );
                       },
@@ -349,6 +444,8 @@ class _GoogleDocsLibrary extends StatelessWidget {
   }
 }
 
+enum _DocumentAction { rename, editLink, copyLink, remove }
+
 class _WelcomePanel extends StatelessWidget {
   const _WelcomePanel();
 
@@ -372,9 +469,8 @@ class _WelcomePanel extends StatelessWidget {
                 ),
                 SizedBox(height: 10),
                 Text(
-                  'Keep ownership and sharing controls in Google Docs. '
-                  'Dialektik stores only the link and any context you choose '
-                  'to share with AI Coach.',
+                  'Dialektik stores the document link and any context you '
+                  'choose to share with AI Coach.',
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -464,19 +560,9 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                             .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                      const Text('Sharing is managed in Google Docs'),
                     ],
                   ),
                 ),
-                if (_supportsEmbed && MediaQuery.sizeOf(context).width >= 1000)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Chip(
-                      avatar: Icon(Icons.web_asset_outlined, size: 16),
-                      label: Text('Embedded editor'),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
                 IconButton(
                   tooltip: 'AI context',
                   onPressed: () => setState(() => _showContext = !_showContext),
@@ -494,35 +580,10 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                             : () => _webViewController!.reload(),
                     icon: const Icon(Icons.refresh),
                   ),
-                if (_supportsEmbed && !_showContext)
-                  IconButton(
-                    tooltip: 'Sign in to Google',
-                    onPressed:
-                        _usesNativeMacEditor || _webViewController != null
-                            ? () => _signInToGoogle(uri)
-                            : null,
-                    icon: const Icon(Icons.account_circle_outlined),
-                  ),
                 IconButton(
                   tooltip: 'Open in browser',
                   onPressed: uri == null ? null : () => _openExternal(uri),
                   icon: const Icon(Icons.open_in_new),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'rename') _renameDocument();
-                    if (value == 'remove') widget.onRemove();
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'rename',
-                      child: Text('Rename in Dialektik'),
-                    ),
-                    PopupMenuItem(
-                      value: 'remove',
-                      child: Text('Remove from Dialektik'),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -637,38 +698,6 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
     );
   }
 
-  Future<void> _renameDocument() async {
-    final controller = TextEditingController(text: widget.document.title);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename linked document'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Display name'),
-          onSubmitted: (value) => Navigator.pop(context, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Rename'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.isEmpty || name == widget.document.title) return;
-    widget.bridge.dispatch(action('document.rename', {
-      'id': widget.document.id,
-      'name': name,
-    }));
-  }
-
   Future<void> _openExternal(Uri uri) async {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
@@ -676,20 +705,6 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
         const SnackBar(content: Text('Unable to open Google Docs.')),
       );
     }
-  }
-
-  Future<void> _signInToGoogle(Uri? documentUri) async {
-    final signInUri = _googleSignInUri(documentUri);
-    if (_usesNativeMacEditor) {
-      await _cefController?.loadUrl(signInUri.toString());
-      return;
-    }
-    final controller = _webViewController;
-    if (controller == null) return;
-    setState(() => _loadError = null);
-    await controller.loadUrl(
-      urlRequest: URLRequest(url: WebUri.uri(signInUri)),
-    );
   }
 }
 
@@ -789,8 +804,7 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
 
       if (mounted) {
         setState(() {
-          _error =
-              'Google could not connect inside the embedded editor. '
+          _error = 'Google could not connect inside the embedded editor. '
               'Try again or open the document in your browser.';
         });
       }
@@ -1002,7 +1016,9 @@ class _LinkedDocumentDraft {
 }
 
 class _LinkGoogleDocDialog extends StatefulWidget {
-  const _LinkGoogleDocDialog();
+  const _LinkGoogleDocDialog({this.existing});
+
+  final DebateDocument? existing;
 
   @override
   State<_LinkGoogleDocDialog> createState() => _LinkGoogleDocDialogState();
@@ -1015,6 +1031,17 @@ class _LinkGoogleDocDialogState extends State<_LinkGoogleDocDialog> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _nameController.text = existing.title;
+      _urlController.text = existing.externalUrl;
+      _contextController.text = existing.content;
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _urlController.dispose();
@@ -1025,7 +1052,7 @@ class _LinkGoogleDocDialogState extends State<_LinkGoogleDocDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Link Google Doc'),
+      title: Text(widget.existing == null ? 'Link Google Doc' : 'Edit link'),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -1034,8 +1061,7 @@ class _LinkGoogleDocDialogState extends State<_LinkGoogleDocDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Dialektik stores this link locally. Access and sharing remain '
-                'under your control in Google Docs.',
+                'Dialektik stores this link locally.',
               ),
               const SizedBox(height: 16),
               TextField(
@@ -1075,7 +1101,9 @@ class _LinkGoogleDocDialogState extends State<_LinkGoogleDocDialog> {
         ),
         FilledButton(
           onPressed: _submit,
-          child: const Text('Link document'),
+          child: Text(
+            widget.existing == null ? 'Link document' : 'Save changes',
+          ),
         ),
       ],
     );
