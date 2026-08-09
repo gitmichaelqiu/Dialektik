@@ -1,10 +1,42 @@
-# Dialektik
+<h1 align="center">
+  <img src="./DialektikIcon.png" width="25%" alt=""/>
+  <p></p>
+  <p align="center">Dialektik</p>
+</h1>
 
-Dialektik is a local-first debate workspace for NSDA clubs. It combines live P2P rounds, collaborative documents, evidence cards, AI coaching, timers, and round history. The TypeScript engine keeps persistence, WebRTC, Yjs, and AI calls on-device; the v1.0.0 frontend migration uses Tauri, React, and Carbon Design System.
-
-The `v1.0.0` branch is the next-major migration line. The Flutter application remains in the repository as the stable v0.3.0 release line while the Tauri frontend is completed.
+A local-first, serverless portal for National Speech and Debate Association (NSDA) clubs. Dialektik manages debate rounds with P2P WebRTC connections, collaborative document editing, AI coaching, evidence cards, and round history. Workspace data is stored locally on your device — no backend server is required.
 
 Licensed under the [MIT License](LICENSE).
+
+## Installation
+
+Download the latest release for your platform:
+
+| Platform | File |
+|---|---|
+| **macOS** | `Dialektik_macOS_v0.3.0.dmg` — open and drag to Applications |
+| **iOS & iPadOS** | `Dialektik_iOS_iPadOS_v0.3.0.ipa` — install via TestFlight or sideload |
+| **Web** | `Dialektik_web_v0.3.0.zip` — extract and serve the `Dialektik/` folder |
+
+> [!NOTE]
+> Because I do **NOT** have an Apple developer account for the app releases, you may receive alerts such as “Developer is not verified” on macOS.
+>
+> To resolve this, go to System Settings → Privacy & Security → Open Dialektik.
+
+### Web quick start
+
+```bash
+unzip Dialektik_web_v0.3.0.zip
+cd Dialektik && python3 -m http.server 8080
+# Open http://localhost:8080
+```
+
+Flutter web requires a local server — opening `index.html` directly will show a blank page. For production, deploy the `Dialektik/` folder to any static host.
+
+> **Note:** P2P WebRTC on web may be limited compared to native builds. For full functionality, use the macOS or iOS app.
+
+> [!NOTE]
+> You don’t need to read the sections below if you are not a developer ☺️.
 
 ## Development setup
 

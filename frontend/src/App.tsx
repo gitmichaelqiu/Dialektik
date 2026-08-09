@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   Button,
   Checkbox,
@@ -31,6 +32,7 @@ import {
   Launch,
   FolderOpen,
   Menu,
+  OverflowMenuVertical,
   Pause,
   Play,
   Renew,
@@ -145,9 +147,7 @@ function App() {
           isRail={!isMobile && !navExpanded}
           className="app-nav"
         >
-          <button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}>
-            <Menu />
-          </button>
+          <div className="sidebar-brand"><button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}><Menu /></button><span>Dialektik</span></div>
           <SideNavItems>
             {navItems.map(({ page, label, icon: Icon }) => (
               <SideNavLink
@@ -165,10 +165,7 @@ function App() {
             ))}
             <DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} />
           </SideNavItems>
-          <div className="sidebar-footer">
-            <button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Your name"}</span></button>
-            <button type="button" className="sidebar-settings" aria-label="Settings" onClick={() => navigate("settings")}><Settings /><span>Settings</span></button>
-          </div>
+          <div className="sidebar-footer"><button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Name"}</span></button><button type="button" className="sidebar-settings" aria-label="Settings" onClick={() => navigate("settings")}><Settings /></button></div>
         </SideNav>
         <Content className="app-content">
           {error && (
@@ -192,7 +189,21 @@ function App() {
 }
 
 function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onCreate, onLink, onEditGoogle }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onCreate: () => void; onLink: () => void; onEditGoogle: (document: DebateDocument) => void }) {
-  return <div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button onClick={onCreate}>New note</button><button onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id}><button className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><OverflowMenu ariaLabel={`Actions for ${doc.name}`}><OverflowMenuItem itemText="Rename" onClick={() => { const name = window.prompt("Document name", doc.name); if (name?.trim()) bridge.dispatch("document.rename", { id: doc.id, name: name.trim() }); }} /><OverflowMenuItem itemText="Duplicate" onClick={() => bridge.dispatch("document.duplicate", { id: doc.id })} />{doc.externalUrl && <><OverflowMenuItem itemText="Edit link" onClick={() => onEditGoogle(doc)} /><OverflowMenuItem itemText="Copy link" onClick={() => void navigator.clipboard?.writeText(doc.externalUrl ?? "")} /></>}<OverflowMenuItem itemText={doc.partnerAccess === "private" ? "Share with room" : "Keep private"} onClick={() => bridge.dispatch("document.move", { id: doc.id, folder: doc.partnerAccess === "private" ? "team" : "private" })} /><OverflowMenuItem itemText="Remove" isDelete onClick={() => { if (window.confirm(`Remove ${doc.name}?`)) bridge.dispatch("document.delete", { id: doc.id }); }} /></OverflowMenu></div>)}</div>;
+  const [menu, setMenu] = useState<{ document: DebateDocument; x: number; y: number }>();
+  useEffect(() => {
+    const close = () => setMenu(undefined);
+    const closeOnKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", closeOnKey);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", closeOnKey); };
+  }, []);
+  const openMenu = (event: ReactMouseEvent, documentItem: DebateDocument) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({ document: documentItem, x: event.clientX, y: event.clientY });
+  };
+  const action = (callback: () => void) => { callback(); setMenu(undefined); };
+  return <><div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button type="button" onClick={onCreate}>New note</button><button type="button" onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id} onContextMenu={(event) => openMenu(event, doc)}><button type="button" className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><button type="button" className="document-menu-trigger" aria-label={`Actions for ${doc.name}`} onClick={(event) => { event.stopPropagation(); openMenu(event, doc); }}><OverflowMenuVertical /></button></div>)}</div>{menu && createPortal(<div className="document-context-menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 300)) }} onMouseDown={(event) => event.stopPropagation()}><button type="button" onClick={() => action(() => { const name = window.prompt("Document name", menu.document.name); if (name?.trim()) bridge.dispatch("document.rename", { id: menu.document.id, name: name.trim() }); })}>Rename</button><button type="button" onClick={() => action(() => bridge.dispatch("document.duplicate", { id: menu.document.id }))}>Duplicate</button>{menu.document.externalUrl && <><button type="button" onClick={() => action(() => onEditGoogle(menu.document))}>Edit link</button><button type="button" onClick={() => action(() => void navigator.clipboard?.writeText(menu.document.externalUrl ?? ""))}>Copy link</button></>}<button type="button" onClick={() => action(() => bridge.dispatch("document.move", { id: menu.document.id, folder: menu.document.partnerAccess === "private" ? "team" : "private" }))}>{menu.document.partnerAccess === "private" ? "Share with room" : "Keep private"}</button><button type="button" className="is-danger" onClick={() => action(() => { if (window.confirm(`Remove ${menu.document.name}?`)) bridge.dispatch("document.delete", { id: menu.document.id }); })}>Remove</button></div>, document.body)}</>;
 }
 
 function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
@@ -426,7 +437,7 @@ function AiPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge
 }
 
 function HistoryPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
-  return <><PageHeader eyebrow="Review" title="History" description="Look back at rounds, notes, and results to guide the next practice session." /><div className="history-list">{snapshot.history.length === 0 ? <EmptyState icon={Time} title="No rounds recorded" description="Completed rounds will appear here." /> : snapshot.history.map((record) => <Tile className="history-row" key={record.id}><div><h3>{record.matchName}</h3><p>{record.opponentName || "Practice round"} · {new Date(record.timestamp).toLocaleDateString()}</p></div><Tag type={record.winLoss === "win" ? "green" : "gray"}>{record.winLoss || "Unmarked"}</Tag><OverflowMenu ariaLabel={`Actions for ${record.matchName}`}><OverflowMenuItem itemText="Delete" isDelete onClick={() => bridge.dispatch("history.delete", { id: record.id })} /></OverflowMenu></Tile>)}</div></>;
+  return <><PageHeader eyebrow="Review" title="History" description="Look back at rounds, notes, and results to guide the next practice session." /><div className="history-list">{snapshot.history.length === 0 ? <EmptyState icon={Time} title="No rounds recorded" description="Completed rounds will appear here." /> : snapshot.history.map((record) => <Tile className="history-row" key={record.id}><div><h3>{record.matchName || "Untitled round"}</h3><p>{record.opponentName && <>{record.opponentName} · </>}{new Date(record.timestamp).toLocaleDateString()}</p></div><Tag type={record.winLoss === "win" ? "green" : "gray"}>{record.winLoss || "Unmarked"}</Tag><OverflowMenu ariaLabel={`Actions for ${record.matchName || "round"}`}><OverflowMenuItem itemText="Delete" isDelete onClick={() => bridge.dispatch("history.delete", { id: record.id })} /></OverflowMenu></Tile>)}</div></>;
 }
 
 function SettingsPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
