@@ -158,12 +158,12 @@ button, input, textarea, select { font: inherit; }
 .chat-row.is-selected { background: #e8f5e9; box-shadow: inset 3px 0 #198038; }
 .chat-row.is-selected .chat-item { background: transparent; }
 .document-detail { padding: 1rem 1.5rem; background: #ffffff; }
-.document-detail-standalone { display: flex; min-height: 0; height: 100%; flex-direction: column; padding: 0; }
-.document-page-content > .document-detail-standalone { flex: 1 1 auto; }
+.document-detail-standalone { display: flex; min-height: 0; height: auto; flex: 1 1 0; flex-direction: column; padding: 0; }
+.document-page-content > .document-detail-standalone { min-height: 0; height: auto; flex: 1 1 0; }
 .detail-header { margin-bottom: 2rem; align-items: flex-start; }
 .detail-header h2 { margin: .25rem 0 0; font-weight: 400; }
 .detail-source { display: block; margin-top: .35rem; color: #6f6f6f; font-size: .75rem; }
-.google-frame-shell { position: relative; min-height: 0; height: 100%; border: 1px solid #e0e0e0; background: #f4f4f4; }
+.google-frame-shell { position: relative; min-height: 0; height: auto; flex: 1 1 0; border: 1px solid #e0e0e0; background: #f4f4f4; }
 .frame-toolbar { display: flex; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .75rem; border-bottom: 1px solid #e0e0e0; color: #525252; font-size: .75rem; }
 .frame-error-detail { margin: 1rem; padding: .75rem; border-left: 3px solid #da1e28; background: #fff1f1; color: #525252; font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .google-doc-frame { display: block; width: 100%; height: calc(100% - 2.5rem); border: 0; background: #ffffff; }
