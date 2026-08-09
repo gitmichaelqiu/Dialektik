@@ -1188,8 +1188,7 @@ async function dispatch(actionJson: string) {
 
   if (type === "document.create") {
     const name = (payload.name || "Untitled").trim();
-    const safeName = name.endsWith(".md") ? name : `${name}.md`;
-    const finalName = await uniqueDocName(safeName);
+    const finalName = await uniqueDocName(name);
     const doc: DebateDocument = {
       id: `doc-${Date.now()}`, name: finalName, type: "case", content: "",
       lastModified: Date.now(),
@@ -1289,7 +1288,7 @@ async function dispatch(actionJson: string) {
     if (!existing) return;
     const finalName = existing.type === "google_docs"
       ? name.trim()
-      : await uniqueDocName(name.endsWith(".md") ? name : `${name}.md`, id);
+      : await uniqueDocName(name.trim(), id);
     if (!finalName) return;
     await db.documents.update(id, { name: finalName, lastModified: Date.now() });
     const updated = await db.documents.get(id);
@@ -1354,7 +1353,7 @@ async function dispatch(actionJson: string) {
     const { id } = payload;
     const source = await db.documents.get(id);
     if (!source) return;
-    const baseName = source.name.replace(".md", "_copy.md");
+    const baseName = `${source.name.replace(/\.md$/i, "")}_copy`;
     const finalName = await uniqueDocName(baseName);
     const copy: DebateDocument = {
       ...source,
@@ -2028,7 +2027,7 @@ async function dispatch(actionJson: string) {
         id,
         name: typeof raw.name === "string" && raw.name.trim()
           ? raw.name.trim()
-          : isGoogleDoc ? "Linked Google Doc" : "Imported.md",
+          : isGoogleDoc ? "Linked Google Doc" : "Imported",
         type: isGoogleDoc ? "google_docs" : "markdown",
         content,
         externalUrl: externalUrl ?? undefined,
@@ -2202,11 +2201,11 @@ function parseDurationMs(duration: string): number {
 async function uniqueDocName(name: string, currentId?: string): Promise<string> {
   const existing = await db.documents.toArray();
   const taken = new Set(existing.filter(d => d.id !== currentId).map(d => d.name.toLowerCase()));
-  const base = name.replace(/\.md$/i, "");
+  const base = name;
   let candidate = name;
   let i = 2;
   while (taken.has(candidate.toLowerCase())) {
-    candidate = `${base}_${i}.md`;
+    candidate = `${base}_${i}`;
     i++;
   }
   return candidate;
