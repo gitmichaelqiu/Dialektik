@@ -45,6 +45,9 @@ button, input, textarea, select { font: inherit; }
 .app-nav .cds--side-nav__link[aria-current="page"] svg { fill: #0e6027; }
 .app-content { display: flex; height: 100%; margin: 0 0 0 16rem !important; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; transition: margin-left 120ms ease; }
 .nav-collapsed .app-content { margin-left: 3rem !important; }
+.nav-collapsed .app-nav, .nav-collapsed .app-nav.cds--side-nav--expanded { width: 3rem !important; inline-size: 3rem !important; max-inline-size: 3rem !important; }
+.nav-collapsed .app-nav .cds--side-nav__link { justify-content: center; padding-inline: 0; }
+.nav-collapsed .app-nav .cds--side-nav__link > span { display: none; }
 .app-pagebar { position: relative; z-index: 2; display: flex; height: 3rem; min-height: 3rem; flex: 0 0 3rem; align-items: center; justify-content: space-between; gap: .75rem; padding: 0 1.25rem; border-bottom: 1px solid #e0e0e0; background: #ffffff; }
 .app-pagebar h1 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; font-weight: 600; }
 .pagebar-meta { display: flex; min-width: 0; align-items: center; gap: .75rem; }
