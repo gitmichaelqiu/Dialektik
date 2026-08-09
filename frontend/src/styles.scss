@@ -41,7 +41,7 @@ button, input, textarea, select { font: inherit; }
 .sidebar-documents-scroll .docs-side-panel { margin-top: 0; }
 .app-shell:not(.nav-collapsed) .compact-preview { display: none; }
 .compact-preview-portal { position: fixed; z-index: 10000; max-width: min(32rem, calc(100vw - 1rem)); transform: translateY(-50%); pointer-events: none; }
-.compact-preview-portal .cds--tooltip-content { max-width: min(32rem, calc(100vw - 1rem)); overflow-wrap: anywhere; white-space: normal; }
+.compact-preview-content { max-width: min(32rem, calc(100vw - 1rem)); padding: .5rem .75rem; border-radius: 2px; background: #161616; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); color: #ffffff; font-size: .875rem; line-height: 1.35; overflow-wrap: anywhere; white-space: normal; }
 .app-nav .cds--side-nav__link { min-height: 3rem; }
 .app-nav .cds--side-nav__link[aria-current="page"] { color: #0e6027; background: #e8f5e9; border-left: 3px solid #198038; }
 .app-nav .cds--side-nav__link[aria-current="page"] svg { fill: #0e6027; }
@@ -66,7 +66,7 @@ button, input, textarea, select { font: inherit; }
 .page-header h1 { display: none; }
 .eyebrow, .tile-kicker { color: #0e6027; font-size: .75rem; font-weight: 600; letter-spacing: .04rem; }
 .page-actions, .detail-actions { display: flex; align-items: center; gap: .5rem; }
-.cds--tile { border: 1px solid #e0e0e0; background: #f4f4f4; }
+.cds--tile { border: 1px solid #e0e0e0; background: #f4f4f4 !important; }
 .cds--tile h2, .cds--tile h3 { margin: .5rem 0 1rem; font-weight: 400; }
 .cds--tile p { color: #525252; line-height: 1.5; }
 .round-start-grid, .section-grid, .lobby-grid, .round-grid { display: grid; gap: 1rem; }
@@ -138,7 +138,8 @@ button, input, textarea, select { font: inherit; }
 .nav-collapsed .document-row { justify-content: center; border-bottom: 0; }
 .nav-collapsed .document-item { justify-content: center; min-height: 2.75rem; padding: .5rem 0; }
 .nav-collapsed .document-item span, .nav-collapsed .document-row .cds--overflow-menu { display: none; }
-.nav-collapsed .sidebar-account, .nav-collapsed .sidebar-settings { justify-content: center; padding: 0; }
+.nav-collapsed .sidebar-account { display: none; }
+.nav-collapsed .sidebar-settings { justify-content: center; padding: 0; }
 .nav-collapsed .sidebar-account span, .nav-collapsed .sidebar-settings span { display: none; }
 .document-menu-trigger { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem; place-items: center; border: 0; background: transparent; color: #525252; cursor: pointer; }
 .document-menu-trigger:hover { background: #e0e0e0; }
@@ -171,7 +172,7 @@ button, input, textarea, select { font: inherit; }
 .markdown-preview h1, .markdown-preview h2, .markdown-preview h3 { margin: 0 0 1rem; line-height: 1.2; }
 .markdown-preview p { margin: 0 0 1rem; }
 .markdown-preview ul { margin: 0 0 1rem; padding-left: 1.5rem; }
-.cds--text-input, .cds--text-area, .cds--select-input { background: #ffffff; }
+.cds--text-input, .cds--text-area, .cds--select-input { background: #ffffff !important; }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
 .evidence-tile { min-height: 16rem; display: flex; flex-direction: column; }
 .evidence-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
@@ -201,6 +202,7 @@ button, input, textarea, select { font: inherit; }
 .history-row h3 { font-size: 1rem; }
 .settings-layout { max-width: 52rem; }
 .settings-section { padding: 1.5rem 0; border-top: 1px solid #e0e0e0; }
+.settings-section:first-child { padding-top: 0; border-top: 0; }
 .settings-section h2 { margin: 0 0 1rem; font-size: 1.25rem; font-weight: 400; }
 .settings-section .cds--text-input-wrapper { max-width: 34rem; margin-bottom: 1rem; }
 .settings-section .cds--text-area-wrapper { max-width: 34rem; margin-bottom: 1rem; }

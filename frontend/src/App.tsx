@@ -82,7 +82,7 @@ function CompactPreview({ label, children }: { label: string; children: React.Re
       setOpen(false);
     },
   });
-  return <>{trigger}{open && anchor && createPortal(<div className="compact-preview-portal cds--tooltip cds--popover-container cds--popover--right cds--popover--drop-shadow" role="tooltip" style={{ left: anchor.left + 8, top: anchor.top + anchor.height / 2 }}><div className="cds--tooltip-content">{label}</div></div>, document.body)}</>;
+  return <>{trigger}{open && anchor && createPortal(<div className="compact-preview-portal" role="tooltip" style={{ left: anchor.left + 8, top: anchor.top + anchor.height / 2 }}><div className="compact-preview-content">{label}</div></div>, document.body)}</>;
 }
 
 function App() {
