@@ -132,7 +132,7 @@ button, input, textarea, select { font: inherit; }
 .sidebar-account:hover, .sidebar-settings:hover { background: #e0e0e0; }
 .sidebar-account svg, .sidebar-settings svg { flex: 0 0 auto; fill: currentColor; }
 .sidebar-settings { color: #525252; }
-.sidebar-settings.is-active { background: #e8f5e9; box-shadow: inset 3px 0 #198038; color: #0e6027; }
+.sidebar-settings.is-active { background: rgba(141, 141, 141, .2); box-shadow: inset 3px 0 #198038; color: #161616; }
 .nav-collapsed .docs-side-panel { display: block; }
 .nav-collapsed .docs-side-heading, .nav-collapsed .docs-side-actions, .nav-collapsed .docs-side-panel .muted-copy { display: none; }
 .nav-collapsed .docs-side-panel { margin-top: .5rem; padding-top: .5rem; }
@@ -142,7 +142,8 @@ button, input, textarea, select { font: inherit; }
 .nav-collapsed .document-item { justify-content: center; min-height: 2.75rem; padding: .5rem 0; }
 .nav-collapsed .document-item span, .nav-collapsed .document-row .cds--overflow-menu { display: none; }
 .nav-collapsed .sidebar-account { display: none; }
-.nav-collapsed .sidebar-settings { justify-content: center; padding: 0; }
+.nav-collapsed .sidebar-footer { padding: 0; }
+.nav-collapsed .sidebar-settings { width: 100%; min-width: 100%; justify-content: center; padding: 0; }
 .nav-collapsed .sidebar-account span, .nav-collapsed .sidebar-settings span { display: none; }
 .document-menu-trigger { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem; place-items: center; border: 0; background: transparent; color: #525252; cursor: pointer; }
 .document-menu-trigger:hover { background: #e0e0e0; }
