@@ -8,6 +8,7 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   private var embeddedEditorChannel: FlutterMethodChannel?
   private var embeddedEditorPanel: NSPanel?
   private var embeddedEditorWebView: WKWebView?
+  private var embeddedEditorStatusLabel: NSTextField?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
@@ -79,6 +80,9 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
       webView.removeFromSuperview()
       panel.contentView?.addSubview(webView)
     }
+    if let statusLabel = embeddedEditorStatusLabel {
+      panel.contentView?.addSubview(statusLabel, positioned: .above, relativeTo: webView)
+    }
     // `frame` is measured in the Flutter content view's coordinate space.
     // Convert through the content view before converting to screen space;
     // passing it directly to NSWindow would omit the title-bar/content offset.
@@ -87,6 +91,14 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     webView.frame = panel.contentView?.bounds ?? .zero
     webView.isHidden = false
     panel.orderFrontRegardless()
+    embeddedEditorStatusLabel?.isHidden = false
+    embeddedEditorStatusLabel?.stringValue = "Loading embedded editor…"
+    embeddedEditorStatusLabel?.frame = NSRect(
+      x: 16,
+      y: 16,
+      width: max(120, (panel.contentView?.bounds.width ?? 200) - 32),
+      height: 24
+    )
     if webView.url?.absoluteString != url.absoluteString {
       webView.load(URLRequest(url: url))
     }
@@ -111,7 +123,15 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     panel.ignoresMouseEvents = false
     panel.level = .normal
     panel.collectionBehavior = [.fullScreenAuxiliary]
+    panel.becomesKeyOnlyIfNeeded = false
     window.addChildWindow(panel, ordered: .above)
+
+    let statusLabel = NSTextField(labelWithString: "Loading embedded editor…")
+    statusLabel.textColor = NSColor.secondaryLabelColor
+    statusLabel.alignment = .center
+    statusLabel.isHidden = true
+    panel.contentView?.addSubview(statusLabel)
+    embeddedEditorStatusLabel = statusLabel
     return panel
   }
 
@@ -122,6 +142,7 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
     webView.navigationDelegate = self
+    webView.uiDelegate = self
     webView.autoresizingMask = []
     webView.wantsLayer = true
     webView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
@@ -168,14 +189,34 @@ extension AppDelegate: WKNavigationDelegate {
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    embeddedEditorStatusLabel?.isHidden = true
     NSLog("Dialektik embedded editor: loaded %@", webView.url?.absoluteString ?? "(unknown)")
   }
 
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    showEmbeddedEditorError(error.localizedDescription)
     NSLog("Dialektik embedded editor: provisional load failed: %@", error.localizedDescription)
   }
 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    showEmbeddedEditorError(error.localizedDescription)
     NSLog("Dialektik embedded editor: load failed: %@", error.localizedDescription)
+  }
+
+  private func showEmbeddedEditorError(_ message: String) {
+    embeddedEditorStatusLabel?.isHidden = false
+    embeddedEditorStatusLabel?.stringValue = "Embedded editor could not load: \(message)"
+  }
+}
+
+extension AppDelegate: WKUIDelegate {
+  func webView(
+    _ webView: WKWebView,
+    createWebViewWith configuration: WKWebViewConfiguration,
+    for navigationAction: WKNavigationAction,
+    windowFeatures: WKWindowFeatures
+  ) -> WKWebView? {
+    webView.load(navigationAction.request)
+    return nil
   }
 }
