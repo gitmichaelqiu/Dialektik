@@ -145,6 +145,7 @@ function App() {
           aria-label="Primary navigation"
           expanded={isMobile ? mobileNav : navExpanded}
           isRail={!isMobile && !navExpanded}
+          addMouseListeners={false}
           className="app-nav"
         >
           <div className="sidebar-brand"><button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}><Menu /></button><span>Dialektik</span></div>
