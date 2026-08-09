@@ -46,7 +46,7 @@
 - Restored pointer input for the macOS embedded WebView and added persistent in-app Google sign-in
 - Kept the embedded editor responsive after focus moves to another desktop control
 - Restored first-responder status to the native macOS WebView before each document click
-- Replaced the unreliable Flutter macOS platform-view editor with a direct native `WKWebView` overlay
+- Disabled the unreliable macOS embedded editor path; macOS now presents an explicit browser action instead of a blank pane
 
 ## v0.1.0
 

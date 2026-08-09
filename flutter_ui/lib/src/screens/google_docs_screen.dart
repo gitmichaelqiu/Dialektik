@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -405,13 +404,9 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
 
   bool get _supportsEmbed =>
       !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.macOS ||
-          defaultTargetPlatform == TargetPlatform.windows ||
+      (defaultTargetPlatform == TargetPlatform.windows ||
           defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.android);
-
-  bool get _usesNativeMacEditor =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
   @override
   void initState() {
@@ -478,20 +473,17 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                 if (_supportsEmbed && !_showContext)
                   IconButton(
                     tooltip: 'Reload embedded editor',
-                    onPressed: _usesNativeMacEditor
-                        ? _MacNativeEditor.reload
-                        : _webViewController == null
-                            ? null
-                            : () => _webViewController!.reload(),
+                    onPressed: _webViewController == null
+                        ? null
+                        : () => _webViewController!.reload(),
                     icon: const Icon(Icons.refresh),
                   ),
                 if (_supportsEmbed && !_showContext)
                   IconButton(
                     tooltip: 'Sign in to Google',
-                    onPressed:
-                        _usesNativeMacEditor || _webViewController != null
-                            ? () => _signInToGoogle(uri)
-                            : null,
+                    onPressed: _webViewController == null
+                        ? null
+                        : () => _signInToGoogle(uri),
                     icon: const Icon(Icons.account_circle_outlined),
                   ),
                 IconButton(
@@ -526,87 +518,82 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
             )
           else
             Expanded(
-              child: _usesNativeMacEditor && uri != null
-                  ? _MacNativeDocumentView(uri: uri)
-                  : _supportsEmbed && uri != null
-                      ? Stack(
-                          children: [
-                            InAppWebView(
-                              key: ValueKey(uri.toString()),
-                              initialUrlRequest:
-                                  URLRequest(url: WebUri.uri(uri)),
-                              gestureRecognizers: {
-                                Factory<EagerGestureRecognizer>(
-                                  () => EagerGestureRecognizer(),
-                                ),
-                              },
-                              initialSettings: InAppWebViewSettings(
-                                javaScriptEnabled: true,
-                                domStorageEnabled: true,
-                                cacheEnabled: true,
-                                sharedCookiesEnabled: true,
-                                thirdPartyCookiesEnabled: true,
-                                supportZoom: true,
-                                allowsBackForwardNavigationGestures: true,
-                              ),
-                              onWebViewCreated: (controller) {
-                                _webViewController = controller;
-                              },
-                              onLoadStart: (controller, url) {
-                                if (!mounted) return;
-                                setState(() {
-                                  _loadError = null;
-                                  _loadProgress = 0;
-                                });
-                              },
-                              onLoadStop: (controller, url) {
-                                if (!mounted) return;
-                                setState(() => _loadProgress = 1);
-                              },
-                              onProgressChanged: (controller, progress) {
-                                if (!mounted) return;
-                                setState(() => _loadProgress = progress / 100);
-                              },
-                              onReceivedError: (controller, request, error) {
-                                if (!mounted ||
-                                    request.isForMainFrame != true) {
-                                  return;
-                                }
-                                // WebKit reports code 102 while replacing a frame
-                                // during a redirect. Google Docs uses redirects for
-                                // authentication and document routing; it is not a
-                                // terminal load failure.
-                                if (error.description.contains('code=102') ||
-                                    error.description
-                                        .contains('Frame load interrupted')) {
-                                  return;
-                                }
-                                setState(() => _loadError = error.description);
-                              },
+              child: _supportsEmbed && uri != null
+                  ? Stack(
+                      children: [
+                        InAppWebView(
+                          key: ValueKey(uri.toString()),
+                          initialUrlRequest: URLRequest(url: WebUri.uri(uri)),
+                          gestureRecognizers: {
+                            Factory<EagerGestureRecognizer>(
+                              () => EagerGestureRecognizer(),
                             ),
-                            if (_loadProgress < 1)
-                              Align(
-                                alignment: Alignment.topCenter,
-                                child: LinearProgressIndicator(
-                                  value:
-                                      _loadProgress == 0 ? null : _loadProgress,
-                                  minHeight: 2,
-                                ),
-                              ),
-                            if (_loadError != null)
-                              _EmbeddedEditorError(
-                                message: _loadError!,
-                                onRetry: () {
-                                  setState(() => _loadError = null);
-                                  _webViewController?.reload();
-                                },
-                                onOpenExternal: () => _openExternal(uri),
-                              ),
-                          ],
-                        )
-                      : _ExternalEditorFallback(onOpen: () {
-                          if (uri != null) _openExternal(uri);
-                        }),
+                          },
+                          initialSettings: InAppWebViewSettings(
+                            javaScriptEnabled: true,
+                            domStorageEnabled: true,
+                            cacheEnabled: true,
+                            sharedCookiesEnabled: true,
+                            thirdPartyCookiesEnabled: true,
+                            supportZoom: true,
+                            allowsBackForwardNavigationGestures: true,
+                          ),
+                          onWebViewCreated: (controller) {
+                            _webViewController = controller;
+                          },
+                          onLoadStart: (controller, url) {
+                            if (!mounted) return;
+                            setState(() {
+                              _loadError = null;
+                              _loadProgress = 0;
+                            });
+                          },
+                          onLoadStop: (controller, url) {
+                            if (!mounted) return;
+                            setState(() => _loadProgress = 1);
+                          },
+                          onProgressChanged: (controller, progress) {
+                            if (!mounted) return;
+                            setState(() => _loadProgress = progress / 100);
+                          },
+                          onReceivedError: (controller, request, error) {
+                            if (!mounted || request.isForMainFrame != true) {
+                              return;
+                            }
+                            // WebKit reports code 102 while replacing a frame
+                            // during a redirect. Google Docs uses redirects for
+                            // authentication and document routing; it is not a
+                            // terminal load failure.
+                            if (error.description.contains('code=102') ||
+                                error.description
+                                    .contains('Frame load interrupted')) {
+                              return;
+                            }
+                            setState(() => _loadError = error.description);
+                          },
+                        ),
+                        if (_loadProgress < 1)
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(
+                              value: _loadProgress == 0 ? null : _loadProgress,
+                              minHeight: 2,
+                            ),
+                          ),
+                        if (_loadError != null)
+                          _EmbeddedEditorError(
+                            message: _loadError!,
+                            onRetry: () {
+                              setState(() => _loadError = null);
+                              _webViewController?.reload();
+                            },
+                            onOpenExternal: () => _openExternal(uri),
+                          ),
+                      ],
+                    )
+                  : _ExternalEditorFallback(onOpen: () {
+                      if (uri != null) _openExternal(uri);
+                    }),
             ),
         ],
       ),
@@ -665,96 +652,17 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   }
 
   Future<void> _signInToGoogle(Uri? documentUri) async {
+    final controller = _webViewController;
+    if (controller == null) return;
     final continueUri = documentUri?.toString() ?? 'https://docs.google.com/';
     final signInUri = Uri.https('accounts.google.com', '/ServiceLogin', {
       'service': 'wise',
       'continue': continueUri,
     });
-    if (_usesNativeMacEditor) {
-      await _MacNativeEditor.load(signInUri);
-      return;
-    }
-    final controller = _webViewController;
-    if (controller == null) return;
     setState(() => _loadError = null);
     await controller.loadUrl(
       urlRequest: URLRequest(url: WebUri.uri(signInUri)),
     );
-  }
-}
-
-class _MacNativeEditor {
-  static const _channel = MethodChannel('dialektik/embedded_google_docs');
-
-  static Future<void> show(Uri uri, Rect bounds) => _invoke(
-        'show',
-        {
-          'url': uri.toString(),
-          'x': bounds.left,
-          'y': bounds.top,
-          'width': bounds.width,
-          'height': bounds.height,
-        },
-      );
-
-  static Future<void> hide() => _invoke('hide');
-
-  static Future<void> reload() => _invoke('reload');
-
-  static Future<void> load(Uri uri) => _invoke('load', {'url': uri.toString()});
-
-  static Future<void> _invoke(String method, [Object? arguments]) async {
-    try {
-      await _channel.invokeMethod<void>(method, arguments);
-    } on MissingPluginException {
-      // A teardown can occur while macOS is finishing native plugin setup.
-      // The next layout pass retries `show` once the channel is available.
-    }
-  }
-}
-
-class _MacNativeDocumentView extends StatefulWidget {
-  const _MacNativeDocumentView({required this.uri});
-
-  final Uri uri;
-
-  @override
-  State<_MacNativeDocumentView> createState() => _MacNativeDocumentViewState();
-}
-
-class _MacNativeDocumentViewState extends State<_MacNativeDocumentView> {
-  @override
-  void initState() {
-    super.initState();
-    _scheduleLayout();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MacNativeDocumentView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _scheduleLayout();
-  }
-
-  @override
-  void dispose() {
-    _MacNativeEditor.hide();
-    super.dispose();
-  }
-
-  void _scheduleLayout() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final box = context.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize || box.size.isEmpty) return;
-      final origin = box.localToGlobal(Offset.zero);
-      _MacNativeEditor.show(widget.uri, origin & box.size);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    _scheduleLayout();
-    return ColoredBox(color: Theme.of(context).colorScheme.surface);
   }
 }
 
