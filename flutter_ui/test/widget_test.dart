@@ -74,6 +74,12 @@ void main() {
     expect(find.text('4:00'), findsOneWidget);
     expect(find.text('First Speaker — Team A'), findsWidgets);
 
+    await tester.tap(find.text('Evidence'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cards available for citation'), findsOneWidget);
+
+    await tester.tap(find.text('Round'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Notes'));
     await tester.pumpAndSettle();
     expect(find.text('4:00'), findsOneWidget);
