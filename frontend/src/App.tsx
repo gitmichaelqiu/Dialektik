@@ -10,8 +10,6 @@ import {
   Modal,
   OverflowMenu,
   OverflowMenuItem,
-  Popover,
-  PopoverContent,
   SideNav,
   SideNavItems,
   SideNavLink,
@@ -71,32 +69,20 @@ function googleSignInUrl(documentUrl: string) {
 
 function CompactPreview({ label, children }: { label: string; children: React.ReactElement<{ onMouseEnter?: React.MouseEventHandler; onMouseLeave?: React.MouseEventHandler }> }) {
   const [open, setOpen] = useState(false);
-  const closeTimer = useRef<number | undefined>(undefined);
-  const cancelClose = () => {
-    if (closeTimer.current !== undefined) window.clearTimeout(closeTimer.current);
-  };
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer.current = window.setTimeout(() => setOpen(false), 120);
-  };
-  useEffect(() => () => cancelClose(), []);
+  const [anchor, setAnchor] = useState<{ left: number; top: number; height: number }>();
   const trigger = React.cloneElement(children, {
     onMouseEnter: (event: React.MouseEvent) => {
       children.props.onMouseEnter?.(event);
-      cancelClose();
+      const bounds = event.currentTarget.getBoundingClientRect();
+      setAnchor({ left: bounds.right, top: bounds.top, height: bounds.height });
       setOpen(true);
     },
     onMouseLeave: (event: React.MouseEvent) => {
       children.props.onMouseLeave?.(event);
-      scheduleClose();
+      setOpen(false);
     },
   });
-  return (
-    <Popover open={open} autoAlign align="right" dropShadow className="compact-preview" onRequestClose={() => setOpen(false)}>
-      {trigger}
-      <PopoverContent role="tooltip" aria-hidden={!open}>{label}</PopoverContent>
-    </Popover>
-  );
+  return <>{trigger}{open && anchor && createPortal(<div className="compact-preview-portal cds--tooltip cds--popover-container cds--popover--right cds--popover--drop-shadow" role="tooltip" style={{ left: anchor.left + 8, top: anchor.top + anchor.height / 2 }}><div className="cds--tooltip-content">{label}</div></div>, document.body)}</>;
 }
 
 function App() {
