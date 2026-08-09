@@ -280,7 +280,7 @@ function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge:
               <SelectItem value="congress" text="Congress" />
               <SelectItem value="worlds" text="World Schools" />
             </Select>
-            <Button renderIcon={Add} onClick={() => bridge.dispatch("session.host", { matchName, groupName, teamSize: 1, eventFormat })}>Host room</Button>
+            <Button renderIcon={Add} disabled={!matchName.trim()} onClick={() => bridge.dispatch("session.host", { matchName: matchName.trim(), groupName: groupName.trim(), teamSize: 1, eventFormat })}>Host room</Button>
           </Tile>
           <Tile className="start-tile start-tile-muted">
             <div className="tile-kicker">Join a room</div>
@@ -328,7 +328,7 @@ function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge:
 
 function JoinRoom({ bridge }: { bridge: EngineBridge }) {
   const [code, setCode] = useState("");
-  return <div className="join-form"><TextInput id="room-code" labelText="Room code" value={code} onChange={(event) => setCode(event.currentTarget.value.toUpperCase())} /><Button kind="secondary" onClick={() => bridge.dispatch("session.join", { roomCode: code.trim() })}>Join room</Button></div>;
+  return <div className="join-form"><TextInput id="room-code" labelText="Room code" value={code} onChange={(event) => setCode(event.currentTarget.value.toUpperCase())} /><Button kind="secondary" disabled={code.trim().length !== 4} onClick={() => bridge.dispatch("session.join", { roomCode: code.trim() })}>Join room</Button></div>;
 }
 
 function CustomTimers({ session, bridge }: { session: NonNullable<Snapshot["session"]>; bridge: EngineBridge }) {

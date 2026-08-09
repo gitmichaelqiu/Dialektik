@@ -39,6 +39,7 @@ button, input, textarea, select { font: inherit; }
 .sidebar-navigation { flex: 0 0 auto; }
 .sidebar-documents-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
 .sidebar-documents-scroll .docs-side-panel { margin-top: 0; }
+.app-shell:not(.nav-collapsed) .cds--tooltip { display: none; }
 .app-nav .cds--side-nav__link { min-height: 3rem; }
 .app-nav .cds--side-nav__link[aria-current="page"] { color: #0e6027; background: #e8f5e9; border-left: 3px solid #198038; }
 .app-nav .cds--side-nav__link[aria-current="page"] svg { fill: #0e6027; }
