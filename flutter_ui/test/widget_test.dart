@@ -24,9 +24,9 @@ void main() {
     expect(find.text('Link your debate workspace'), findsOneWidget);
     expect(find.text('Your live prep documents, in one place.'), findsNothing);
     expect(find.text('Offline workspace'), findsOneWidget);
-    expect(find.text('Evidence library'), findsOneWidget);
+    expect(find.text('Evidence'), findsOneWidget);
 
-    await tester.tap(find.text('Evidence library'));
+    await tester.tap(find.text('Evidence'));
     await tester.pumpAndSettle();
     expect(find.text('Cards available for citation'), findsOneWidget);
   });
@@ -105,7 +105,7 @@ void main() {
     await tester.tap(find.text('Case'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Evidence'));
+    await tester.tap(find.text('Evidence').last);
     await tester.pumpAndSettle();
     expect(find.text('Cards available for citation'), findsOneWidget);
     expect(find.text('Card title'), findsOneWidget);

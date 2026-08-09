@@ -4,6 +4,7 @@ const _unknownSystemBrightness = Brightness.light;
 
 enum AppPage {
   documents,
+  evidence,
   inRound,
   ai,
   history,
@@ -12,6 +13,7 @@ enum AppPage {
   static AppPage fromJson(Object? value) {
     return switch (value) {
       'documents' => AppPage.documents,
+      'evidence' => AppPage.evidence,
       'inround' || 'inRound' => AppPage.inRound,
       'ai' || 'coach' => AppPage.ai,
       'history' => AppPage.history,
@@ -23,6 +25,7 @@ enum AppPage {
   String get actionValue {
     return switch (this) {
       AppPage.documents => 'documents',
+      AppPage.evidence => 'evidence',
       AppPage.inRound => 'inround',
       AppPage.ai => 'ai',
       AppPage.history => 'history',

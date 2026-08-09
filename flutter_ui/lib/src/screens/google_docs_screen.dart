@@ -39,7 +39,6 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
 
   String? _selectedId = _cachedSelectedId;
   bool _showOfflineWorkspace = false;
-  bool _openEvidenceOnStart = false;
 
   List<DebateDocument> get _googleDocs =>
       widget.snapshot.documents.where((doc) => doc.isGoogleDoc).toList();
@@ -82,7 +81,6 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
                       tooltip: 'Back to Google Docs',
                       onPressed: () => setState(() {
                         _showOfflineWorkspace = false;
-                        _openEvidenceOnStart = false;
                       }),
                       icon: const Icon(Icons.arrow_back),
                     ),
@@ -100,12 +98,9 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
           ),
           Expanded(
             child: DocumentsScreen(
-              key: ValueKey(
-                _openEvidenceOnStart ? 'evidence-library' : 'offline-editor',
-              ),
+              key: const ValueKey('offline-editor'),
               bridge: widget.bridge,
               snapshot: widget.snapshot,
-              openEvidenceOnStart: _openEvidenceOnStart,
             ),
           ),
         ],
@@ -130,7 +125,6 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
       documents: _googleDocs,
       localDocumentCount:
           widget.snapshot.documents.where((doc) => !doc.isGoogleDoc).length,
-      evidenceCardCount: widget.snapshot.cards.length,
       selectedId: selected?.id,
       onSelect: (doc) => setState(() {
         _selectedId = doc.id;
@@ -143,11 +137,6 @@ class _GoogleDocsScreenState extends State<GoogleDocsScreen> {
       onCopyLink: _copyDocumentLink,
       onRemove: _removeDocument,
       onOpenOffline: () => setState(() {
-        _openEvidenceOnStart = false;
-        _showOfflineWorkspace = true;
-      }),
-      onOpenEvidence: () => setState(() {
-        _openEvidenceOnStart = true;
         _showOfflineWorkspace = true;
       }),
     );
@@ -300,7 +289,6 @@ class _GoogleDocsLibrary extends StatelessWidget {
   const _GoogleDocsLibrary({
     required this.documents,
     required this.localDocumentCount,
-    required this.evidenceCardCount,
     required this.selectedId,
     required this.onSelect,
     required this.onAdd,
@@ -310,12 +298,10 @@ class _GoogleDocsLibrary extends StatelessWidget {
     required this.onCopyLink,
     required this.onRemove,
     required this.onOpenOffline,
-    required this.onOpenEvidence,
   });
 
   final List<DebateDocument> documents;
   final int localDocumentCount;
-  final int evidenceCardCount;
   final String? selectedId;
   final ValueChanged<DebateDocument> onSelect;
   final VoidCallback onAdd;
@@ -325,7 +311,6 @@ class _GoogleDocsLibrary extends StatelessWidget {
   final ValueChanged<DebateDocument> onCopyLink;
   final ValueChanged<DebateDocument> onRemove;
   final VoidCallback onOpenOffline;
-  final VoidCallback onOpenEvidence;
 
   @override
   Widget build(BuildContext context) {
@@ -423,13 +408,6 @@ class _GoogleDocsLibrary extends StatelessWidget {
                     ),
             ),
             const Divider(),
-            TextButton.icon(
-              onPressed: onOpenEvidence,
-              icon: const Icon(Icons.style_outlined),
-              label: Text(evidenceCardCount == 0
-                  ? 'Evidence library'
-                  : 'Evidence library ($evidenceCardCount)'),
-            ),
             TextButton.icon(
               onPressed: onOpenOffline,
               icon: const Icon(Icons.offline_bolt_outlined),
@@ -766,7 +744,7 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
       _managerInitialization ??= cef.WebviewManager().initialize(
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 '
-            'Safari/537.36 Dialektik/1.0.0',
+            'Safari/537.36 Dialektik/0.3.0',
       );
       await _managerInitialization;
       // Start through Google's first-party sign-in route. A private document

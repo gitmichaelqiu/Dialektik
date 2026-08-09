@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
 import '../screens/ai_screen.dart';
+import '../screens/documents_screen.dart';
 import '../screens/google_docs_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/in_round_screen.dart';
@@ -306,7 +307,8 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _notifyForNewRequests());
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _notifyForNewRequests());
   }
 
   void _notifyForNewRequests() {
@@ -323,7 +325,8 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
             backgroundColor: Theme.of(context).colorScheme.error,
             content: Row(
               children: [
-                Icon(Icons.cancel, color: Theme.of(context).colorScheme.onError),
+                Icon(Icons.cancel,
+                    color: Theme.of(context).colorScheme.onError),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -348,7 +351,8 @@ class _JoinRequestAwareShellState extends State<_JoinRequestAwareShell> {
       _rejectionShown = false;
     }
     if (session == null || !session.isHost) return;
-    final activeRequestIds = session.pendingRequests.map((request) => request.id).toSet();
+    final activeRequestIds =
+        session.pendingRequests.map((request) => request.id).toSet();
     _shownRequestIds.removeWhere((id) => !activeRequestIds.contains(id));
     for (final request in session.pendingRequests) {
       if (!_shownRequestIds.add(request.id)) continue;
@@ -457,6 +461,10 @@ class _AppShell extends StatelessWidget {
                 selectedIcon: Icon(Icons.article),
                 label: 'Docs'),
             NavigationDestination(
+                icon: Icon(Icons.style_outlined),
+                selectedIcon: Icon(Icons.style),
+                label: 'Evidence'),
+            NavigationDestination(
                 icon: Icon(Icons.auto_awesome_outlined),
                 selectedIcon: Icon(Icons.auto_awesome),
                 label: 'Coach'),
@@ -491,6 +499,10 @@ class _AppShell extends StatelessWidget {
                     icon: Icon(Icons.article_outlined),
                     selectedIcon: Icon(Icons.article),
                     label: Text('Documents')),
+                NavigationRailDestination(
+                    icon: Icon(Icons.style_outlined),
+                    selectedIcon: Icon(Icons.style),
+                    label: Text('Evidence')),
                 NavigationRailDestination(
                     icon: Icon(Icons.auto_awesome_outlined),
                     selectedIcon: Icon(Icons.auto_awesome),
@@ -531,6 +543,11 @@ class _PageBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (snapshot.activePage) {
       AppPage.documents => GoogleDocsScreen(bridge: bridge, snapshot: snapshot),
+      AppPage.evidence => DocumentsScreen(
+          bridge: bridge,
+          snapshot: snapshot,
+          evidenceOnly: true,
+        ),
       AppPage.inRound => InRoundScreen(bridge: bridge, snapshot: snapshot),
       AppPage.ai => AiScreen(bridge: bridge, snapshot: snapshot),
       AppPage.history => HistoryScreen(bridge: bridge, snapshot: snapshot),
@@ -543,9 +560,10 @@ int _indexForPage(AppPage page) {
   return switch (page) {
     AppPage.inRound => 0,
     AppPage.documents => 1,
-    AppPage.ai => 2,
-    AppPage.history => 3,
-    AppPage.settings => 4,
+    AppPage.evidence => 2,
+    AppPage.ai => 3,
+    AppPage.history => 4,
+    AppPage.settings => 5,
   };
 }
 
@@ -553,8 +571,9 @@ AppPage _pageForIndex(int index) {
   return switch (index) {
     0 => AppPage.inRound,
     1 => AppPage.documents,
-    2 => AppPage.ai,
-    3 => AppPage.history,
+    2 => AppPage.evidence,
+    3 => AppPage.ai,
+    4 => AppPage.history,
     _ => AppPage.settings,
   };
 }
@@ -562,6 +581,7 @@ AppPage _pageForIndex(int index) {
 String _pageTitle(AppPage page) {
   return switch (page) {
     AppPage.documents => 'Documents',
+    AppPage.evidence => 'Evidence Library',
     AppPage.inRound => 'In Round',
     AppPage.ai => 'AI Coach',
     AppPage.history => 'History',

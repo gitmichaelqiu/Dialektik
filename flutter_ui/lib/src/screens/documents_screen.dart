@@ -15,11 +15,13 @@ class DocumentsScreen extends StatefulWidget {
     required this.bridge,
     required this.snapshot,
     this.openEvidenceOnStart = false,
+    this.evidenceOnly = false,
   });
 
   final EngineBridge bridge;
   final AppSnapshot snapshot;
   final bool openEvidenceOnStart;
+  final bool evidenceOnly;
 
   @override
   State<DocumentsScreen> createState() => _DocumentsScreenState();
@@ -459,6 +461,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 },
       canInsert: (card) => card.docId != selected?.id,
     );
+
+    if (widget.evidenceOnly) {
+      return Scaffold(
+        body: SafeArea(child: evidencePane),
+      );
+    }
 
     if (compact) {
       return Scaffold(
