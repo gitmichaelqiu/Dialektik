@@ -312,6 +312,8 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .sidebar-account,
 .theme-dark .sidebar-settings,
 .theme-dark .document-menu-trigger { color: #f4f4f4; }
+.theme-dark .sidebar-toggle-rail { color: #f4f4f4; }
+.theme-dark .sidebar-toggle-rail:hover { background: #393939; }
 .theme-dark .app-nav .cds--side-nav__link[aria-current="page"],
 .theme-dark .document-row:hover,
 .theme-dark .sidebar-account:hover,
@@ -320,6 +322,7 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .document-row.is-selected,
 .theme-dark .chat-row.is-selected { background: #1f3b28; }
 .theme-dark .document-row.is-selected:hover { background: #244a30; }
+.theme-dark .app-nav .cds--side-nav__link[aria-current="page"] { background: #393939; color: #42be65; }
 .theme-dark .sidebar-brand span,
 .theme-dark .app-pagebar h1,
 .theme-dark .document-item strong,
@@ -348,6 +351,17 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .cds--text-area,
 .theme-dark .cds--select-input { background: #262626 !important; color: #f4f4f4 !important; }
 .theme-dark .docs-side-actions button { border-color: #6f6f6f; }
+.theme-dark .cds--btn--ghost,
+.theme-dark .cds--btn--tertiary,
+.theme-dark .cds--btn--secondary { color: #f4f4f4; }
+.theme-dark .cds--btn--ghost:hover,
+.theme-dark .cds--btn--tertiary:hover,
+.theme-dark .cds--btn--secondary:hover { background: #393939; color: #ffffff; }
+.theme-dark .cds--btn--secondary { background: #525252; border-color: #8d8d8d; }
+.theme-dark .cds--btn--secondary:hover { background: #6f6f6f; }
+.theme-dark .cds--btn:disabled,
+.theme-dark .cds--menu-item--disabled { background: #393939 !important; color: #8d8d8d !important; }
+.theme-dark .cds--btn:disabled { border-color: #393939 !important; }
 .theme-dark .document-context-menu,
 .theme-dark .cds--menu,
 .theme-dark .cds--overflow-menu-options { background: #262626 !important; color: #f4f4f4; }
@@ -357,6 +371,17 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .document-context-menu button:hover,
 .theme-dark .cds--menu-item:hover,
 .theme-dark .cds--overflow-menu-options__option:hover { background: #393939 !important; }
+.theme-dark .cds--list-box,
+.theme-dark .cds--list-box__menu,
+.theme-dark .cds--dropdown,
+.theme-dark .cds--combo-box,
+.theme-dark .cds--modal-container,
+.theme-dark .cds--notification { background: #262626 !important; color: #f4f4f4; }
+.theme-dark .cds--list-box__menu-item__option,
+.theme-dark .cds--dropdown-text,
+.theme-dark .cds--select-input { color: #f4f4f4 !important; }
+.theme-dark .cds--list-box__menu-item:hover,
+.theme-dark .cds--list-box__menu-item--highlighted { background: #393939 !important; }
 .theme-dark .compact-preview-content { background: #f4f4f4; color: #161616; }
 .theme-dark .google-doc-frame { background: #ffffff; }
 .search-results span { display: flex; flex-direction: column; gap: .25rem; }
