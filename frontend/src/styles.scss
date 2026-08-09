@@ -428,6 +428,31 @@ button, input, textarea, select { font: inherit; }
   .chat-composer .cds--btn { width: 100%; }
 }
 
+// Final dark-mode pass for page-specific controls and surfaces that are also
+// used outside the primary workspace layout.
+.theme-dark .start-tile-muted,
+.theme-dark .empty-state,
+.theme-dark .frame-error-detail,
+.theme-dark .search-results button { background: #262626 !important; color: #f4f4f4; }
+.theme-dark .speech-row,
+.theme-dark .document-check,
+.theme-dark .request-row,
+.theme-dark .member-row { border-color: #525252; color: #c6c6c6; }
+.theme-dark .selected-docs,
+.theme-dark .pending-requests,
+.theme-dark .speech-list,
+.theme-dark .docs-side-panel { border-color: #525252; }
+.theme-dark .empty-state p,
+.theme-dark .frame-error-detail,
+.theme-dark .search-results small { color: #c6c6c6; }
+.theme-dark .frame-error-detail { border-left-color: #fa4d56; }
+.theme-dark .cds--modal-header,
+.theme-dark .cds--modal-content,
+.theme-dark .cds--modal-footer { background: #262626; color: #f4f4f4; }
+.theme-dark .cds--modal-close:hover { background: #393939; }
+.theme-dark .cds--tag--gray { background: #525252; color: #f4f4f4; }
+.theme-dark .cds--inline-notification { background: #262626; color: #f4f4f4; }
+
 @media (max-width: 480px) {
   .round-aside { grid-template-columns: 1fr; }
   .join-form { align-items: stretch; flex-direction: column; }
