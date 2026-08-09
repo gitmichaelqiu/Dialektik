@@ -11,6 +11,9 @@ export interface DebateDocument {
   encryptedHash?: string;
   ownerName?: string;
   lastModified?: number;
+  contentRevision?: number;
+  partnerLine?: number;
+  partnerName?: string;
 }
 
 export interface EvidenceCard {
@@ -36,6 +39,9 @@ export interface HistoryRecord {
 export interface SessionState {
   roomCode: string;
   matchName: string;
+  groupName?: string;
+  eventFormat?: string;
+  eventName?: string;
   status: string;
   isHost: boolean;
   documentIds: string[];
@@ -48,7 +54,9 @@ export interface SessionState {
   currentSpeechIndex: number;
   currentSpeakerId?: string;
   speakerNotes?: Record<string, string>;
-  debaters: { id: string; name: string; status: string }[];
+  autoAdvance?: boolean;
+  customTimers?: { id: string; name: string; remainingMs: number; running: boolean; durationMs: number }[];
+  debaters: { id: string; name: string; status: string; team?: string; position?: number }[];
   pendingRequests?: { id: string; name: string }[];
 }
 

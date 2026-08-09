@@ -24,6 +24,7 @@
   "dependencies": {
     "@carbon/icons-react": "^11.80.0",
     "@carbon/react": "^1.112.0",
+    "@tauri-apps/api": "^2.11.1",
     "dexie": "^4.4.4",
     "peerjs": "^1.5.5",
     "react": "^19.1.1",
@@ -33,9 +34,9 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.4",
-    "@vitejs/plugin-react": "^5.0.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
     "sass": "^1.89.2",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"

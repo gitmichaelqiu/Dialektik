@@ -91,6 +91,8 @@ Do not commit `dist/`, `src-tauri/target/`, or generated `frontend/public/engine
 
 ```text
 Tauri window ── React + Carbon ── EngineBridge ──> engine.js
+       │             │
+       │             └─ Tauri child webview for Google Docs (desktop)
                                                     ├─ Dexie / IndexedDB
                                                     ├─ PeerMeshManager / WebRTC
                                                     ├─ PeerJSYjsProvider / Yjs
@@ -103,6 +105,8 @@ The frontend follows the existing unidirectional contract:
 - React renders from the latest snapshot and keeps only transient UI state locally.
 - User actions are sent as `{ type, payload }` JSON actions.
 - `EngineBridge` polls `getLatestSnapshot()` every 500ms to tolerate dropped WebView messages.
+- On desktop, Google Docs is mounted as a Tauri child webview positioned over the editor surface so authentication, cookies, popups, keyboard focus, and right-click behavior belong to the in-app document surface. The ordinary iframe is retained only for web/mobile preview fallback.
+- The desktop navigation rail is collapsible. Documents are listed inside that rail when the Documents destination is active; the editor is not split by a second dashboard column.
 
 The engine remains serverless and local-first. Network relay use is optional, and API keys are not included in workspace backups.
 

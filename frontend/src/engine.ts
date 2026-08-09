@@ -1,6 +1,7 @@
 import type { Page, Snapshot } from "./types";
 
 declare global {
+  const __APP_VERSION__: string;
   interface Window {
     dialektikEngine?: {
       dispatch: (action: string) => void;

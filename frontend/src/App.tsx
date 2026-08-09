@@ -5,9 +5,6 @@ import {
   Checkbox,
   Content,
   Header,
-  HeaderGlobalAction,
-  HeaderGlobalBar,
-  HeaderName,
   InlineNotification,
   Modal,
   OverflowMenu,
@@ -21,6 +18,7 @@ import {
   Tile,
   TextArea,
   TextInput,
+  Toggle,
   Theme,
 } from "@carbon/react";
 import {
@@ -36,14 +34,13 @@ import {
   Pause,
   Play,
   Renew,
-  Search as SearchIcon,
   Settings,
   Time,
-  UserAvatar,
 } from "@carbon/icons-react";
 import { EngineBridge } from "./engine";
 import type { DebateDocument, EvidenceCard, Page, Snapshot } from "./types";
 import { emptySnapshot } from "./types";
+import type { Webview as TauriWebview } from "@tauri-apps/api/webview";
 
 const navItems: { page: Page; label: string; icon: typeof Dashboard }[] = [
   { page: "inround", label: "In Round", icon: Dashboard },
@@ -58,9 +55,12 @@ function App() {
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [error, setError] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(true);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
   const [activePage, setActivePage] = useState<Page | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  const [googleDialog, setGoogleDialog] = useState<{ open: boolean; document?: DebateDocument }>({ open: false });
 
   useEffect(() => {
     void bridge.start(setSnapshot).catch((reason: unknown) => {
@@ -77,10 +77,33 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const suppressBrowserMenu = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener("contextmenu", suppressBrowserMenu);
+    return () => document.removeEventListener("contextmenu", suppressBrowserMenu);
+  }, []);
+
+  useEffect(() => {
     if (activePage === null || (snapshot.activePage !== "inround" && snapshot.activePage !== activePage)) {
       setActivePage(snapshot.activePage);
     }
   }, [activePage, snapshot.activePage]);
+
+  useEffect(() => {
+    if (!snapshot.documents.some((document) => document.id === selectedDocumentId)) {
+      setSelectedDocumentId(snapshot.documents[0]?.id ?? "");
+    }
+  }, [selectedDocumentId, snapshot.documents]);
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, []);
 
   const navigate = (page: Page) => {
     setActivePage(page);
@@ -90,31 +113,22 @@ function App() {
 
   return (
     <Theme theme="white">
-      <div className="app-shell">
-        <Header aria-label="Dialektik">
-          <HeaderGlobalAction
-            aria-label="Open navigation"
-            className="mobile-only"
-            onClick={() => setMobileNav((open) => !open)}
-          >
+      <div className={`app-shell ${!isMobile && !navExpanded ? "nav-collapsed" : ""}`}>
+        <Header aria-label="Dialektik" className="app-titlebar">
+          <button className="sidebar-toggle mobile-only" aria-label="Open navigation" aria-expanded={mobileNav} onClick={() => setMobileNav((open) => !open)}>
             <Menu />
-          </HeaderGlobalAction>
-          <HeaderName href="#" prefix="">Dialektik</HeaderName>
-          <HeaderGlobalBar>
-            <HeaderGlobalAction aria-label="Search" onClick={() => setSearchOpen(true)}>
-              <SearchIcon />
-            </HeaderGlobalAction>
-            <HeaderGlobalAction aria-label="Account">
-              <UserAvatar />
-            </HeaderGlobalAction>
-          </HeaderGlobalBar>
+          </button>
+          <span className="app-wordmark">Dialektik</span>
         </Header>
         <SideNav
           aria-label="Primary navigation"
-          expanded={isMobile ? mobileNav : true}
-          isRail={false}
+          expanded={isMobile ? mobileNav : navExpanded}
+          isRail={!isMobile && !navExpanded}
           className="app-nav"
         >
+          <button className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={() => setNavExpanded((expanded) => !expanded)}>
+            <Menu />
+          </button>
           <SideNavItems>
             {navItems.map(({ page, label, icon: Icon }) => (
               <SideNavLink
@@ -141,6 +155,7 @@ function App() {
             >
               Settings
             </SideNavLink>
+            {snapshot.activePage === "documents" && <DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => setSelectedDocumentId(id)} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} />}
           </SideNavItems>
         </SideNav>
         <Content className="app-content">
@@ -154,13 +169,17 @@ function App() {
             />
           )}
           <main className="page-content">
-            <PageView snapshot={{ ...snapshot, activePage: activePage ?? snapshot.activePage }} bridge={bridge} navigate={navigate} />
+            <PageView snapshot={{ ...snapshot, activePage: activePage ?? snapshot.activePage }} bridge={bridge} navigate={navigate} selectedDocumentId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={() => setGoogleDialog({ open: false })} />
           </main>
           <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} snapshot={snapshot} navigate={navigate} />
         </Content>
       </div>
     </Theme>
   );
+}
+
+function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onEditGoogle }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onEditGoogle: (document: DebateDocument) => void }) {
+  return <div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id}><button className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><OverflowMenu ariaLabel={`Actions for ${doc.name}`}><OverflowMenuItem itemText="Rename" onClick={() => { const name = window.prompt("Document name", doc.name); if (name?.trim()) bridge.dispatch("document.rename", { id: doc.id, name: name.trim() }); }} /><OverflowMenuItem itemText="Duplicate" onClick={() => bridge.dispatch("document.duplicate", { id: doc.id })} />{doc.externalUrl && <><OverflowMenuItem itemText="Edit link" onClick={() => onEditGoogle(doc)} /><OverflowMenuItem itemText="Copy link" onClick={() => void navigator.clipboard?.writeText(doc.externalUrl ?? "")} /></>}<OverflowMenuItem itemText={doc.partnerAccess === "private" ? "Share with room" : "Keep private"} onClick={() => bridge.dispatch("document.move", { id: doc.id, folder: doc.partnerAccess === "private" ? "team" : "private" })} /><OverflowMenuItem itemText="Remove" isDelete onClick={() => { if (window.confirm(`Remove ${doc.name}?`)) bridge.dispatch("document.delete", { id: doc.id }); }} /></OverflowMenu></div>)}</div>;
 }
 
 function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
@@ -171,9 +190,9 @@ function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onC
   return <Modal open={open} passiveModal modalHeading="Search workspace" onRequestClose={() => { setQuery(""); onClose(); }}><TextInput id="workspace-search" labelText="Search documents and evidence" value={query} onChange={(event) => setQuery(event.currentTarget.value)} autoFocus />{query.trim() && <div className="search-results">{documents.map((doc) => <button key={doc.id} onClick={() => { navigate("documents"); setQuery(""); onClose(); }}><Document size={20} /><span>{doc.name}<small>Document</small></span></button>)}{cards.map((card) => <button key={card.id} onClick={() => { navigate("evidence"); setQuery(""); onClose(); }}><FolderOpen size={20} /><span>{card.title}<small>Evidence card</small></span></button>)}{documents.length === 0 && cards.length === 0 && <p className="muted-copy">No matching workspace items.</p>}</div>}</Modal>;
 }
 
-function PageView({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void }) {
+function PageView({ snapshot, bridge, navigate, selectedDocumentId, googleDialog, onCloseGoogleDialog }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void; selectedDocumentId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void }) {
   switch (snapshot.activePage) {
-    case "documents": return <DocumentsPage snapshot={snapshot} bridge={bridge} />;
+    case "documents": return <DocumentsPage snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={onCloseGoogleDialog} />;
     case "evidence": return <EvidencePage snapshot={snapshot} bridge={bridge} />;
     case "ai": return <AiPage snapshot={snapshot} bridge={bridge} />;
     case "history": return <HistoryPage snapshot={snapshot} bridge={bridge} />;
@@ -182,17 +201,18 @@ function PageView({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge: 
   }
 }
 
-function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
+function PageHeader({ title, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
   return (
     <div className="page-header">
-      <div>
-        {eyebrow && <div className="eyebrow">{eyebrow}</div>}
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
-      </div>
+      <h1>{title}</h1>
       {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
+}
+
+function formatTimer(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return `${Math.floor(totalSeconds / 60).toString().padStart(2, "0")}:${(totalSeconds % 60).toString().padStart(2, "0")}`;
 }
 
 function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void }) {
@@ -236,8 +256,8 @@ function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge:
   }
 
   const currentSpeech = session.speechOrder[session.currentSpeechIndex];
-  const minutes = Math.floor(session.speechRemainingMs / 60000).toString().padStart(2, "0");
-  const seconds = Math.floor((session.speechRemainingMs % 60000) / 1000).toString().padStart(2, "0");
+  const selectedSpeaker = session.currentSpeakerId ?? session.debaters[0]?.id ?? "";
+  const speakerNotes = session.speakerNotes ?? {};
   return (
     <>
       <PageHeader eyebrow={session.status === "active" ? "Live round" : "Room lobby"} title={session.matchName || "Debate round"} description={`Room ${session.roomCode}${session.isHost ? " · You are hosting" : " · Connected"}`} actions={<Button kind="ghost" onClick={() => bridge.dispatch("session.exit")}>Leave room</Button>} />
@@ -248,16 +268,16 @@ function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge:
           <section className="round-main">
             <Tile className="timer-tile">
               <div className="timer-meta"><span>Current speech</span><Tag type="green">{currentSpeech?.label ?? "Speech"}</Tag></div>
-              <div className="timer-value">{minutes}:{seconds}</div>
+              <div className="timer-value">{formatTimer(session.speechRemainingMs)}</div>
               <div className="timer-controls">
                 <Button hasIconOnly tooltipPosition="right" iconDescription={session.speechRunning ? "Pause timer" : "Start timer"} renderIcon={session.speechRunning ? Pause : Play} onClick={() => bridge.dispatch("timer.action", { timerType: "speech", action: session.speechRunning ? "pause" : "start" })} />
                 <Button kind="tertiary" renderIcon={Renew} onClick={() => bridge.dispatch("timer.action", { timerType: "speech", action: "reset" })}>Reset</Button>
               </div>
             </Tile>
             <Tile className="handout-tile"><div className="tile-kicker">Round handout</div><h2>{session.handout?.title || "No title yet"}</h2><p>{session.handout?.problem || "The resolution will appear here."}</p><p className="muted-copy">{session.handout?.details || "Add notes and documents in the lobby."}</p></Tile>
-            <Tile><div className="tile-kicker">Speech order</div><div className="speech-list">{session.speechOrder.map((speech, index) => <div className={`speech-row ${index === session.currentSpeechIndex ? "is-current" : ""}`} key={speech.id}><span>{speech.label}</span><span>{Math.round(speech.durationMs / 60000)} min</span></div>)}</div></Tile>
+            <Tile><div className="tile-kicker">Speech order</div><div className="speech-list">{session.speechOrder.map((speech, index) => <button className={`speech-row ${index === session.currentSpeechIndex ? "is-current" : ""}`} key={speech.id} disabled={!session.isHost} onClick={() => bridge.dispatch("session.selectSpeech", { index })}><span>{speech.label}</span><span>{Math.round(speech.durationMs / 60000)} min</span></button>)}</div></Tile>
           </section>
-          <aside className="round-aside"><Tile><h3>Room members</h3>{session.debaters.length === 0 ? <p className="muted-copy">No other members yet.</p> : session.debaters.map((debater) => <div className="member-row" key={debater.id}><span>{debater.name}</span><Tag type={debater.status === "connected" ? "green" : "gray"}>{debater.status}</Tag></div>)}</Tile><Tile><h3>Prep timer</h3><div className="small-timer">{Math.floor(session.prepRemainingMs / 60000).toString().padStart(2, "0")}:{Math.floor((session.prepRemainingMs % 60000) / 1000).toString().padStart(2, "0")}</div><Button kind="tertiary" onClick={() => bridge.dispatch("timer.action", { timerType: "prep", action: session.prepRunning ? "pause" : "start" })}>{session.prepRunning ? "Pause" : "Start"}</Button></Tile><Tile><h3>Round controls</h3>{session.isHost && <><Button kind="tertiary" onClick={() => bridge.dispatch("session.advanceSpeech", { direction: "previous" })}>Previous speech</Button><Button kind="tertiary" onClick={() => bridge.dispatch("session.advanceSpeech", { direction: "next" })}>Next speech</Button><Button kind="danger--tertiary" onClick={() => { if (window.confirm("Save this round as an affirmative win?")) bridge.dispatch("session.saveRound", { winner: "affirmative" }); }}>Save round</Button></>}</Tile></aside>
+          <aside className="round-aside"><Tile><h3>Room members</h3>{session.debaters.length === 0 ? <p className="muted-copy">No other members yet.</p> : session.debaters.map((debater) => <div className="member-row" key={debater.id}><span>{debater.name}<small>{debater.team ? ` · ${debater.team}` : ""}</small></span><Tag type={debater.status === "connected" || debater.status === "approved" ? "green" : "gray"}>{debater.status}</Tag></div>)}</Tile><Tile><h3>Prep timer</h3><div className="small-timer">{formatTimer(session.prepRemainingMs)}</div><div className="timer-actions"><Button kind="tertiary" onClick={() => bridge.dispatch("timer.action", { timerType: "prep", action: session.prepRunning ? "pause" : "start" })}>{session.prepRunning ? "Pause" : "Start"}</Button><Button kind="ghost" onClick={() => bridge.dispatch("timer.action", { timerType: "prep", action: "reset" })}>Reset</Button></div></Tile><Tile><h3>Speaker notes</h3><Select id="current-speaker" labelText="Speaker" value={selectedSpeaker} onChange={(event) => bridge.dispatch("session.selectSpeaker", { id: event.currentTarget.value })}>{session.debaters.map((debater) => <SelectItem key={debater.id} value={debater.id} text={debater.name} />)}</Select><TextArea id="speaker-notes" labelText="Private notes" value={speakerNotes[selectedSpeaker] ?? ""} onChange={(event) => bridge.dispatch("session.updateNotes", { speakerId: selectedSpeaker, text: event.currentTarget.value })} rows={4} disabled={!selectedSpeaker} /></Tile><CustomTimers session={session} bridge={bridge} /><Tile><h3>Round controls</h3>{session.isHost && <><Toggle id="auto-advance" labelText="Auto-advance speech" labelA="Off" labelB="On" toggled={session.autoAdvance === true} onToggle={(toggled) => bridge.dispatch("session.setAutoAdvance", { enabled: toggled })} /><Button kind="tertiary" onClick={() => bridge.dispatch("session.advanceSpeech", { direction: "previous" })}>Previous speech</Button><Button kind="tertiary" onClick={() => bridge.dispatch("session.advanceSpeech", { direction: "next" })}>Next speech</Button><Button kind="ghost" onClick={() => bridge.dispatch("timer.resetAll")}>Reset timers</Button><div className="winner-actions"><Button kind="danger--tertiary" onClick={() => { if (window.confirm("Save this round as an affirmative win?")) bridge.dispatch("session.saveRound", { winner: "affirmative" }); }}>Affirmative won</Button><Button kind="danger--tertiary" onClick={() => { if (window.confirm("Save this round as a negative win?")) bridge.dispatch("session.saveRound", { winner: "negative" }); }}>Negative won</Button></div></>}</Tile></aside>
         </div>
       )}
     </>
@@ -269,59 +289,124 @@ function JoinRoom({ bridge }: { bridge: EngineBridge }) {
   return <div className="join-form"><TextInput id="room-code" labelText="Room code" value={code} onChange={(event) => setCode(event.currentTarget.value.toUpperCase())} /><Button kind="secondary" onClick={() => bridge.dispatch("session.join", { roomCode: code.trim() })}>Join room</Button></div>;
 }
 
+function CustomTimers({ session, bridge }: { session: NonNullable<Snapshot["session"]>; bridge: EngineBridge }) {
+  const [name, setName] = useState("");
+  const [duration, setDuration] = useState("01:00");
+  const timers = session.customTimers ?? [];
+  return <Tile><h3>Custom timers</h3>{timers.map((timer) => <div className="custom-timer-row" key={timer.id}><div><strong>{timer.name}</strong><span>{formatTimer(timer.remainingMs)}</span></div><div><Button kind="ghost" size="sm" onClick={() => bridge.dispatch("customTimer.action", { id: timer.id, action: timer.running ? "pause" : "start" })}>{timer.running ? "Pause" : "Start"}</Button><Button kind="ghost" size="sm" onClick={() => bridge.dispatch("customTimer.action", { id: timer.id, action: "reset" })}>Reset</Button><Button kind="danger--ghost" size="sm" onClick={() => bridge.dispatch("customTimer.delete", { id: timer.id })}>Remove</Button></div></div>)}<div className="custom-timer-form"><TextInput id="custom-timer-name" labelText="Timer name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="custom-timer-duration" labelText="Duration" helperText="mm:ss" value={duration} onChange={(event) => setDuration(event.currentTarget.value)} /><Button kind="tertiary" disabled={!name.trim()} onClick={() => { bridge.dispatch("customTimer.create", { name, duration }); setName(""); }}>Add timer</Button></div></Tile>;
+}
+
 function Lobby({ session, snapshot, bridge }: { session: NonNullable<Snapshot["session"]>; snapshot: Snapshot; bridge: EngineBridge }) {
   const [title, setTitle] = useState(session.handout?.title ?? "");
   const [problem, setProblem] = useState(session.handout?.problem ?? "");
+  const [details, setDetails] = useState(session.handout?.details ?? "");
   const selectedIds = new Set(session.documentIds ?? []);
-  return <div className="lobby-grid"><Tile><div className="tile-kicker">Room code</div><div className="room-code">{session.roomCode}</div><p className="helper-text">Share this code with your debate partner.</p><Button kind="tertiary" renderIcon={CopyLink} onClick={() => void navigator.clipboard?.writeText(session.roomCode)}>Copy code</Button>{session.isHost && session.pendingRequests && session.pendingRequests.length > 0 && <div className="pending-requests"><h3>Join requests</h3>{session.pendingRequests.map((request) => <div className="request-row" key={request.id}><span>{request.name}</span><span><Button kind="ghost" size="sm" onClick={() => bridge.dispatch("session.approveJoin", { id: request.id })}>Approve</Button><Button kind="danger--ghost" size="sm" onClick={() => bridge.dispatch("session.rejectJoin", { id: request.id })}>Reject</Button></span></div>)}</div>}</Tile><Tile><h2>Prepare the round</h2><TextInput id="resolution" labelText="Resolution" value={problem} disabled={!session.isHost} onChange={(event) => { setProblem(event.currentTarget.value); bridge.dispatch("session.spliceHandout", { field: "problem", text: event.currentTarget.value, previous: session.handout?.problem ?? "" }); }} /><TextInput id="handout-title" labelText="Handout title" value={title} disabled={!session.isHost} onChange={(event) => { setTitle(event.currentTarget.value); bridge.dispatch("session.spliceHandout", { field: "title", text: event.currentTarget.value, previous: session.handout?.title ?? "" }); }} /><div className="selected-docs"><h3>Documents in this round</h3>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet. Add one in Documents.</p> : snapshot.documents.map((doc) => <label className="document-check" key={doc.id}><input type="checkbox" checked={selectedIds.has(doc.id)} disabled={!session.isHost} onChange={(event) => { const next = event.currentTarget.checked ? [...selectedIds, doc.id] : [...selectedIds].filter((id) => id !== doc.id); bridge.dispatch("session.setDocuments", { ids: next }); }} /><span>{doc.name}</span><Tag type="gray">{doc.sourceType === "google_docs" ? "Google Docs" : "Offline"}</Tag></label>)}</div>{session.isHost && <Button onClick={() => bridge.dispatch("session.startDebate")}>Start debate</Button>}</Tile></div>;
+  const updateHandout = (field: "title" | "problem" | "details", value: string) => {
+    const next = { title, problem, details, [field]: value };
+    bridge.dispatch("session.updateHandout", next);
+  };
+  return <div className="lobby-grid"><Tile><div className="tile-kicker">Room code</div><div className="room-code">{session.roomCode}</div><p className="helper-text">Share this code with your debate partner.</p><Button kind="tertiary" renderIcon={CopyLink} onClick={() => void navigator.clipboard?.writeText(session.roomCode)}>Copy code</Button>{session.isHost && session.pendingRequests && session.pendingRequests.length > 0 && <div className="pending-requests"><h3>Join requests</h3>{session.pendingRequests.map((request) => <div className="request-row" key={request.id}><span>{request.name}</span><span><Button kind="ghost" size="sm" onClick={() => bridge.dispatch("session.approveJoin", { id: request.id })}>Approve</Button><Button kind="danger--ghost" size="sm" onClick={() => bridge.dispatch("session.rejectJoin", { id: request.id })}>Reject</Button></span></div>)}</div>}</Tile><Tile><h2>Prepare the round</h2><TextInput id="resolution" labelText="Resolution" value={problem} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setProblem(value); updateHandout("problem", value); }} /><TextInput id="handout-title" labelText="Handout title" value={title} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setTitle(value); updateHandout("title", value); }} /><TextArea id="handout-details" labelText="Prep notes" value={details} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setDetails(value); updateHandout("details", value); }} rows={5} /><div className="selected-docs"><h3>Documents in this round</h3>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet. Add one in Documents.</p> : snapshot.documents.map((doc) => <label className="document-check" key={doc.id}><input type="checkbox" checked={selectedIds.has(doc.id)} disabled={!session.isHost} onChange={(event) => { const next = event.currentTarget.checked ? [...selectedIds, doc.id] : [...selectedIds].filter((id) => id !== doc.id); bridge.dispatch("session.setDocuments", { ids: next }); }} /><span>{doc.name}</span><Tag type="gray">{doc.sourceType === "google_docs" ? "Google Docs" : "Offline"}</Tag></label>)}</div>{session.isHost && <Button onClick={() => bridge.dispatch("session.startDebate")}>Start debate</Button>}</Tile></div>;
 }
 
-function DocumentsPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
-  const [selectedId, setSelectedId] = useState(snapshot.documents[0]?.id ?? "");
+function DocumentsPage({ snapshot, bridge, selectedId, googleDialog, onCloseGoogleDialog }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const selected = snapshot.documents.find((doc) => doc.id === selectedId) ?? snapshot.documents[0];
-  return <><PageHeader eyebrow="Workspace" title="Documents" description="Keep debate files, linked Google Docs, and offline notes close at hand." actions={<><Button kind="secondary" renderIcon={Add} onClick={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })}>New offline note</Button><Button renderIcon={Add} onClick={() => setLinkOpen(true)}>Link Google Doc</Button></>} /><div className="documents-layout"><aside className="document-list"><div className="list-heading"><span>All documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <button className={`document-item ${selected?.id === doc.id ? "is-selected" : ""}`} key={doc.id} onClick={() => setSelectedId(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline workspace"}</small></span></button>)}</aside><section className="document-detail">{selected ? <DocumentDetail document={selected} bridge={bridge} /> : <EmptyState icon={Document} title="Select a document" description="Link a Google Doc or create an offline note to begin." />}</section></div><LinkDocumentModal open={linkOpen} onClose={() => setLinkOpen(false)} bridge={bridge} /></>;
+  return <><PageHeader title="Documents" actions={<><Button kind="secondary" renderIcon={Add} onClick={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })}>New note</Button><Button renderIcon={Add} onClick={() => setLinkOpen(true)}>Link Google Doc</Button></>} /><section className="document-detail document-detail-standalone">{selected ? <DocumentDetail document={selected} bridge={bridge} /> : <EmptyState icon={Document} title="No document selected" description="Create a note or link a Google Doc from the actions above." />}</section><LinkDocumentModal open={linkOpen || googleDialog.open} document={googleDialog.document} onClose={() => { setLinkOpen(false); onCloseGoogleDialog(); }} bridge={bridge} /></>;
 }
 
 function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge: EngineBridge }) {
   const [content, setContent] = useState(document.content);
   const [editing, setEditing] = useState(document.sourceType !== "google_docs");
-  const [frameState, setFrameState] = useState<"loading" | "loaded" | "error">("loading");
-  const [frameKey, setFrameKey] = useState(0);
   useEffect(() => setContent(document.content), [document.id, document.content]);
-  useEffect(() => { setFrameState("loading"); setFrameKey((key) => key + 1); }, [document.id, document.externalUrl]);
   const isGoogle = document.sourceType === "google_docs" || document.type === "google_docs";
-  return <><div className="detail-header"><div><div className="eyebrow">{isGoogle ? "Google Docs" : "Offline workspace"}</div><h2>{document.name}</h2></div><div className="detail-actions">{isGoogle && document.externalUrl && <Button kind="ghost" renderIcon={Launch} onClick={() => window.open(document.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}<OverflowMenu ariaLabel="Document actions"><OverflowMenuItem itemText="Rename" onClick={() => { const name = window.prompt("Document name", document.name); if (name) bridge.dispatch("document.rename", { id: document.id, name }); }} /><OverflowMenuItem itemText="Duplicate" onClick={() => bridge.dispatch("document.duplicate", { id: document.id })} /><OverflowMenuItem itemText="Delete" isDelete onClick={() => bridge.dispatch("document.delete", { id: document.id })} /></OverflowMenu></div></div>{isGoogle ? <div className="google-frame-shell"><div className="frame-toolbar"><span>{frameState === "loading" ? "Loading Google Docs…" : frameState === "error" ? "The embedded view could not load" : "Editing in Google Docs"}</span>{frameState === "error" && <Button kind="ghost" size="sm" onClick={() => { setFrameState("loading"); setFrameKey((key) => key + 1); }}>Retry</Button>}</div><iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => setFrameState("loaded")} onError={() => setFrameState("error")} /></div> : <><TextArea id="offline-document" labelText="Document content" hideLabel value={content} disabled={!editing} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /><div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></>}</>;
+  return <><div className="detail-header"><div><h2>{document.name}</h2><span className="detail-source">{isGoogle ? "Google Docs" : "Offline note"}</span></div><div className="detail-actions">{isGoogle && document.externalUrl && <Button kind="ghost" renderIcon={Launch} onClick={() => window.open(document.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}</div></div>{isGoogle ? <GoogleDocumentFrame document={document} /> : <><TextArea id="offline-document" labelText="Document content" hideLabel value={content} disabled={!editing} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /><div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></>}</>;
 }
 
-function LinkDocumentModal({ open, onClose, bridge }: { open: boolean; onClose: () => void; bridge: EngineBridge }) {
+function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [frameState, setFrameState] = useState<"loading" | "loaded" | "error">("loading");
+  const [frameKey, setFrameKey] = useState(0);
+  const [nativeFrame, setNativeFrame] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    let child: TauriWebview | undefined;
+    let resizeObserver: ResizeObserver | undefined;
+    let onResize: (() => void) | undefined;
+    const mount = async () => {
+      const internals = (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+      if (!internals || !document.externalUrl || !hostRef.current) return;
+      try {
+        const [{ Webview }, { getCurrentWindow }, { LogicalPosition, LogicalSize }] = await Promise.all([import("@tauri-apps/api/webview"), import("@tauri-apps/api/window"), import("@tauri-apps/api/dpi")]);
+        if (disposed || !hostRef.current) return;
+        setNativeFrame(true);
+        const shell = hostRef.current;
+        const toolbar = shell.querySelector<HTMLElement>(".frame-toolbar");
+        const layout = async () => {
+          if (!child || !hostRef.current) return;
+          const shellRect = hostRef.current.getBoundingClientRect();
+          const toolbarRect = toolbar?.getBoundingClientRect();
+          const top = toolbarRect?.bottom ?? shellRect.top;
+          await child.setPosition(new LogicalPosition(shellRect.left, top));
+          await child.setSize(new LogicalSize(shellRect.width, Math.max(240, shellRect.bottom - top)));
+        };
+        const label = `google-doc-${document.id.replace(/[^a-zA-Z0-9_/:.-]/g, "-")}`;
+        const existing = await Webview.getByLabel(label);
+        if (existing) await existing.close();
+        const webview = new Webview(getCurrentWindow(), label, { url: document.externalUrl, x: 0, y: 0, width: 100, height: 100, focus: false, acceptFirstMouse: true });
+        child = webview;
+        await webview.once("tauri://created", () => { if (!disposed) setFrameState("loaded"); });
+        await webview.once("tauri://error", () => { if (!disposed) setFrameState("error"); });
+        resizeObserver = new ResizeObserver(() => void layout());
+        resizeObserver.observe(shell);
+        onResize = () => void layout();
+        window.addEventListener("resize", onResize);
+        await layout();
+      } catch (error) {
+        console.error("Unable to create native Google Docs webview", error);
+        if (!disposed) setFrameState("error");
+      }
+    };
+    void mount();
+    return () => { disposed = true; resizeObserver?.disconnect(); if (onResize) window.removeEventListener("resize", onResize); if (child) void child.close(); };
+  }, [document.externalUrl, document.id, frameKey]);
+  const retry = () => { setFrameState("loading"); setNativeFrame(false); setFrameKey((key) => key + 1); };
+  return <div ref={hostRef} className={`google-frame-shell ${nativeFrame ? "native-google-frame" : ""}`}><div className="frame-toolbar"><span>{frameState === "loading" ? "Loading Google Docs…" : frameState === "error" ? "The embedded view could not load" : "Google Docs"}</span>{frameState === "error" && <Button kind="ghost" size="sm" onClick={retry}>Retry</Button>}</div>{!nativeFrame && <iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => setFrameState("loaded")} onError={() => setFrameState("error")} />}</div>;
+}
+
+function LinkDocumentModal({ open, document, onClose, bridge }: { open: boolean; document?: DebateDocument; onClose: () => void; bridge: EngineBridge }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [aiContext, setAiContext] = useState("");
-  return <Modal open={open} modalHeading="Link a Google Doc" primaryButtonText="Link document" primaryButtonDisabled={!name.trim() || !url.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch("document.linkGoogle", { name, url, aiContext }); setName(""); setUrl(""); setAiContext(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" value={url} onChange={(event) => setUrl(event.currentTarget.value)} /><TextArea id="google-doc-context" labelText="Approved AI context (optional)" helperText="Paste only the text you want AI Coach to use." value={aiContext} onChange={(event) => setAiContext(event.currentTarget.value)} rows={6} /></Modal>;
+  useEffect(() => { if (open) { setName(document?.name ?? ""); setUrl(document?.externalUrl ?? ""); setAiContext(document?.content ?? ""); } }, [document?.id, open]);
+  const editing = Boolean(document);
+  return <Modal open={open} modalHeading={editing ? "Edit Google Doc link" : "Link a Google Doc"} primaryButtonText={editing ? "Save changes" : "Link document"} primaryButtonDisabled={!name.trim() || !url.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch(editing ? "document.updateGoogle" : "document.linkGoogle", { id: document?.id, name, url, aiContext }); setName(""); setUrl(""); setAiContext(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" value={url} onChange={(event) => setUrl(event.currentTarget.value)} /><TextArea id="google-doc-context" labelText="Approved AI context (optional)" helperText="Paste only the text you want AI Coach to use." value={aiContext} onChange={(event) => setAiContext(event.currentTarget.value)} rows={6} /></Modal>;
 }
 
 function EvidencePage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
   const [newCard, setNewCard] = useState(false);
-  return <><PageHeader eyebrow="Research workspace" title="Evidence Library" description="Collect sources and keep cards ready for the next round." actions={<Button renderIcon={Add} onClick={() => setNewCard(true)}>Add evidence</Button>} /><div className="card-grid">{snapshot.cards.length === 0 ? <EmptyState icon={FolderOpen} title="No evidence cards" description="Add a source, citation, and body text to build your library." /> : snapshot.cards.map((card) => <EvidenceTile card={card} key={card.id} bridge={bridge} />)}</div><NewCardModal open={newCard} onClose={() => setNewCard(false)} bridge={bridge} /></>;
+  const [editingCard, setEditingCard] = useState<EvidenceCard>();
+  return <><PageHeader eyebrow="Research workspace" title="Evidence Library" description="Collect sources and keep cards ready for the next round." actions={<Button renderIcon={Add} onClick={() => { setEditingCard(undefined); setNewCard(true); }}>Add evidence</Button>} /><div className="card-grid">{snapshot.cards.length === 0 ? <EmptyState icon={FolderOpen} title="No evidence cards" description="Add a source, citation, and body text to build your library." /> : snapshot.cards.map((card) => <EvidenceTile card={card} key={card.id} bridge={bridge} onEdit={() => { setEditingCard(card); setNewCard(true); }} />)}</div><NewCardModal open={newCard} card={editingCard} onClose={() => { setNewCard(false); setEditingCard(undefined); }} bridge={bridge} /></>;
 }
 
-function EvidenceTile({ card, bridge }: { card: EvidenceCard; bridge: EngineBridge }) {
-  return <Tile className="evidence-tile"><div className="evidence-heading"><h3>{card.title}</h3><OverflowMenu ariaLabel={`Actions for ${card.title}`}><OverflowMenuItem itemText="Delete" isDelete onClick={() => bridge.dispatch("card.delete", { id: card.id })} /></OverflowMenu></div><p>{card.text}</p>{card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noreferrer">{card.sourceUrl}</a>}<div className="tile-footer"><Tag type={card.folder === "private" ? "gray" : "green"}>{card.folder === "private" ? "Private" : "Shared"}</Tag><span>{card.author || "Unattributed"}</span></div></Tile>;
+function EvidenceTile({ card, bridge, onEdit }: { card: EvidenceCard; bridge: EngineBridge; onEdit: () => void }) {
+  return <Tile className="evidence-tile"><div className="evidence-heading"><h3>{card.title}</h3><OverflowMenu ariaLabel={`Actions for ${card.title}`}><OverflowMenuItem itemText="Edit" onClick={onEdit} /><OverflowMenuItem itemText="Keep private" onClick={() => bridge.dispatch("card.move", { id: card.id, folder: "private" })} /><OverflowMenuItem itemText="Share with team" onClick={() => bridge.dispatch("card.move", { id: card.id, folder: "team" })} /><OverflowMenuItem itemText="Share publicly" onClick={() => bridge.dispatch("card.move", { id: card.id, folder: "public" })} /><OverflowMenuItem itemText="Delete" isDelete onClick={() => { if (window.confirm(`Delete ${card.title}?`)) bridge.dispatch("card.delete", { id: card.id }); }} /></OverflowMenu></div><p>{card.text}</p>{card.sourceUrl && <a href={card.sourceUrl} target="_blank" rel="noreferrer">{card.sourceUrl}</a>}<div className="tile-footer"><Tag type={card.folder === "private" ? "gray" : "green"}>{card.folder === "private" ? "Private" : card.folder === "team" ? "Team" : "Public"}</Tag><span>{card.author || "Unattributed"}</span></div></Tile>;
 }
 
-function NewCardModal({ open, onClose, bridge }: { open: boolean; onClose: () => void; bridge: EngineBridge }) {
+function NewCardModal({ open, card, onClose, bridge }: { open: boolean; card?: EvidenceCard; onClose: () => void; bridge: EngineBridge }) {
   const [title, setTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [text, setText] = useState("");
-  return <Modal open={open} modalHeading="Add evidence card" primaryButtonText="Save card" secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch("card.create", { title, sourceUrl, text }); setTitle(""); setSourceUrl(""); setText(""); onClose(); }}><TextInput id="card-title" labelText="Title" value={title} onChange={(event) => setTitle(event.currentTarget.value)} /><TextInput id="card-source" labelText="Source website" value={sourceUrl} onChange={(event) => setSourceUrl(event.currentTarget.value)} /><TextArea id="card-body" labelText="Evidence body" value={text} onChange={(event) => setText(event.currentTarget.value)} rows={8} /></Modal>;
+  const [folder, setFolder] = useState("private");
+  useEffect(() => { if (open) { setTitle(card?.title ?? ""); setSourceUrl(card?.sourceUrl ?? ""); setText(card?.text ?? ""); setFolder(card?.folder ?? "private"); } }, [card?.id, open]);
+  const editing = Boolean(card);
+  return <Modal open={open} modalHeading={editing ? "Edit evidence card" : "Add evidence card"} primaryButtonText={editing ? "Save changes" : "Save card"} primaryButtonDisabled={!title.trim() || !text.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch(editing ? "card.update" : "card.create", { id: card?.id, title, sourceUrl, text, folder }); onClose(); }}><TextInput id="card-title" labelText="Title" value={title} onChange={(event) => setTitle(event.currentTarget.value)} /><TextInput id="card-source" labelText="Source website" value={sourceUrl} onChange={(event) => setSourceUrl(event.currentTarget.value)} /><Select id="card-folder" labelText="Workspace" value={folder} onChange={(event) => setFolder(event.currentTarget.value)}><SelectItem value="private" text="Private" /><SelectItem value="team" text="Team" /><SelectItem value="public" text="Public" /></Select><TextArea id="card-body" labelText="Evidence body" value={text} onChange={(event) => setText(event.currentTarget.value)} rows={8} /></Modal>;
 }
 
 function AiPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
   const [message, setMessage] = useState("");
   const chat = snapshot.ai.chats.find((item) => item.id === snapshot.ai.activeChatId) ?? snapshot.ai.chats[0];
   const cited = new Set(snapshot.ai.citedDocIds ?? []);
-  return <><PageHeader eyebrow="Practice partner" title="AI Coach" description="Ask for a brainstorm, a rebuttal drill, or feedback on approved context." actions={<Button kind="ghost" renderIcon={Add} onClick={() => bridge.dispatch("ai.newChat")}>New chat</Button>} /><div className="ai-layout"><aside className="chat-list"><div className="chat-section-title">Chats</div>{snapshot.ai.chats.map((item) => <button className={`chat-item ${item.id === chat?.id ? "is-selected" : ""}`} key={item.id} onClick={() => bridge.dispatch("ai.selectChat", { id: item.id })}>{item.title}</button>)}<div className="ai-context"><div className="chat-section-title">Approved context</div>{snapshot.documents.filter((doc) => doc.content.trim()).length === 0 ? <p className="muted-copy">Add AI context to a document first.</p> : snapshot.documents.filter((doc) => doc.content.trim()).map((doc) => <Checkbox key={doc.id} id={`context-${doc.id}`} labelText={doc.name} checked={cited.has(doc.id)} onChange={(_, { checked }) => bridge.dispatch("ai.toggleCitation", { id: doc.id, selected: checked })} />)}</div></aside><section className="chat-panel">{chat?.messages.length ? chat.messages.map((item, index) => <div className={`message ${item.role}`} key={`${item.timestamp}-${index}`}><span className="message-role">{item.role === "user" ? "You" : "AI Coach"}</span><p>{item.text}</p></div>) : <EmptyState icon={Chat} title="Start a coaching chat" description="Your AI key and endpoint are configured in Settings. Dialektik only sends context you choose." />}{snapshot.ai.loading && <InlineNotification kind="info" lowContrast title="AI Coach is thinking" hideCloseButton />}<div className="chat-composer"><TextArea id="ai-message" labelText="Message" hideLabel placeholder="Ask for a rebuttal drill..." value={message} onChange={(event) => setMessage(event.currentTarget.value)} rows={3} /><Button disabled={snapshot.ai.loading} onClick={() => { if (!message.trim()) return; bridge.dispatch("ai.sendMessage", { text: message.trim() }); setMessage(""); }}>Send</Button></div></section></div></>;
+  return <><PageHeader title="AI Coach" actions={<Button kind="ghost" renderIcon={Add} onClick={() => bridge.dispatch("ai.newChat")}>New chat</Button>} /><div className="ai-layout"><aside className="chat-list"><div className="chat-section-title">Chats</div>{snapshot.ai.chats.length === 0 && <p className="muted-copy">Start a chat to practice an argument.</p>}{snapshot.ai.chats.map((item) => <div className={`chat-row ${item.id === chat?.id ? "is-selected" : ""}`} key={item.id}><button className="chat-item" onClick={() => bridge.dispatch("ai.selectChat", { id: item.id })}>{item.title}</button><OverflowMenu ariaLabel={`Actions for ${item.title}`}><OverflowMenuItem itemText="Rename" onClick={() => { const title = window.prompt("Chat name", item.title); if (title?.trim()) bridge.dispatch("ai.renameChat", { id: item.id, title: title.trim() }); }} /><OverflowMenuItem itemText="Delete" isDelete onClick={() => { if (window.confirm(`Delete ${item.title}?`)) bridge.dispatch("ai.deleteChat", { id: item.id }); }} /></OverflowMenu></div>)}<div className="ai-context"><div className="chat-section-title">Approved context</div>{snapshot.documents.filter((doc) => doc.content.trim()).length === 0 ? <p className="muted-copy">Add AI context to a document first.</p> : snapshot.documents.filter((doc) => doc.content.trim()).map((doc) => <Checkbox key={doc.id} id={`context-${doc.id}`} labelText={doc.name} checked={cited.has(doc.id)} onChange={(_, { checked }) => bridge.dispatch("ai.toggleCitation", { id: doc.id, selected: checked })} />)}</div></aside><section className="chat-panel">{chat?.messages.length ? chat.messages.map((item, index) => <div className={`message ${item.role}`} key={`${item.timestamp}-${index}`}><span className="message-role">{item.role === "user" ? "You" : "AI Coach"}</span><p>{item.text}</p></div>) : <EmptyState icon={Chat} title="Start a coaching chat" description="Choose approved document context, then send a prompt." />}{snapshot.ai.loading && <InlineNotification kind="info" lowContrast title="AI Coach is thinking" hideCloseButton />}<div className="chat-composer"><TextArea id="ai-message" labelText="Message" hideLabel placeholder="Ask for a rebuttal drill..." value={message} onChange={(event) => setMessage(event.currentTarget.value)} rows={3} /><Button disabled={snapshot.ai.loading || !chat} onClick={() => { if (!message.trim()) return; bridge.dispatch("ai.sendMessage", { text: message.trim() }); setMessage(""); }}>Send</Button></div></section></div></>;
 }
 
 function HistoryPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
@@ -333,6 +418,9 @@ function SettingsPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: Engine
   const [endpoint, setEndpoint] = useState(snapshot.settings.aiEndpoint);
   const [model, setModel] = useState(snapshot.settings.aiModel);
   const [apiKey, setApiKey] = useState("");
+  const [turnUrl, setTurnUrl] = useState(snapshot.settings.turnServerUrl);
+  const [turnUsername, setTurnUsername] = useState(snapshot.settings.turnUsername);
+  const [turnCredential, setTurnCredential] = useState(snapshot.settings.turnCredential);
   const fileInput = useRef<HTMLInputElement>(null);
   const exportWorkspace = () => {
     const bundle = {
@@ -362,7 +450,7 @@ function SettingsPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: Engine
       window.alert("That workspace backup could not be read.");
     }
   };
-  return <><PageHeader eyebrow="Preferences" title="Settings" description="Configure your local identity, AI connection, and round networking." /><div className="settings-layout"><section className="settings-section"><h2>Profile</h2><TextInput id="user-name" labelText="Your name" value={name} onChange={(event) => setName(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { userName: name })} /><p className="helper-text">This name is shown to teammates in a room.</p></section><section className="settings-section"><h2>AI Coach</h2><TextInput id="ai-endpoint" labelText="API endpoint" value={endpoint} onChange={(event) => setEndpoint(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiEndpoint: endpoint })} /><TextInput id="ai-model" labelText="Model" value={model} onChange={(event) => setModel(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiModel: model })} /><TextInput id="ai-key" type="password" labelText="API key" placeholder={snapshot.settings.hasAiKey ? "Saved securely" : "Not configured"} value={apiKey} onChange={(event) => setApiKey(event.currentTarget.value)} onBlur={() => apiKey && bridge.dispatch("settings.save", { aiApiKey: apiKey })} /><p className="helper-text">Keys are stored locally and are never included in workspace backups.</p></section><section className="settings-section"><h2>Workspace</h2><div className="settings-stat"><strong>{snapshot.documents.length}</strong><span>documents</span><strong>{snapshot.cards.length}</strong><span>evidence cards</span><strong>{snapshot.history.length}</strong><span>rounds</span></div><div className="workspace-actions"><Button kind="secondary" onClick={exportWorkspace}>Export workspace</Button><Button kind="tertiary" onClick={() => fileInput.current?.click()}>Restore backup</Button><input ref={fileInput} type="file" accept="application/json,.dialektik.json" hidden onChange={(event) => void restoreWorkspace(event)} /></div><p className="helper-text">Backups include workspace content and safe AI settings. API keys, TURN credentials, and sharing scopes are excluded.</p></section><section className="settings-section"><h2>About Dialektik</h2><p>Next major frontend migration · v1.0.0</p><p className="muted-copy">Local-first debate preparation with peer-to-peer round tools.</p></section></div></>;
+  return <><PageHeader title="Settings" /><div className="settings-layout"><section className="settings-section"><h2>Profile</h2><TextInput id="user-name" labelText="Your name" value={name} onChange={(event) => setName(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { userName: name })} /><p className="helper-text">This name is shown to teammates in a room.</p></section><section className="settings-section"><h2>AI Coach</h2><TextInput id="ai-endpoint" labelText="API endpoint" value={endpoint} onChange={(event) => setEndpoint(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiEndpoint: endpoint })} /><TextInput id="ai-model" labelText="Model" value={model} onChange={(event) => setModel(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiModel: model })} /><TextInput id="ai-key" type="password" labelText="API key" placeholder={snapshot.settings.hasAiKey ? "Saved securely" : "Not configured"} value={apiKey} onChange={(event) => setApiKey(event.currentTarget.value)} onBlur={() => apiKey && bridge.dispatch("settings.save", { aiApiKey: apiKey })} /><p className="helper-text">Keys are stored locally and are never included in workspace backups.</p></section><section className="settings-section"><h2>Round connections</h2><TextArea id="turn-server-url" labelText="TURN server URLs" helperText="One URL per line. Leave blank to use direct peer connections." value={turnUrl} onChange={(event) => setTurnUrl(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { turnServerUrl: turnUrl })} rows={3} /><TextInput id="turn-username" labelText="TURN username" value={turnUsername} onChange={(event) => setTurnUsername(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { turnUsername })} /><TextInput id="turn-credential" type="password" labelText="TURN credential" value={turnCredential} onChange={(event) => setTurnCredential(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { turnCredential })} /><Toggle id="manual-document-sync" labelText="Manual document sync" labelA="Off" labelB="On" toggled={snapshot.settings.manualDocumentSync} onToggle={(toggled) => bridge.dispatch("settings.save", { manualDocumentSync: toggled })} /><Toggle id="join-request-notifications" labelText="Join request notifications" labelA="Off" labelB="On" toggled={snapshot.settings.joinRequestNotifications} onToggle={(toggled) => bridge.dispatch("settings.save", { joinRequestNotifications: toggled })} /></section><section className="settings-section"><h2>Workspace</h2><div className="settings-stat"><strong>{snapshot.documents.length}</strong><span>documents</span><strong>{snapshot.cards.length}</strong><span>evidence cards</span><strong>{snapshot.history.length}</strong><span>rounds</span></div><div className="workspace-actions"><Button kind="secondary" onClick={exportWorkspace}>Export workspace</Button><Button kind="tertiary" onClick={() => fileInput.current?.click()}>Restore backup</Button><input ref={fileInput} type="file" accept="application/json,.dialektik.json" hidden onChange={(event) => void restoreWorkspace(event)} /></div><p className="helper-text">Backups include workspace content and safe AI settings. API keys, TURN credentials, and sharing scopes are excluded.</p></section><section className="settings-section settings-danger"><h2>Reset</h2><p className="helper-text">Remove local workspace content while keeping your connection settings.</p><Button kind="danger--tertiary" onClick={() => { if (window.confirm("Reset all local documents, evidence, chats, and history?")) bridge.dispatch("workspace.reset", { preserveSettings: true }); }}>Reset workspace</Button></section><section className="settings-section"><h2>About</h2><p>Dialektik {__APP_VERSION__}</p><p className="muted-copy">Local-first debate preparation for student debaters.</p></section></div></>;
 }
 
 function EmptyState({ icon: Icon, title, description }: { icon: typeof Document; title: string; description: string }) {
