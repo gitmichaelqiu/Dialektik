@@ -51,8 +51,12 @@ button, input, textarea, select { font: inherit; }
 .compact-preview-portal { position: fixed; z-index: 10000; max-width: min(32rem, calc(100vw - 1rem)); transform: translateY(-50%); pointer-events: none; }
 .compact-preview-content { max-width: min(32rem, calc(100vw - 1rem)); padding: .5rem .75rem; border-radius: 2px; background: #161616; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); color: #ffffff; font-size: .875rem; line-height: 1.35; overflow-wrap: anywhere; white-space: normal; }
 .app-nav .cds--side-nav__link { min-height: 3rem; }
-.app-nav .cds--side-nav__link[aria-current="page"] { color: #0e6027; background: #e8f5e9; border-left: 3px solid #198038; }
+.app-nav .cds--side-nav__link[aria-current="page"] { color: #0e6027; background: #e0e0e0; border-left: 0; box-shadow: none; }
 .app-nav .cds--side-nav__link[aria-current="page"] svg { fill: #0e6027; }
+.app-shell button:focus,
+.app-shell button:focus-visible,
+.app-shell .cds--side-nav__link:focus,
+.app-shell .cds--side-nav__link:focus-visible { outline: none !important; box-shadow: none !important; }
 .app-content { display: flex; height: 100%; margin: 0 0 0 16rem !important; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; transition: margin-left 120ms ease; }
 .nav-collapsed .app-content { margin-left: 3rem !important; }
 .nav-collapsed .app-nav, .nav-collapsed .app-nav.cds--side-nav--rail, .nav-collapsed .app-nav.cds--side-nav--expanded { width: 3rem !important; min-width: 3rem !important; inline-size: 3rem !important; max-width: 3rem !important; max-inline-size: 3rem !important; }
@@ -146,7 +150,7 @@ button, input, textarea, select { font: inherit; }
 .document-row .document-item { min-width: 0; border-bottom: 0; }
 .document-row .cds--overflow-menu { flex: 0 0 2.5rem; }
 .app-nav .cds--overflow-menu-options { z-index: 1100; }
-.document-row.is-selected { background: #e8f5e9; box-shadow: inset 3px 0 #198038; }
+.document-row.is-selected { background: #e8f5e9; box-shadow: none; }
 .document-row.is-selected .document-item { background: transparent; }
 .document-item { min-height: 4rem; padding: .75rem 1rem; }
 .document-item svg { fill: #0e6027; flex: 0 0 auto; }
@@ -159,7 +163,7 @@ button, input, textarea, select { font: inherit; }
 .sidebar-account:hover, .sidebar-settings:hover { background: #e0e0e0; }
 .sidebar-account svg, .sidebar-settings svg { flex: 0 0 auto; fill: currentColor; }
 .sidebar-settings { color: #525252; }
-.sidebar-settings.is-active { background: rgba(141, 141, 141, .2); box-shadow: inset 3px 0 #198038; color: #161616; }
+.sidebar-settings.is-active { background: #e0e0e0; box-shadow: none; color: #161616; }
 .nav-collapsed .docs-side-panel { display: block; }
 .nav-collapsed .docs-side-heading, .nav-collapsed .docs-side-actions, .nav-collapsed .docs-side-panel .muted-copy { display: none; }
 .nav-collapsed .docs-side-panel { margin-top: .5rem; padding-top: .5rem; }
@@ -176,13 +180,13 @@ button, input, textarea, select { font: inherit; }
 .document-menu-trigger:hover { background: #e0e0e0; }
 .document-menu-trigger svg { fill: currentColor; }
 .nav-collapsed .document-menu-trigger { display: none; }
-.document-context-menu { position: fixed; z-index: 10000; display: grid; width: 15rem; padding: .25rem 0; border: 1px solid #8d8d8d; background: #ffffff; box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
-.document-context-menu button { min-height: 2.5rem; padding: 0 .875rem; border: 0; background: transparent; color: #161616; text-align: left; cursor: pointer; }
+.document-context-menu { position: fixed; z-index: 10000; display: grid; width: 12rem; padding: .25rem 0; border: 0; background: #ffffff; box-shadow: 0 2px 6px rgba(0, 0, 0, .24); }
+.document-context-menu button { min-height: 2rem; padding: .5rem 1rem; border: 0; background: transparent; color: #161616; font-size: .875rem; line-height: 1.25; text-align: left; cursor: pointer; }
 .document-context-menu button:hover { background: #e8f5e9; }
 .document-context-menu button.is-danger { color: #da1e28; }
 .cds--modal-container { max-width: 42rem; }
 .cds--modal-footer .cds--btn { min-width: 0; padding-inline: 1rem; }
-.chat-row.is-selected { background: #e8f5e9; box-shadow: inset 3px 0 #198038; }
+.chat-row.is-selected { background: #e8f5e9; box-shadow: none; }
 .chat-row.is-selected .chat-item { background: transparent; }
 .document-detail { padding: 1rem 1.5rem; background: #ffffff; }
 .document-detail-standalone { position: relative; display: flex; min-height: 0; height: auto; flex: 1 1 0; flex-direction: column; padding: 0; }
