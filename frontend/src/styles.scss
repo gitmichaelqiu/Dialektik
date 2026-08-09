@@ -247,6 +247,7 @@ button, input, textarea, select { font: inherit; }
 .chat-composer { display: flex; align-items: flex-end; gap: .75rem; margin-top: auto; padding-top: 1.5rem; }
 .chat-composer .cds--text-area-wrapper { flex: 1; }
 .chat-composer .cds--form-item { background: #f4f4f4; border: 0; }
+.chat-composer .cds--text-area,
 .chat-composer .cds--text-area__field { background: #f4f4f4 !important; border: 0; }
 .chat-composer-actions { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
 .chat-composer-actions .cds--menu-button__trigger { background: #f4f4f4 !important; color: #161616 !important; }
