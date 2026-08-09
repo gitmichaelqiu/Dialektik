@@ -44,7 +44,6 @@ import type { Webview as TauriWebview } from "@tauri-apps/api/webview";
 
 const navItems: { page: Page; label: string; icon: typeof Dashboard }[] = [
   { page: "inround", label: "In Round", icon: Dashboard },
-  { page: "documents", label: "Documents", icon: Document },
   { page: "evidence", label: "Evidence Library", icon: FolderOpen },
   { page: "ai", label: "AI Coach", icon: Chat },
   { page: "history", label: "History", icon: Time },
@@ -155,7 +154,7 @@ function App() {
             >
               Settings
             </SideNavLink>
-            {snapshot.activePage === "documents" && <DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => setSelectedDocumentId(id)} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} />}
+            <DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} />
           </SideNavItems>
         </SideNav>
         <Content className="app-content">
@@ -178,8 +177,8 @@ function App() {
   );
 }
 
-function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onEditGoogle }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onEditGoogle: (document: DebateDocument) => void }) {
-  return <div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id}><button className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><OverflowMenu ariaLabel={`Actions for ${doc.name}`}><OverflowMenuItem itemText="Rename" onClick={() => { const name = window.prompt("Document name", doc.name); if (name?.trim()) bridge.dispatch("document.rename", { id: doc.id, name: name.trim() }); }} /><OverflowMenuItem itemText="Duplicate" onClick={() => bridge.dispatch("document.duplicate", { id: doc.id })} />{doc.externalUrl && <><OverflowMenuItem itemText="Edit link" onClick={() => onEditGoogle(doc)} /><OverflowMenuItem itemText="Copy link" onClick={() => void navigator.clipboard?.writeText(doc.externalUrl ?? "")} /></>}<OverflowMenuItem itemText={doc.partnerAccess === "private" ? "Share with room" : "Keep private"} onClick={() => bridge.dispatch("document.move", { id: doc.id, folder: doc.partnerAccess === "private" ? "team" : "private" })} /><OverflowMenuItem itemText="Remove" isDelete onClick={() => { if (window.confirm(`Remove ${doc.name}?`)) bridge.dispatch("document.delete", { id: doc.id }); }} /></OverflowMenu></div>)}</div>;
+function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onCreate, onLink, onEditGoogle }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onCreate: () => void; onLink: () => void; onEditGoogle: (document: DebateDocument) => void }) {
+  return <div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button onClick={onCreate}>New note</button><button onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id}><button className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><OverflowMenu ariaLabel={`Actions for ${doc.name}`}><OverflowMenuItem itemText="Rename" onClick={() => { const name = window.prompt("Document name", doc.name); if (name?.trim()) bridge.dispatch("document.rename", { id: doc.id, name: name.trim() }); }} /><OverflowMenuItem itemText="Duplicate" onClick={() => bridge.dispatch("document.duplicate", { id: doc.id })} />{doc.externalUrl && <><OverflowMenuItem itemText="Edit link" onClick={() => onEditGoogle(doc)} /><OverflowMenuItem itemText="Copy link" onClick={() => void navigator.clipboard?.writeText(doc.externalUrl ?? "")} /></>}<OverflowMenuItem itemText={doc.partnerAccess === "private" ? "Share with room" : "Keep private"} onClick={() => bridge.dispatch("document.move", { id: doc.id, folder: doc.partnerAccess === "private" ? "team" : "private" })} /><OverflowMenuItem itemText="Remove" isDelete onClick={() => { if (window.confirm(`Remove ${doc.name}?`)) bridge.dispatch("document.delete", { id: doc.id }); }} /></OverflowMenu></div>)}</div>;
 }
 
 function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
@@ -309,9 +308,8 @@ function Lobby({ session, snapshot, bridge }: { session: NonNullable<Snapshot["s
 }
 
 function DocumentsPage({ snapshot, bridge, selectedId, googleDialog, onCloseGoogleDialog }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void }) {
-  const [linkOpen, setLinkOpen] = useState(false);
   const selected = snapshot.documents.find((doc) => doc.id === selectedId) ?? snapshot.documents[0];
-  return <><PageHeader title="Documents" actions={<><Button kind="secondary" renderIcon={Add} onClick={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })}>New note</Button><Button renderIcon={Add} onClick={() => setLinkOpen(true)}>Link Google Doc</Button></>} /><section className="document-detail document-detail-standalone">{selected ? <DocumentDetail document={selected} bridge={bridge} /> : <EmptyState icon={Document} title="No document selected" description="Create a note or link a Google Doc from the actions above." />}</section><LinkDocumentModal open={linkOpen || googleDialog.open} document={googleDialog.document} onClose={() => { setLinkOpen(false); onCloseGoogleDialog(); }} bridge={bridge} /></>;
+  return <><PageHeader title="Documents" /><section className="document-detail document-detail-standalone">{selected ? <DocumentDetail document={selected} bridge={bridge} /> : <EmptyState icon={Document} title="No document selected" description="Create a note or link a Google Doc from the Documents sidebar." />}</section><LinkDocumentModal open={googleDialog.open} document={googleDialog.document} onClose={onCloseGoogleDialog} bridge={bridge} /></>;
 }
 
 function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge: EngineBridge }) {
@@ -325,11 +323,13 @@ function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge
 function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [frameState, setFrameState] = useState<"loading" | "loaded" | "error">("loading");
+  const [frameError, setFrameError] = useState("");
   const [frameKey, setFrameKey] = useState(0);
   const [nativeFrame, setNativeFrame] = useState(false);
   useEffect(() => {
     let disposed = false;
     let child: TauriWebview | undefined;
+    let childCreated = false;
     let resizeObserver: ResizeObserver | undefined;
     let onResize: (() => void) | undefined;
     const mount = async () => {
@@ -342,7 +342,7 @@ function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
         const shell = hostRef.current;
         const toolbar = shell.querySelector<HTMLElement>(".frame-toolbar");
         const layout = async () => {
-          if (!child || !hostRef.current) return;
+          if (!child || !childCreated || !hostRef.current) return;
           const shellRect = hostRef.current.getBoundingClientRect();
           const toolbarRect = toolbar?.getBoundingClientRect();
           const top = toolbarRect?.bottom ?? shellRect.top;
@@ -354,23 +354,23 @@ function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
         if (existing) await existing.close();
         const webview = new Webview(getCurrentWindow(), label, { url: document.externalUrl, x: 0, y: 0, width: 100, height: 100, focus: false, acceptFirstMouse: true });
         child = webview;
-        await webview.once("tauri://created", () => { if (!disposed) setFrameState("loaded"); });
-        await webview.once("tauri://error", () => { if (!disposed) setFrameState("error"); });
+        await webview.once("tauri://created", async () => { if (!disposed) { childCreated = true; setFrameError(""); setFrameState("loaded"); await layout(); } });
+        await webview.once("tauri://error", async (event) => { if (!disposed) { setNativeFrame(false); setFrameError(typeof event === "string" && event ? event : "The native webview could not load this URL."); setFrameState("error"); await webview.close().catch(() => undefined); } });
         resizeObserver = new ResizeObserver(() => void layout());
         resizeObserver.observe(shell);
         onResize = () => void layout();
         window.addEventListener("resize", onResize);
-        await layout();
       } catch (error) {
         console.error("Unable to create native Google Docs webview", error);
-        if (!disposed) setFrameState("error");
+        if (child) await child.hide().catch(() => undefined);
+        if (!disposed) { setNativeFrame(false); setFrameError(error instanceof Error ? error.message : String(error)); setFrameState("error"); }
       }
     };
     void mount();
     return () => { disposed = true; resizeObserver?.disconnect(); if (onResize) window.removeEventListener("resize", onResize); if (child) void child.close(); };
   }, [document.externalUrl, document.id, frameKey]);
-  const retry = () => { setFrameState("loading"); setNativeFrame(false); setFrameKey((key) => key + 1); };
-  return <div ref={hostRef} className={`google-frame-shell ${nativeFrame ? "native-google-frame" : ""}`}><div className="frame-toolbar"><span>{frameState === "loading" ? "Loading Google Docs…" : frameState === "error" ? "The embedded view could not load" : "Google Docs"}</span>{frameState === "error" && <Button kind="ghost" size="sm" onClick={retry}>Retry</Button>}</div>{!nativeFrame && <iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => setFrameState("loaded")} onError={() => setFrameState("error")} />}</div>;
+  const retry = () => { setFrameError(""); setFrameState("loading"); setNativeFrame(false); setFrameKey((key) => key + 1); };
+  return <div ref={hostRef} className={`google-frame-shell ${nativeFrame ? "native-google-frame" : ""}`}><div className="frame-toolbar"><span>{frameState === "loading" ? "Loading Google Docs…" : frameState === "error" ? "The embedded view could not load" : "Google Docs"}</span>{frameState === "error" && <Button kind="ghost" size="sm" onClick={retry}>Retry</Button>}</div>{frameState === "error" && <p className="frame-error-detail">{frameError || "The embedded view reported a load failure. Use Retry or Open in browser to continue."}</p>}{!nativeFrame && <iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => setFrameState("loaded")} onError={() => { setFrameError("The browser frame reported a load failure."); setFrameState("error"); }} />}</div>;
 }
 
 function LinkDocumentModal({ open, document, onClose, bridge }: { open: boolean; document?: DebateDocument; onClose: () => void; bridge: EngineBridge }) {
