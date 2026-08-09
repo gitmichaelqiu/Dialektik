@@ -1643,6 +1643,7 @@ async function dispatch(actionJson: string) {
   // ── Session: Start debate ─────────────────
   if (type === "session.startDebate") {
     if (!session) return;
+    if (!session.handout?.problem?.trim()) return;
     session.status = "active";
     selectSpeech(session.currentSpeechIndex);
     const selectedDocuments = await Promise.all(
