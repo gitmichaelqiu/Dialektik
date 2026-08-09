@@ -246,10 +246,10 @@ button, input, textarea, select { font: inherit; }
 .message.user { margin-left: auto; }
 .chat-composer { display: flex; align-items: flex-end; gap: .75rem; margin-top: auto; padding-top: 1.5rem; }
 .chat-composer .cds--text-area-wrapper { flex: 1; }
-.chat-composer .cds--form-item { background: #f4f4f4; border: 1px solid #8d8d8d; }
-.chat-composer .cds--text-area__field { background: #ffffff !important; border: 0; }
+.chat-composer .cds--form-item { background: #f4f4f4; border: 0; }
+.chat-composer .cds--text-area__field { background: #f4f4f4 !important; border: 0; }
 .chat-composer-actions { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
-.chat-composer-actions .cds--menu-button__trigger { background: #e8f5e9 !important; color: #0e6027 !important; }
+.chat-composer-actions .cds--menu-button__trigger { background: #f4f4f4 !important; color: #161616 !important; }
 .history-list { display: grid; gap: .75rem; }
 .history-row { min-height: 5rem; }
 .history-row h3, .history-row p { margin: 0; }
