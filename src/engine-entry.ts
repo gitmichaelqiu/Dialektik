@@ -1876,7 +1876,8 @@ async function dispatch(actionJson: string) {
     if (!id) return;
     if (selected) {
       const document = await db.documents.get(id);
-      if (!document?.content.trim()) return;
+      const evidence = document ? undefined : await db.cards.get(id);
+      if (!document?.content.trim() && !evidence?.text.trim()) return;
       if (!citedDocIds.includes(id)) citedDocIds.push(id);
     } else {
       citedDocIds = citedDocIds.filter(cid => cid !== id);
@@ -1949,13 +1950,16 @@ async function dispatch(actionJson: string) {
       const history = chat.messages.map(m => ({ role: m.role, text: m.text }));
 
       // Include cited document content as context
-      const citedDocs = (await Promise.all(citedDocIds.map(id => db.documents.get(id))))
-        .filter((doc): doc is DebateDocument => Boolean(doc?.content.trim()));
-      if (citedDocs.length > 0) {
-        const contextBlock = "--- User-selected document context ---\n" + citedDocs.map(d => {
-          const contextLabel = d.type === "google_docs" ? "User-provided AI context" : "Document";
-          return `${d.name} (${contextLabel}):\n${d.content}`;
-        }).join("\n\n") + "\n\n--- End document context ---";
+      const citedItems = await Promise.all(citedDocIds.map(async id => {
+        const document = await db.documents.get(id);
+        if (document?.content.trim()) return { name: document.name, content: document.content, kind: document.type === "google_docs" ? "User-provided AI context" : "Document" };
+        const evidence = await db.cards.get(id);
+        if (evidence?.text.trim()) return { name: evidence.title, content: evidence.text, kind: "Evidence" };
+        return null;
+      }));
+      const availableCitations = citedItems.filter((item): item is { name: string; content: string; kind: string } => Boolean(item));
+      if (availableCitations.length > 0) {
+        const contextBlock = "--- User-selected context ---\n" + availableCitations.map(item => `${item.name} (${item.kind}):\n${item.content}`).join("\n\n") + "\n\n--- End selected context ---";
         history.unshift({ role: "system", text: contextBlock });
       }
 

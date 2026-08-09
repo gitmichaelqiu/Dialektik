@@ -90,7 +90,7 @@ button, input, textarea, select { font: inherit; }
 .app-shell .cds--btn:disabled:hover,
 .app-shell .cds--btn:disabled:focus,
 .app-shell .cds--menu-button button:disabled,
-.app-shell .chat-composer:has(#ai-message:placeholder-shown) .chat-composer-actions > .cds--btn {
+.app-shell .chat-composer:has(#ai-message:placeholder-shown) .chat-composer-actions > .cds--btn:last-of-type {
   background: #c6c6c6 !important;
   border-color: #c6c6c6 !important;
   color: #6f6f6f !important;
