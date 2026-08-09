@@ -195,7 +195,7 @@ function App() {
             })}
           </SideNavItems></div>
           <div className="sidebar-documents-scroll"><DocumentSidebar compact={!isMobile && !navExpanded} snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => { const id = `doc-${Date.now()}`; pendingDocumentId.current = id; setSelectedDocumentId(id); navigate("documents"); bridge.dispatch("document.create", { id, name: "Untitled note", folder: "private", mode: "write" }); }} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} /></div>
-          <div className="sidebar-footer"><button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Name"}</span></button><button type="button" className="sidebar-settings" aria-label="Settings" onClick={() => navigate("settings")}><Settings /></button></div>
+          <div className="sidebar-footer"><button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Name"}</span></button>{!isMobile && !navExpanded ? <CompactPreview label="Settings"><button type="button" className={`sidebar-settings ${currentPage === "settings" ? "is-active" : ""}`} aria-label="Settings" onClick={() => navigate("settings")}><Settings /></button></CompactPreview> : <button type="button" className={`sidebar-settings ${currentPage === "settings" ? "is-active" : ""}`} aria-label="Settings" onClick={() => navigate("settings")}><Settings /></button>}</div>
         </SideNav>
         <Content className="app-content">
           {error && (

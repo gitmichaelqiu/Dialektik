@@ -114,6 +114,8 @@ button, input, textarea, select { font: inherit; }
 .list-heading { min-height: 3.5rem; padding: 0 1rem; border-bottom: 1px solid #e0e0e0; font-weight: 600; }
 .document-item, .chat-item { display: flex; width: 100%; align-items: center; gap: .75rem; border: 0; border-bottom: 1px solid #e0e0e0; background: transparent; color: #161616; text-align: left; cursor: pointer; }
 .document-row { display: flex; align-items: center; border-bottom: 1px solid #e0e0e0; }
+.document-row:hover { background: #e0e0e0; }
+.document-row.is-selected:hover { background: #c6e8cf; }
 .document-row .document-item { min-width: 0; border-bottom: 0; }
 .document-row .cds--overflow-menu { flex: 0 0 2.5rem; }
 .app-nav .cds--overflow-menu-options { z-index: 1100; }
@@ -130,6 +132,7 @@ button, input, textarea, select { font: inherit; }
 .sidebar-account:hover, .sidebar-settings:hover { background: #e0e0e0; }
 .sidebar-account svg, .sidebar-settings svg { flex: 0 0 auto; fill: currentColor; }
 .sidebar-settings { color: #525252; }
+.sidebar-settings.is-active { background: #e8f5e9; box-shadow: inset 3px 0 #198038; color: #0e6027; }
 .nav-collapsed .docs-side-panel { display: block; }
 .nav-collapsed .docs-side-heading, .nav-collapsed .docs-side-actions, .nav-collapsed .docs-side-panel .muted-copy { display: none; }
 .nav-collapsed .docs-side-panel { margin-top: .5rem; padding-top: .5rem; }
@@ -207,6 +210,7 @@ button, input, textarea, select { font: inherit; }
 .settings-section .cds--text-input-wrapper { max-width: 34rem; margin-bottom: 1rem; }
 .settings-section .cds--text-area-wrapper { max-width: 34rem; margin-bottom: 1rem; }
 .settings-section .cds--toggle { max-width: 34rem; margin: 1.25rem 0; }
+.settings-section .cds--text-input, .settings-section .cds--text-area, .settings-section .cds--select-input { background: #f4f4f4 !important; }
 .settings-danger { border-bottom: 1px solid #e0e0e0; }
 .settings-stat { display: grid; grid-template-columns: 4rem 1fr; align-items: baseline; gap: .25rem 1rem; }
 .settings-stat strong { font-size: 1.5rem; font-weight: 400; }
