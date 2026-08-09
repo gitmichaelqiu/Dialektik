@@ -184,22 +184,27 @@ button, input, textarea, select { font: inherit; }
 .evidence-tile p { flex: 1; white-space: pre-wrap; }
 .evidence-tile a { overflow: hidden; color: #0e6027; text-overflow: ellipsis; white-space: nowrap; }
 .tile-footer { margin-top: 1.5rem; color: #6f6f6f; font-size: .75rem; }
-.ai-layout { display: grid; height: calc(100% - 3rem); min-height: 0; grid-template-columns: 16rem minmax(0, 1fr); border: 1px solid #e0e0e0; }
+.ai-page-content { overflow: hidden; }
+.ai-layout { display: grid; height: 100%; min-height: 0; grid-template-columns: 16rem minmax(0, 1fr); overflow: hidden; border: 1px solid #e0e0e0; }
 .chat-list { min-height: 0; overflow: auto; background: #f4f4f4; border-right: 1px solid #e0e0e0; }
 .chat-section-title { padding: 1rem 1rem .5rem; color: #525252; font-size: .75rem; font-weight: 600; }
+.chat-section-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-block: .5rem; }
+.chat-section-heading .cds--btn { min-height: 2rem; }
 .chat-row { display: flex; align-items: center; border-bottom: 1px solid #e0e0e0; }
 .chat-row .chat-item { min-width: 0; border-bottom: 0; }
 .chat-row .cds--overflow-menu { flex: 0 0 2.5rem; }
 .chat-item { min-height: 3.5rem; padding: 0 1rem; }
 .ai-context { margin-top: 1rem; padding: 0 1rem 1rem; border-top: 1px solid #c6c6c6; }
 .ai-context .cds--checkbox-label { min-height: 2.5rem; align-items: center; }
-.chat-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: auto; padding: 1.25rem; }
+.chat-panel { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; padding: 1.25rem; }
+.chat-messages { min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; }
 .message { max-width: 48rem; padding: 1rem 0; border-bottom: 1px solid #e0e0e0; }
 .message-role { color: #0e6027; font-size: .75rem; font-weight: 600; }
 .message p { margin-bottom: 0; white-space: pre-wrap; line-height: 1.5; }
 .message.user { margin-left: auto; }
 .chat-composer { display: flex; align-items: flex-end; gap: .75rem; margin-top: auto; padding-top: 1.5rem; }
 .chat-composer .cds--text-area-wrapper { flex: 1; }
+.chat-composer-actions { display: flex; align-items: flex-end; gap: .5rem; }
 .history-list { display: grid; gap: .75rem; }
 .history-row { min-height: 5rem; }
 .history-row h3, .history-row p { margin: 0; }
