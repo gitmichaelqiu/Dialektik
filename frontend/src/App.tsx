@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import {
   Button,
+  Checkbox,
   Content,
   Header,
   HeaderGlobalAction,
@@ -14,6 +15,8 @@ import {
   SideNav,
   SideNavItems,
   SideNavLink,
+  Select,
+  SelectItem,
   Tag,
   Tile,
   TextArea,
@@ -57,6 +60,7 @@ function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
   const [activePage, setActivePage] = useState<Page | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     void bridge.start(setSnapshot).catch((reason: unknown) => {
@@ -97,7 +101,7 @@ function App() {
           </HeaderGlobalAction>
           <HeaderName href="#" prefix="">Dialektik</HeaderName>
           <HeaderGlobalBar>
-            <HeaderGlobalAction aria-label="Search">
+            <HeaderGlobalAction aria-label="Search" onClick={() => setSearchOpen(true)}>
               <SearchIcon />
             </HeaderGlobalAction>
             <HeaderGlobalAction aria-label="Account">
@@ -152,10 +156,19 @@ function App() {
           <main className="page-content">
             <PageView snapshot={{ ...snapshot, activePage: activePage ?? snapshot.activePage }} bridge={bridge} navigate={navigate} />
           </main>
+          <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} snapshot={snapshot} navigate={navigate} />
         </Content>
       </div>
     </Theme>
   );
+}
+
+function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
+  const [query, setQuery] = useState("");
+  const normalized = query.trim().toLowerCase();
+  const documents = snapshot.documents.filter((doc) => !normalized || doc.name.toLowerCase().includes(normalized));
+  const cards = snapshot.cards.filter((card) => !normalized || `${card.title} ${card.text}`.toLowerCase().includes(normalized));
+  return <Modal open={open} passiveModal modalHeading="Search workspace" onRequestClose={() => { setQuery(""); onClose(); }}><TextInput id="workspace-search" labelText="Search documents and evidence" value={query} onChange={(event) => setQuery(event.currentTarget.value)} autoFocus />{query.trim() && <div className="search-results">{documents.map((doc) => <button key={doc.id} onClick={() => { navigate("documents"); setQuery(""); onClose(); }}><Document size={20} /><span>{doc.name}<small>Document</small></span></button>)}{cards.map((card) => <button key={card.id} onClick={() => { navigate("evidence"); setQuery(""); onClose(); }}><FolderOpen size={20} /><span>{card.title}<small>Evidence card</small></span></button>)}{documents.length === 0 && cards.length === 0 && <p className="muted-copy">No matching workspace items.</p>}</div>}</Modal>;
 }
 
 function PageView({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void }) {
@@ -198,14 +211,13 @@ function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge:
             <h2>Host a practice round</h2>
             <TextInput id="match-name" labelText="Round name" value={matchName} onChange={(event) => setMatchName(event.currentTarget.value)} />
             <TextInput id="group-name" labelText="Team or group" value={groupName} onChange={(event) => setGroupName(event.currentTarget.value)} />
-            <label className="field-label" htmlFor="event-format">Format</label>
-            <select id="event-format" className="carbon-select" value={eventFormat} onChange={(event) => setEventFormat(event.currentTarget.value)}>
-              <option value="pf">Public Forum</option>
-              <option value="ld">Lincoln-Douglas</option>
-              <option value="policy">Policy</option>
-              <option value="congress">Congress</option>
-              <option value="worlds">World Schools</option>
-            </select>
+            <Select id="event-format" labelText="Format" value={eventFormat} onChange={(event) => setEventFormat(event.currentTarget.value)}>
+              <SelectItem value="pf" text="Public Forum" />
+              <SelectItem value="ld" text="Lincoln-Douglas" />
+              <SelectItem value="policy" text="Policy" />
+              <SelectItem value="congress" text="Congress" />
+              <SelectItem value="worlds" text="World Schools" />
+            </Select>
             <Button renderIcon={Add} onClick={() => bridge.dispatch("session.host", { matchName, groupName, teamSize: 1, eventFormat })}>Host room</Button>
           </Tile>
           <Tile className="start-tile start-tile-muted">
@@ -285,7 +297,8 @@ function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge
 function LinkDocumentModal({ open, onClose, bridge }: { open: boolean; onClose: () => void; bridge: EngineBridge }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  return <Modal open={open} modalHeading="Link a Google Doc" primaryButtonText="Link document" secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch("document.linkGoogle", { name, url }); setName(""); setUrl(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" value={url} onChange={(event) => setUrl(event.currentTarget.value)} /></Modal>;
+  const [aiContext, setAiContext] = useState("");
+  return <Modal open={open} modalHeading="Link a Google Doc" primaryButtonText="Link document" primaryButtonDisabled={!name.trim() || !url.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch("document.linkGoogle", { name, url, aiContext }); setName(""); setUrl(""); setAiContext(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" value={url} onChange={(event) => setUrl(event.currentTarget.value)} /><TextArea id="google-doc-context" labelText="Approved AI context (optional)" helperText="Paste only the text you want AI Coach to use." value={aiContext} onChange={(event) => setAiContext(event.currentTarget.value)} rows={6} /></Modal>;
 }
 
 function EvidencePage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
@@ -307,7 +320,8 @@ function NewCardModal({ open, onClose, bridge }: { open: boolean; onClose: () =>
 function AiPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
   const [message, setMessage] = useState("");
   const chat = snapshot.ai.chats.find((item) => item.id === snapshot.ai.activeChatId) ?? snapshot.ai.chats[0];
-  return <><PageHeader eyebrow="Practice partner" title="AI Coach" description="Ask for a brainstorm, a rebuttal drill, or feedback on approved context." actions={<Button kind="ghost" renderIcon={Add} onClick={() => bridge.dispatch("ai.newChat")}>New chat</Button>} /><div className="ai-layout"><aside className="chat-list">{snapshot.ai.chats.map((item) => <button className={`chat-item ${item.id === chat?.id ? "is-selected" : ""}`} key={item.id} onClick={() => bridge.dispatch("ai.selectChat", { id: item.id })}>{item.title}</button>)}</aside><section className="chat-panel">{chat?.messages.length ? chat.messages.map((item, index) => <div className={`message ${item.role}`} key={`${item.timestamp}-${index}`}><span className="message-role">{item.role === "user" ? "You" : "AI Coach"}</span><p>{item.text}</p></div>) : <EmptyState icon={Chat} title="Start a coaching chat" description="Your AI key and endpoint are configured in Settings. Dialektik only sends context you choose." />}<div className="chat-composer"><TextArea id="ai-message" labelText="Message" hideLabel placeholder="Ask for a rebuttal drill..." value={message} onChange={(event) => setMessage(event.currentTarget.value)} rows={3} /><Button onClick={() => { if (!message.trim()) return; bridge.dispatch("ai.sendMessage", { text: message.trim() }); setMessage(""); }}>Send</Button></div></section></div></>;
+  const cited = new Set(snapshot.ai.citedDocIds ?? []);
+  return <><PageHeader eyebrow="Practice partner" title="AI Coach" description="Ask for a brainstorm, a rebuttal drill, or feedback on approved context." actions={<Button kind="ghost" renderIcon={Add} onClick={() => bridge.dispatch("ai.newChat")}>New chat</Button>} /><div className="ai-layout"><aside className="chat-list"><div className="chat-section-title">Chats</div>{snapshot.ai.chats.map((item) => <button className={`chat-item ${item.id === chat?.id ? "is-selected" : ""}`} key={item.id} onClick={() => bridge.dispatch("ai.selectChat", { id: item.id })}>{item.title}</button>)}<div className="ai-context"><div className="chat-section-title">Approved context</div>{snapshot.documents.filter((doc) => doc.content.trim()).length === 0 ? <p className="muted-copy">Add AI context to a document first.</p> : snapshot.documents.filter((doc) => doc.content.trim()).map((doc) => <Checkbox key={doc.id} id={`context-${doc.id}`} labelText={doc.name} checked={cited.has(doc.id)} onChange={(_, { checked }) => bridge.dispatch("ai.toggleCitation", { id: doc.id, selected: checked })} />)}</div></aside><section className="chat-panel">{chat?.messages.length ? chat.messages.map((item, index) => <div className={`message ${item.role}`} key={`${item.timestamp}-${index}`}><span className="message-role">{item.role === "user" ? "You" : "AI Coach"}</span><p>{item.text}</p></div>) : <EmptyState icon={Chat} title="Start a coaching chat" description="Your AI key and endpoint are configured in Settings. Dialektik only sends context you choose." />}{snapshot.ai.loading && <InlineNotification kind="info" lowContrast title="AI Coach is thinking" hideCloseButton />}<div className="chat-composer"><TextArea id="ai-message" labelText="Message" hideLabel placeholder="Ask for a rebuttal drill..." value={message} onChange={(event) => setMessage(event.currentTarget.value)} rows={3} /><Button disabled={snapshot.ai.loading} onClick={() => { if (!message.trim()) return; bridge.dispatch("ai.sendMessage", { text: message.trim() }); setMessage(""); }}>Send</Button></div></section></div></>;
 }
 
 function HistoryPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {
@@ -319,7 +333,36 @@ function SettingsPage({ snapshot, bridge }: { snapshot: Snapshot; bridge: Engine
   const [endpoint, setEndpoint] = useState(snapshot.settings.aiEndpoint);
   const [model, setModel] = useState(snapshot.settings.aiModel);
   const [apiKey, setApiKey] = useState("");
-  return <><PageHeader eyebrow="Preferences" title="Settings" description="Configure your local identity, AI connection, and round networking." /><div className="settings-layout"><section className="settings-section"><h2>Profile</h2><TextInput id="user-name" labelText="Your name" value={name} onChange={(event) => setName(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { userName: name })} /><p className="helper-text">This name is shown to teammates in a room.</p></section><section className="settings-section"><h2>AI Coach</h2><TextInput id="ai-endpoint" labelText="API endpoint" value={endpoint} onChange={(event) => setEndpoint(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiEndpoint: endpoint })} /><TextInput id="ai-model" labelText="Model" value={model} onChange={(event) => setModel(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiModel: model })} /><TextInput id="ai-key" type="password" labelText="API key" placeholder={snapshot.settings.hasAiKey ? "Saved securely" : "Not configured"} value={apiKey} onChange={(event) => setApiKey(event.currentTarget.value)} onBlur={() => apiKey && bridge.dispatch("settings.save", { aiApiKey: apiKey })} /><p className="helper-text">Keys are stored locally and are never included in workspace backups.</p></section><section className="settings-section"><h2>Workspace</h2><div className="settings-stat"><strong>{snapshot.documents.length}</strong><span>documents</span><strong>{snapshot.cards.length}</strong><span>evidence cards</span><strong>{snapshot.history.length}</strong><span>rounds</span></div><p className="helper-text">Workspace export and restore remain available in the Flutter release while this frontend migration is completed.</p></section><section className="settings-section"><h2>About Dialektik</h2><p>Next major frontend migration · v1.0.0</p><p className="muted-copy">Local-first debate preparation with peer-to-peer round tools.</p></section></div></>;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const exportWorkspace = () => {
+    const bundle = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      documents: snapshot.documents,
+      cards: snapshot.cards,
+      history: snapshot.history.map((record) => ({ ...record, speechOrder: [] })),
+      aiChats: snapshot.ai.chats,
+      settings: { userName: snapshot.settings.userName, aiEndpoint: snapshot.settings.aiEndpoint, aiModel: snapshot.settings.aiModel },
+    };
+    const objectUrl = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `dialektik-workspace-${new Date().toISOString().slice(0, 10)}.dialektik.json`;
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
+  };
+  const restoreWorkspace = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text()) as Record<string, unknown>;
+      bridge.dispatch("workspace.import", { data, strategy: "keepNewest" });
+    } catch {
+      window.alert("That workspace backup could not be read.");
+    }
+  };
+  return <><PageHeader eyebrow="Preferences" title="Settings" description="Configure your local identity, AI connection, and round networking." /><div className="settings-layout"><section className="settings-section"><h2>Profile</h2><TextInput id="user-name" labelText="Your name" value={name} onChange={(event) => setName(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { userName: name })} /><p className="helper-text">This name is shown to teammates in a room.</p></section><section className="settings-section"><h2>AI Coach</h2><TextInput id="ai-endpoint" labelText="API endpoint" value={endpoint} onChange={(event) => setEndpoint(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiEndpoint: endpoint })} /><TextInput id="ai-model" labelText="Model" value={model} onChange={(event) => setModel(event.currentTarget.value)} onBlur={() => bridge.dispatch("settings.save", { aiModel: model })} /><TextInput id="ai-key" type="password" labelText="API key" placeholder={snapshot.settings.hasAiKey ? "Saved securely" : "Not configured"} value={apiKey} onChange={(event) => setApiKey(event.currentTarget.value)} onBlur={() => apiKey && bridge.dispatch("settings.save", { aiApiKey: apiKey })} /><p className="helper-text">Keys are stored locally and are never included in workspace backups.</p></section><section className="settings-section"><h2>Workspace</h2><div className="settings-stat"><strong>{snapshot.documents.length}</strong><span>documents</span><strong>{snapshot.cards.length}</strong><span>evidence cards</span><strong>{snapshot.history.length}</strong><span>rounds</span></div><div className="workspace-actions"><Button kind="secondary" onClick={exportWorkspace}>Export workspace</Button><Button kind="tertiary" onClick={() => fileInput.current?.click()}>Restore backup</Button><input ref={fileInput} type="file" accept="application/json,.dialektik.json" hidden onChange={(event) => void restoreWorkspace(event)} /></div><p className="helper-text">Backups include workspace content and safe AI settings. API keys, TURN credentials, and sharing scopes are excluded.</p></section><section className="settings-section"><h2>About Dialektik</h2><p>Next major frontend migration · v1.0.0</p><p className="muted-copy">Local-first debate preparation with peer-to-peer round tools.</p></section></div></>;
 }
 
 function EmptyState({ icon: Icon, title, description }: { icon: typeof Document; title: string; description: string }) {

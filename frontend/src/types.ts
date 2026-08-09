@@ -63,6 +63,7 @@ export interface Snapshot {
     chats: { id: string; title: string; messages: { role: string; text: string; timestamp: number }[] }[];
     activeChatId?: string;
     loading?: boolean;
+    citedDocIds?: string[];
   };
   settings: {
     userName: string;
