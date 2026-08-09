@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -10,6 +10,8 @@ import {
   Modal,
   OverflowMenu,
   OverflowMenuItem,
+  Popover,
+  PopoverContent,
   SideNav,
   SideNavItems,
   SideNavLink,
@@ -19,7 +21,6 @@ import {
   Tile,
   TextArea,
   TextInput,
-  Tooltip,
   Toggle,
   Theme,
 } from "@carbon/react";
@@ -66,6 +67,36 @@ function normalizeGoogleDocsUrl(value: string) {
 
 function googleSignInUrl(documentUrl: string) {
   return `https://accounts.google.com/ServiceLogin?service=wise&continue=${encodeURIComponent(documentUrl)}`;
+}
+
+function CompactPreview({ label, children }: { label: string; children: React.ReactElement<{ onMouseEnter?: React.MouseEventHandler; onMouseLeave?: React.MouseEventHandler }> }) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<number | undefined>(undefined);
+  const cancelClose = () => {
+    if (closeTimer.current !== undefined) window.clearTimeout(closeTimer.current);
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setOpen(false), 120);
+  };
+  useEffect(() => () => cancelClose(), []);
+  const trigger = React.cloneElement(children, {
+    onMouseEnter: (event: React.MouseEvent) => {
+      children.props.onMouseEnter?.(event);
+      cancelClose();
+      setOpen(true);
+    },
+    onMouseLeave: (event: React.MouseEvent) => {
+      children.props.onMouseLeave?.(event);
+      scheduleClose();
+    },
+  });
+  return (
+    <Popover open={open} autoAlign align="right" dropShadow className="compact-preview" onRequestClose={() => setOpen(false)}>
+      {trigger}
+      <PopoverContent role="tooltip" aria-hidden={!open}>{label}</PopoverContent>
+    </Popover>
+  );
 }
 
 function App() {
@@ -174,7 +205,7 @@ function App() {
               >
                 {label}
               </SideNavLink>;
-              return !isMobile && !navExpanded ? <Tooltip key={page} label={label} align="right">{link}</Tooltip> : link;
+              return !isMobile && !navExpanded ? <CompactPreview key={page} label={label}>{link}</CompactPreview> : link;
             })}
           </SideNavItems></div>
           <div className="sidebar-documents-scroll"><DocumentSidebar compact={!isMobile && !navExpanded} snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => { const id = `doc-${Date.now()}`; pendingDocumentId.current = id; setSelectedDocumentId(id); navigate("documents"); bridge.dispatch("document.create", { id, name: "Untitled note", folder: "private", mode: "write" }); }} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} /></div>
@@ -221,7 +252,12 @@ function DocumentSidebar({ compact, snapshot, bridge, selectedId, onSelect, onCr
   const action = (callback: () => void) => { callback(); setMenu(undefined); };
   const startRename = (documentItem: DebateDocument) => { setMenu(undefined); setRenameDocument(documentItem); setRenameValue(documentItem.name); };
   const startRemove = (documentItem: DebateDocument) => { setMenu(undefined); setRemoveDocument(documentItem); };
-  return <><div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button type="button" onClick={onCreate}>New note</button><button type="button" onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id} onContextMenu={(event) => openMenu(event, doc)}><Tooltip label={doc.name} align="right"><button type="button" className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} />{!compact && <span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span>}</button></Tooltip><button type="button" className="document-menu-trigger" aria-label={`Actions for ${doc.name}`} onClick={(event) => { event.stopPropagation(); openMenu(event, doc); }}><OverflowMenuVertical /></button></div>)}</div>{menu && createPortal(<div className="document-context-menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 300)) }} onMouseDown={(event) => event.stopPropagation()}><button type="button" onClick={() => startRename(menu.document)}>Rename</button><button type="button" onClick={() => action(() => bridge.dispatch("document.duplicate", { id: menu.document.id }))}>Duplicate</button>{menu.document.externalUrl && <><button type="button" onClick={() => action(() => onEditGoogle(menu.document))}>Edit link</button><button type="button" onClick={() => action(() => void navigator.clipboard?.writeText(menu.document.externalUrl ?? ""))}>Copy link</button></>}<button type="button" className="is-danger" onClick={() => startRemove(menu.document)}>Remove</button></div>, document.body)}<Modal open={Boolean(renameDocument)} modalHeading="Rename document" primaryButtonText="Rename" primaryButtonDisabled={!renameValue.trim()} secondaryButtonText="Cancel" onRequestClose={() => setRenameDocument(undefined)} onRequestSubmit={() => { if (renameDocument && renameValue.trim()) bridge.dispatch("document.rename", { id: renameDocument.id, name: renameValue.trim() }); setRenameDocument(undefined); }}><TextInput id="rename-document" labelText="Document name" value={renameValue} onChange={(event) => setRenameValue(event.currentTarget.value)} autoFocus /></Modal><Modal open={Boolean(removeDocument)} danger modalHeading="Remove document" primaryButtonText="Remove" secondaryButtonText="Cancel" onRequestClose={() => setRemoveDocument(undefined)} onRequestSubmit={() => { if (removeDocument) bridge.dispatch("document.delete", { id: removeDocument.id }); setRemoveDocument(undefined); }}><p>Remove {removeDocument?.name ?? "this document"} from the workspace?</p></Modal></>;
+  return <><div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button type="button" onClick={onCreate}>New note</button><button type="button" onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <DocumentRow key={doc.id} doc={doc} compact={compact} selected={selectedId === doc.id} onSelect={onSelect} onContextMenu={openMenu} />)}</div>{menu && createPortal(<div className="document-context-menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 300)) }} onMouseDown={(event) => event.stopPropagation()}><button type="button" onClick={() => startRename(menu.document)}>Rename</button><button type="button" onClick={() => action(() => bridge.dispatch("document.duplicate", { id: menu.document.id }))}>Duplicate</button>{menu.document.externalUrl && <><button type="button" onClick={() => action(() => onEditGoogle(menu.document))}>Edit link</button><button type="button" onClick={() => action(() => void navigator.clipboard?.writeText(menu.document.externalUrl ?? ""))}>Copy link</button></>}<button type="button" className="is-danger" onClick={() => startRemove(menu.document)}>Remove</button></div>, document.body)}<Modal open={Boolean(renameDocument)} modalHeading="Rename document" primaryButtonText="Rename" primaryButtonDisabled={!renameValue.trim()} secondaryButtonText="Cancel" onRequestClose={() => setRenameDocument(undefined)} onRequestSubmit={() => { if (renameDocument && renameValue.trim()) bridge.dispatch("document.rename", { id: renameDocument.id, name: renameValue.trim() }); setRenameDocument(undefined); }}><TextInput id="rename-document" labelText="Document name" value={renameValue} onChange={(event) => setRenameValue(event.currentTarget.value)} autoFocus /></Modal><Modal open={Boolean(removeDocument)} danger modalHeading="Remove document" primaryButtonText="Remove" secondaryButtonText="Cancel" onRequestClose={() => setRemoveDocument(undefined)} onRequestSubmit={() => { if (removeDocument) bridge.dispatch("document.delete", { id: removeDocument.id }); setRemoveDocument(undefined); }}><p>Remove {removeDocument?.name ?? "this document"} from the workspace?</p></Modal></>;
+}
+
+function DocumentRow({ doc, compact, selected, onSelect, onContextMenu }: { doc: DebateDocument; compact: boolean; selected: boolean; onSelect: (id: string) => void; onContextMenu: (event: ReactMouseEvent, documentItem: DebateDocument) => void }) {
+  const button = <button type="button" className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} />{!compact && <span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span>}</button>;
+  return <div className={`document-row ${selected ? "is-selected" : ""}`} onContextMenu={(event) => onContextMenu(event, doc)}>{compact ? <CompactPreview label={doc.name}>{button}</CompactPreview> : button}<button type="button" className="document-menu-trigger" aria-label={`Actions for ${doc.name}`} onClick={(event) => { event.stopPropagation(); onContextMenu(event, doc); }}><OverflowMenuVertical /></button></div>;
 }
 
 function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
