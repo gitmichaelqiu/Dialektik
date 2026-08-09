@@ -416,11 +416,11 @@ class PreviewEngineBridge implements EngineBridge {
           'matchName': payload['matchName'] is String &&
                   (payload['matchName']! as String).trim().isNotEmpty
               ? (payload['matchName']! as String).trim()
-              : 'Practice Round',
+              : '',
           'groupName': payload['groupName'] is String &&
                   (payload['groupName']! as String).trim().isNotEmpty
               ? (payload['groupName']! as String).trim()
-              : 'Dialektik Team',
+              : '',
           'status': 'lobby',
           'handout': {'title': '', 'problem': '', 'details': ''},
           'documentIds': <String>[],
@@ -492,8 +492,8 @@ class PreviewEngineBridge implements EngineBridge {
           'activePage': 'inround',
           'session': {
             'roomCode': code,
-            'matchName': 'Practice Round',
-            'groupName': 'Joined Group',
+            'matchName': '',
+            'groupName': '',
             'status': 'pending_approval',
             'handout': {'title': '', 'problem': '', 'details': ''},
             'documentIds': <String>[],
@@ -759,8 +759,8 @@ class PreviewEngineBridge implements EngineBridge {
 
       final newRecord = {
         'id': 'history-${DateTime.now().microsecondsSinceEpoch}',
-        'matchName': session['matchName'] ?? 'Practice Round',
-        'opponentName': session['groupName'] ?? 'Dialektik Team',
+        'matchName': session['matchName'] ?? '',
+        'opponentName': session['groupName'] ?? '',
         'sides': mySide,
         'winLoss': isWin ? 'win' : 'loss',
         'speechOrder': _list(session['speechOrder'])

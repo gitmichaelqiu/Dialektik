@@ -1475,8 +1475,8 @@ async function dispatch(actionJson: string) {
     lastRoomIsHost = true;
     session = {
       roomCode: code,
-      matchName: payload.matchName?.trim() || "Practice Round",
-      groupName: payload.groupName?.trim() || "Dialektik Team",
+      matchName: payload.matchName?.trim() || "",
+      groupName: payload.groupName?.trim() || "",
       status: "lobby",
       handout: { title: "", problem: "", details: "" },
       documentIds: [],

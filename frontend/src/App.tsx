@@ -36,6 +36,7 @@ import {
   Renew,
   Settings,
   Time,
+  UserAvatar,
 } from "@carbon/icons-react";
 import { EngineBridge } from "./engine";
 import type { DebateDocument, EvidenceCard, Page, Snapshot } from "./types";
@@ -48,6 +49,21 @@ const navItems: { page: Page; label: string; icon: typeof Dashboard }[] = [
   { page: "ai", label: "AI Coach", icon: Chat },
   { page: "history", label: "History", icon: Time },
 ];
+
+function normalizeGoogleDocsUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    const match = url.hostname.toLowerCase() === "docs.google.com" ? url.pathname.match(/^\/document\/d\/([a-zA-Z0-9_-]+)/) : null;
+    if (!match) return null;
+    return `https://docs.google.com/document/d/${match[1]}/edit`;
+  } catch {
+    return null;
+  }
+}
+
+function googleSignInUrl(documentUrl: string) {
+  return `https://accounts.google.com/ServiceLogin?service=wise&continue=${encodeURIComponent(documentUrl)}`;
+}
 
 function App() {
   const bridge = useRef(new EngineBridge()).current;
@@ -110,6 +126,10 @@ function App() {
     setMobileNav(false);
   };
 
+  const selectedDocument = snapshot.documents.find((document) => document.id === selectedDocumentId) ?? snapshot.documents[0];
+  const currentPage = activePage ?? snapshot.activePage;
+  const pageTitle = currentPage === "documents" ? selectedDocument?.name ?? "Documents" : currentPage === "inround" && snapshot.session?.matchName ? snapshot.session.matchName : navItems.find((item) => item.page === currentPage)?.label ?? "Dialektik";
+
   return (
     <Theme theme="white">
       <div className={`app-shell ${!isMobile && !navExpanded ? "nav-collapsed" : ""}`}>
@@ -125,7 +145,7 @@ function App() {
           isRail={!isMobile && !navExpanded}
           className="app-nav"
         >
-          <button className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={() => setNavExpanded((expanded) => !expanded)}>
+          <button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}>
             <Menu />
           </button>
           <SideNavItems>
@@ -134,7 +154,7 @@ function App() {
                 key={page}
                 href={`#${page}`}
                 renderIcon={Icon}
-                isActive={snapshot.activePage === page}
+                isActive={currentPage === page}
                 onClick={(event) => {
                   event.preventDefault();
                   navigate(page);
@@ -143,19 +163,12 @@ function App() {
                 {label}
               </SideNavLink>
             ))}
-            <SideNavLink
-              href="#settings"
-              renderIcon={Settings}
-              isActive={snapshot.activePage === "settings"}
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("settings");
-              }}
-            >
-              Settings
-            </SideNavLink>
             <DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} />
           </SideNavItems>
+          <div className="sidebar-footer">
+            <button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Your name"}</span></button>
+            <button type="button" className="sidebar-settings" aria-label="Settings" onClick={() => navigate("settings")}><Settings /><span>Settings</span></button>
+          </div>
         </SideNav>
         <Content className="app-content">
           {error && (
@@ -167,8 +180,9 @@ function App() {
               hideCloseButton
             />
           )}
+          <div className="app-pagebar"><h1>{pageTitle}</h1>{currentPage === "documents" && selectedDocument?.externalUrl && <Button kind="ghost" size="sm" renderIcon={Launch} onClick={() => window.open(selectedDocument.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}</div>
           <main className="page-content">
-            <PageView snapshot={{ ...snapshot, activePage: activePage ?? snapshot.activePage }} bridge={bridge} navigate={navigate} selectedDocumentId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={() => setGoogleDialog({ open: false })} />
+            <PageView snapshot={{ ...snapshot, activePage: currentPage }} bridge={bridge} navigate={navigate} selectedDocumentId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={() => setGoogleDialog({ open: false })} />
           </main>
           <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} snapshot={snapshot} navigate={navigate} />
         </Content>
@@ -215,8 +229,8 @@ function formatTimer(milliseconds: number) {
 }
 
 function RoundPage({ snapshot, bridge, navigate }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void }) {
-  const [matchName, setMatchName] = useState("Practice round");
-  const [groupName, setGroupName] = useState("Dialektik team");
+  const [matchName, setMatchName] = useState("");
+  const [groupName, setGroupName] = useState("");
   const [eventFormat, setEventFormat] = useState("pf");
   const session = snapshot.session;
 
@@ -317,7 +331,7 @@ function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge
   const [editing, setEditing] = useState(document.sourceType !== "google_docs");
   useEffect(() => setContent(document.content), [document.id, document.content]);
   const isGoogle = document.sourceType === "google_docs" || document.type === "google_docs";
-  return <><div className="detail-header"><div><h2>{document.name}</h2><span className="detail-source">{isGoogle ? "Google Docs" : "Offline note"}</span></div><div className="detail-actions">{isGoogle && document.externalUrl && <Button kind="ghost" renderIcon={Launch} onClick={() => window.open(document.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}</div></div>{isGoogle ? <GoogleDocumentFrame document={document} /> : <><TextArea id="offline-document" labelText="Document content" hideLabel value={content} disabled={!editing} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /><div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></>}</>;
+  return isGoogle ? <GoogleDocumentFrame document={document} /> : <div className="offline-editor"><TextArea id="offline-document" labelText="Document content" hideLabel value={content} disabled={!editing} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /><div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></div>;
 }
 
 function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
@@ -352,7 +366,8 @@ function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
         const label = `google-doc-${document.id.replace(/[^a-zA-Z0-9_/:.-]/g, "-")}`;
         const existing = await Webview.getByLabel(label);
         if (existing) await existing.close();
-        const webview = new Webview(getCurrentWindow(), label, { url: document.externalUrl, x: 0, y: 0, width: 100, height: 100, focus: false, acceptFirstMouse: true });
+        const documentUrl = normalizeGoogleDocsUrl(document.externalUrl) ?? document.externalUrl;
+        const webview = new Webview(getCurrentWindow(), label, { url: googleSignInUrl(documentUrl), x: 0, y: 0, width: 100, height: 100, focus: false, acceptFirstMouse: true });
         child = webview;
         await webview.once("tauri://created", async () => { if (!disposed) { childCreated = true; setFrameError(""); setFrameState("loaded"); await layout(); } });
         await webview.once("tauri://error", async (event) => { if (!disposed) { setNativeFrame(false); setFrameError(typeof event === "string" && event ? event : "The native webview could not load this URL."); setFrameState("error"); await webview.close().catch(() => undefined); } });
@@ -377,9 +392,10 @@ function LinkDocumentModal({ open, document, onClose, bridge }: { open: boolean;
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [aiContext, setAiContext] = useState("");
-  useEffect(() => { if (open) { setName(document?.name ?? ""); setUrl(document?.externalUrl ?? ""); setAiContext(document?.content ?? ""); } }, [document?.id, open]);
+  const [validationError, setValidationError] = useState("");
+  useEffect(() => { if (open) { setName(document?.name ?? ""); setUrl(document?.externalUrl ?? ""); setAiContext(document?.content ?? ""); setValidationError(""); } }, [document?.id, open]);
   const editing = Boolean(document);
-  return <Modal open={open} modalHeading={editing ? "Edit Google Doc link" : "Link a Google Doc"} primaryButtonText={editing ? "Save changes" : "Link document"} primaryButtonDisabled={!name.trim() || !url.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { bridge.dispatch(editing ? "document.updateGoogle" : "document.linkGoogle", { id: document?.id, name, url, aiContext }); setName(""); setUrl(""); setAiContext(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" value={url} onChange={(event) => setUrl(event.currentTarget.value)} /><TextArea id="google-doc-context" labelText="Approved AI context (optional)" helperText="Paste only the text you want AI Coach to use." value={aiContext} onChange={(event) => setAiContext(event.currentTarget.value)} rows={6} /></Modal>;
+  return <Modal open={open} modalHeading={editing ? "Edit Google Doc link" : "Link a Google Doc"} primaryButtonText={editing ? "Save changes" : "Link document"} primaryButtonDisabled={!name.trim() || !url.trim()} secondaryButtonText="Cancel" onRequestClose={onClose} onRequestSubmit={() => { const normalized = normalizeGoogleDocsUrl(url); if (!normalized) { setValidationError("Enter a Google Docs document URL."); return; } bridge.dispatch(editing ? "document.updateGoogle" : "document.linkGoogle", { id: document?.id, name, url: normalized, aiContext }); setName(""); setUrl(""); setAiContext(""); onClose(); }}><TextInput id="google-doc-name" labelText="Document name" value={name} onChange={(event) => setName(event.currentTarget.value)} /><TextInput id="google-doc-url" labelText="Google Docs URL" invalid={Boolean(validationError)} invalidText={validationError} value={url} onChange={(event) => { setUrl(event.currentTarget.value); setValidationError(""); }} /><TextArea id="google-doc-context" labelText="Approved AI context (optional)" helperText="Paste only the text you want AI Coach to use." value={aiContext} onChange={(event) => setAiContext(event.currentTarget.value)} rows={6} /></Modal>;
 }
 
 function EvidencePage({ snapshot, bridge }: { snapshot: Snapshot; bridge: EngineBridge }) {

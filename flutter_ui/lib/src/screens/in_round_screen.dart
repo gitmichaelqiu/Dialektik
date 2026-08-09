@@ -351,8 +351,8 @@ class _InRoundScreenState extends State<InRoundScreen>
             if (wasHost) {
               widget.bridge.dispatch(
                 action('session.host', {
-                  'matchName': 'Practice Round',
-                  'groupName': 'Dialektik Team',
+                  'matchName': '',
+                  'groupName': '',
                   'teamSize': 1,
                   'eventFormat': _eventFormat,
                 }),
