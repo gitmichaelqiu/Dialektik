@@ -19,6 +19,7 @@ import {
   Tile,
   TextArea,
   TextInput,
+  Tooltip,
   Toggle,
   Theme,
 } from "@carbon/react";
@@ -77,6 +78,8 @@ function App() {
   const [activePage, setActivePage] = useState<Page | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  const pendingDocumentId = useRef("");
+  const [googleStatus, setGoogleStatus] = useState("");
   const [googleDialog, setGoogleDialog] = useState<{ open: boolean; document?: DebateDocument }>({ open: false });
 
   useEffect(() => {
@@ -106,6 +109,13 @@ function App() {
   }, [activePage, snapshot.activePage]);
 
   useEffect(() => {
+    if (pendingDocumentId.current) {
+      if (snapshot.documents.some((document) => document.id === pendingDocumentId.current)) {
+        setSelectedDocumentId(pendingDocumentId.current);
+        pendingDocumentId.current = "";
+      }
+      return;
+    }
     if (!snapshot.documents.some((document) => document.id === selectedDocumentId)) {
       setSelectedDocumentId(snapshot.documents[0]?.id ?? "");
     }
@@ -151,8 +161,8 @@ function App() {
         >
           <div className="sidebar-brand"><button type="button" className="sidebar-toggle sidebar-toggle-rail" aria-label={navExpanded ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={navExpanded} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNavExpanded((expanded) => !expanded); }}><Menu /></button><span>Dialektik</span></div>
           <div className="sidebar-navigation"><SideNavItems>
-            {navItems.map(({ page, label, icon: Icon }) => (
-              <SideNavLink
+            {navItems.map(({ page, label, icon: Icon }) => {
+              const link = <SideNavLink
                 key={page}
                 href={`#${page}`}
                 renderIcon={Icon}
@@ -163,10 +173,11 @@ function App() {
                 }}
               >
                 {label}
-              </SideNavLink>
-            ))}
+              </SideNavLink>;
+              return !isMobile && !navExpanded ? <Tooltip key={page} label={label} align="right">{link}</Tooltip> : link;
+            })}
           </SideNavItems></div>
-          <div className="sidebar-documents-scroll"><DocumentSidebar snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => bridge.dispatch("document.create", { name: "Untitled note", folder: "private", mode: "write" })} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} /></div>
+          <div className="sidebar-documents-scroll"><DocumentSidebar compact={!isMobile && !navExpanded} snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} onSelect={(id) => { setSelectedDocumentId(id); navigate("documents"); }} onCreate={() => { const id = `doc-${Date.now()}`; pendingDocumentId.current = id; setSelectedDocumentId(id); navigate("documents"); bridge.dispatch("document.create", { id, name: "Untitled note", folder: "private", mode: "write" }); }} onLink={() => setGoogleDialog({ open: true })} onEditGoogle={(document) => setGoogleDialog({ open: true, document })} /></div>
           <div className="sidebar-footer"><button type="button" className="sidebar-account" onClick={() => navigate("settings")}><UserAvatar /><span>{snapshot.settings.userName || "Name"}</span></button><button type="button" className="sidebar-settings" aria-label="Settings" onClick={() => navigate("settings")}><Settings /></button></div>
         </SideNav>
         <Content className="app-content">
@@ -179,9 +190,9 @@ function App() {
               hideCloseButton
             />
           )}
-          <div className="app-pagebar"><h1>{pageTitle}</h1>{currentPage === "documents" && selectedDocument?.externalUrl && <Button kind="ghost" size="sm" renderIcon={Launch} onClick={() => window.open(selectedDocument.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}</div>
+          <div className="app-pagebar"><h1>{pageTitle}</h1><div className="pagebar-meta">{googleStatus && <span className="pagebar-status">{googleStatus}</span>}{currentPage === "documents" && selectedDocument?.externalUrl && <Button kind="ghost" size="sm" renderIcon={Launch} onClick={() => window.open(selectedDocument.externalUrl, "_blank", "noopener,noreferrer")}>Open in browser</Button>}</div></div>
           <main className={`page-content ${currentPage === "documents" ? "document-page-content" : ""}`}>
-            <PageView snapshot={{ ...snapshot, activePage: currentPage }} bridge={bridge} navigate={navigate} selectedDocumentId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={() => setGoogleDialog({ open: false })} />
+            <PageView snapshot={{ ...snapshot, activePage: currentPage }} bridge={bridge} navigate={navigate} selectedDocumentId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={() => setGoogleDialog({ open: false })} onGoogleStatus={setGoogleStatus} />
           </main>
           <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} snapshot={snapshot} navigate={navigate} />
         </Content>
@@ -190,7 +201,7 @@ function App() {
   );
 }
 
-function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onCreate, onLink, onEditGoogle }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onCreate: () => void; onLink: () => void; onEditGoogle: (document: DebateDocument) => void }) {
+function DocumentSidebar({ compact, snapshot, bridge, selectedId, onSelect, onCreate, onLink, onEditGoogle }: { compact: boolean; snapshot: Snapshot; bridge: EngineBridge; selectedId: string; onSelect: (id: string) => void; onCreate: () => void; onLink: () => void; onEditGoogle: (document: DebateDocument) => void }) {
   const [menu, setMenu] = useState<{ document: DebateDocument; x: number; y: number }>();
   const [renameDocument, setRenameDocument] = useState<DebateDocument>();
   const [renameValue, setRenameValue] = useState("");
@@ -210,7 +221,7 @@ function DocumentSidebar({ snapshot, bridge, selectedId, onSelect, onCreate, onL
   const action = (callback: () => void) => { callback(); setMenu(undefined); };
   const startRename = (documentItem: DebateDocument) => { setMenu(undefined); setRenameDocument(documentItem); setRenameValue(documentItem.name); };
   const startRemove = (documentItem: DebateDocument) => { setMenu(undefined); setRemoveDocument(documentItem); };
-  return <><div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button type="button" onClick={onCreate}>New note</button><button type="button" onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id} onContextMenu={(event) => openMenu(event, doc)}><button type="button" className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} /><span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span></button><button type="button" className="document-menu-trigger" aria-label={`Actions for ${doc.name}`} onClick={(event) => { event.stopPropagation(); openMenu(event, doc); }}><OverflowMenuVertical /></button></div>)}</div>{menu && createPortal(<div className="document-context-menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 300)) }} onMouseDown={(event) => event.stopPropagation()}><button type="button" onClick={() => startRename(menu.document)}>Rename</button><button type="button" onClick={() => action(() => bridge.dispatch("document.duplicate", { id: menu.document.id }))}>Duplicate</button>{menu.document.externalUrl && <><button type="button" onClick={() => action(() => onEditGoogle(menu.document))}>Edit link</button><button type="button" onClick={() => action(() => void navigator.clipboard?.writeText(menu.document.externalUrl ?? ""))}>Copy link</button></>}<button type="button" className="is-danger" onClick={() => startRemove(menu.document)}>Remove</button></div>, document.body)}<Modal open={Boolean(renameDocument)} modalHeading="Rename document" primaryButtonText="Rename" primaryButtonDisabled={!renameValue.trim()} secondaryButtonText="Cancel" onRequestClose={() => setRenameDocument(undefined)} onRequestSubmit={() => { if (renameDocument && renameValue.trim()) bridge.dispatch("document.rename", { id: renameDocument.id, name: renameValue.trim() }); setRenameDocument(undefined); }}><TextInput id="rename-document" labelText="Document name" value={renameValue} onChange={(event) => setRenameValue(event.currentTarget.value)} autoFocus /></Modal><Modal open={Boolean(removeDocument)} danger modalHeading="Remove document" primaryButtonText="Remove" secondaryButtonText="Cancel" onRequestClose={() => setRemoveDocument(undefined)} onRequestSubmit={() => { if (removeDocument) bridge.dispatch("document.delete", { id: removeDocument.id }); setRemoveDocument(undefined); }}><p>Remove {removeDocument?.name ?? "this document"} from the workspace?</p></Modal></>;
+  return <><div className="docs-side-panel"><div className="docs-side-heading"><span>Documents</span><Tag type="gray">{snapshot.documents.length}</Tag></div><div className="docs-side-actions"><button type="button" onClick={onCreate}>New note</button><button type="button" onClick={onLink}>Link Google Doc</button></div>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet.</p> : snapshot.documents.map((doc) => <div className={`document-row ${selectedId === doc.id ? "is-selected" : ""}`} key={doc.id} onContextMenu={(event) => openMenu(event, doc)}><Tooltip label={doc.name} align="right"><button type="button" className="document-item" onClick={() => onSelect(doc.id)}><Document size={20} />{!compact && <span><strong>{doc.name}</strong><small>{doc.sourceType === "google_docs" ? "Google Docs" : "Offline note"}</small></span>}</button></Tooltip><button type="button" className="document-menu-trigger" aria-label={`Actions for ${doc.name}`} onClick={(event) => { event.stopPropagation(); openMenu(event, doc); }}><OverflowMenuVertical /></button></div>)}</div>{menu && createPortal(<div className="document-context-menu" style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 300)) }} onMouseDown={(event) => event.stopPropagation()}><button type="button" onClick={() => startRename(menu.document)}>Rename</button><button type="button" onClick={() => action(() => bridge.dispatch("document.duplicate", { id: menu.document.id }))}>Duplicate</button>{menu.document.externalUrl && <><button type="button" onClick={() => action(() => onEditGoogle(menu.document))}>Edit link</button><button type="button" onClick={() => action(() => void navigator.clipboard?.writeText(menu.document.externalUrl ?? ""))}>Copy link</button></>}<button type="button" className="is-danger" onClick={() => startRemove(menu.document)}>Remove</button></div>, document.body)}<Modal open={Boolean(renameDocument)} modalHeading="Rename document" primaryButtonText="Rename" primaryButtonDisabled={!renameValue.trim()} secondaryButtonText="Cancel" onRequestClose={() => setRenameDocument(undefined)} onRequestSubmit={() => { if (renameDocument && renameValue.trim()) bridge.dispatch("document.rename", { id: renameDocument.id, name: renameValue.trim() }); setRenameDocument(undefined); }}><TextInput id="rename-document" labelText="Document name" value={renameValue} onChange={(event) => setRenameValue(event.currentTarget.value)} autoFocus /></Modal><Modal open={Boolean(removeDocument)} danger modalHeading="Remove document" primaryButtonText="Remove" secondaryButtonText="Cancel" onRequestClose={() => setRemoveDocument(undefined)} onRequestSubmit={() => { if (removeDocument) bridge.dispatch("document.delete", { id: removeDocument.id }); setRemoveDocument(undefined); }}><p>Remove {removeDocument?.name ?? "this document"} from the workspace?</p></Modal></>;
 }
 
 function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onClose: () => void; snapshot: Snapshot; navigate: (page: Page) => void }) {
@@ -221,9 +232,9 @@ function SearchModal({ open, onClose, snapshot, navigate }: { open: boolean; onC
   return <Modal open={open} passiveModal modalHeading="Search workspace" onRequestClose={() => { setQuery(""); onClose(); }}><TextInput id="workspace-search" labelText="Search documents and evidence" value={query} onChange={(event) => setQuery(event.currentTarget.value)} autoFocus />{query.trim() && <div className="search-results">{documents.map((doc) => <button key={doc.id} onClick={() => { navigate("documents"); setQuery(""); onClose(); }}><Document size={20} /><span>{doc.name}<small>Document</small></span></button>)}{cards.map((card) => <button key={card.id} onClick={() => { navigate("evidence"); setQuery(""); onClose(); }}><FolderOpen size={20} /><span>{card.title}<small>Evidence card</small></span></button>)}{documents.length === 0 && cards.length === 0 && <p className="muted-copy">No matching workspace items.</p>}</div>}</Modal>;
 }
 
-function PageView({ snapshot, bridge, navigate, selectedDocumentId, googleDialog, onCloseGoogleDialog }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void; selectedDocumentId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void }) {
+function PageView({ snapshot, bridge, navigate, selectedDocumentId, googleDialog, onCloseGoogleDialog, onGoogleStatus }: { snapshot: Snapshot; bridge: EngineBridge; navigate: (page: Page) => void; selectedDocumentId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void; onGoogleStatus: (status: string) => void }) {
   switch (snapshot.activePage) {
-    case "documents": return <DocumentsPage snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={onCloseGoogleDialog} />;
+    case "documents": return <DocumentsPage snapshot={snapshot} bridge={bridge} selectedId={selectedDocumentId} googleDialog={googleDialog} onCloseGoogleDialog={onCloseGoogleDialog} onGoogleStatus={onGoogleStatus} />;
     case "evidence": return <EvidencePage snapshot={snapshot} bridge={bridge} />;
     case "ai": return <AiPage snapshot={snapshot} bridge={bridge} />;
     case "history": return <HistoryPage snapshot={snapshot} bridge={bridge} />;
@@ -339,17 +350,17 @@ function Lobby({ session, snapshot, bridge }: { session: NonNullable<Snapshot["s
   return <div className="lobby-grid"><Tile><div className="tile-kicker">Room code</div><div className="room-code">{session.roomCode}</div><p className="helper-text">Share this code with your debate partner.</p><Button kind="tertiary" renderIcon={CopyLink} onClick={() => void navigator.clipboard?.writeText(session.roomCode)}>Copy code</Button>{session.isHost && session.pendingRequests && session.pendingRequests.length > 0 && <div className="pending-requests"><h3>Join requests</h3>{session.pendingRequests.map((request) => <div className="request-row" key={request.id}><span>{request.name}</span><span><Button kind="ghost" size="sm" onClick={() => bridge.dispatch("session.approveJoin", { id: request.id })}>Approve</Button><Button kind="danger--ghost" size="sm" onClick={() => bridge.dispatch("session.rejectJoin", { id: request.id })}>Reject</Button></span></div>)}</div>}</Tile><Tile><h2>Prepare the round</h2><TextInput id="resolution" labelText="Resolution" value={problem} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setProblem(value); updateHandout("problem", value); }} /><TextInput id="handout-title" labelText="Handout title" value={title} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setTitle(value); updateHandout("title", value); }} /><TextArea id="handout-details" labelText="Prep notes" value={details} disabled={!session.isHost} onChange={(event) => { const value = event.currentTarget.value; setDetails(value); updateHandout("details", value); }} rows={5} /><div className="selected-docs"><h3>Documents in this round</h3>{snapshot.documents.length === 0 ? <p className="muted-copy">No documents yet. Add one in Documents.</p> : snapshot.documents.map((doc) => <label className="document-check" key={doc.id}><input type="checkbox" checked={selectedIds.has(doc.id)} disabled={!session.isHost} onChange={(event) => { const next = event.currentTarget.checked ? [...selectedIds, doc.id] : [...selectedIds].filter((id) => id !== doc.id); bridge.dispatch("session.setDocuments", { ids: next }); }} /><span>{doc.name}</span><Tag type="gray">{doc.sourceType === "google_docs" ? "Google Docs" : "Offline"}</Tag></label>)}</div>{session.isHost && <Button onClick={() => bridge.dispatch("session.startDebate")}>Start debate</Button>}</Tile></div>;
 }
 
-function DocumentsPage({ snapshot, bridge, selectedId, googleDialog, onCloseGoogleDialog }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void }) {
+function DocumentsPage({ snapshot, bridge, selectedId, googleDialog, onCloseGoogleDialog, onGoogleStatus }: { snapshot: Snapshot; bridge: EngineBridge; selectedId: string; googleDialog: { open: boolean; document?: DebateDocument }; onCloseGoogleDialog: () => void; onGoogleStatus: (status: string) => void }) {
   const selected = snapshot.documents.find((doc) => doc.id === selectedId) ?? snapshot.documents[0];
-  return <><PageHeader title="Documents" /><section className="document-detail document-detail-standalone">{selected ? <DocumentDetail document={selected} bridge={bridge} /> : <EmptyState icon={Document} title="No document selected" description="Create a note or link a Google Doc from the Documents sidebar." />}</section><LinkDocumentModal open={googleDialog.open} document={googleDialog.document} onClose={onCloseGoogleDialog} bridge={bridge} /></>;
+  return <><PageHeader title="Documents" /><section className="document-detail document-detail-standalone">{selected ? <DocumentDetail document={selected} bridge={bridge} onGoogleStatus={onGoogleStatus} /> : <EmptyState icon={Document} title="No document selected" description="Create a note or link a Google Doc from the Documents sidebar." />}</section><LinkDocumentModal open={googleDialog.open} document={googleDialog.document} onClose={onCloseGoogleDialog} bridge={bridge} /></>;
 }
 
-function DocumentDetail({ document, bridge }: { document: DebateDocument; bridge: EngineBridge }) {
+function DocumentDetail({ document, bridge, onGoogleStatus }: { document: DebateDocument; bridge: EngineBridge; onGoogleStatus: (status: string) => void }) {
   const [content, setContent] = useState(document.content);
   const [editing, setEditing] = useState(document.sourceType !== "google_docs");
   useEffect(() => setContent(document.content), [document.id, document.content]);
   const isGoogle = document.sourceType === "google_docs" || document.type === "google_docs";
-  return isGoogle ? <GoogleDocumentFrame document={document} /> : <div className={`offline-editor ${editing ? "is-editing" : "is-reading"}`}>{editing ? <TextArea id="offline-document" labelText="Document content" hideLabel value={content} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /> : <div className="markdown-preview"><MarkdownContent value={content} /></div>}<div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></div>;
+  return isGoogle ? <GoogleDocumentFrame document={document} onStatus={onGoogleStatus} /> : <div className={`offline-editor ${editing ? "is-editing" : "is-reading"}`}>{editing ? <TextArea id="offline-document" labelText="Document content" hideLabel placeholder="Start writing your debate notes here…" value={content} onChange={(event) => setContent(event.currentTarget.value)} onBlur={() => bridge.dispatch("document.updateContent", { id: document.id, content })} rows={20} /> : <div className="markdown-preview"><MarkdownContent value={content} /></div>}<div className="editor-footer"><span>{content.length} characters</span><Button kind="ghost" onClick={() => setEditing((value) => !value)} renderIcon={Edit}>{editing ? "Finish editing" : "Edit note"}</Button></div></div>;
 }
 
 function MarkdownContent({ value }: { value: string }) {
@@ -363,13 +374,14 @@ function MarkdownContent({ value }: { value: string }) {
   return <div dangerouslySetInnerHTML={{ __html: html ? `<p>${html}</p>` : "<p class=\"muted-copy\">Nothing written yet.</p>" }} />;
 }
 
-function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
+function GoogleDocumentFrame({ document, onStatus }: { document: DebateDocument; onStatus: (status: string) => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [frameState, setFrameState] = useState<"loading" | "loaded" | "error">("loading");
   const [frameError, setFrameError] = useState("");
   const [frameKey, setFrameKey] = useState(0);
   const [nativeFrame, setNativeFrame] = useState(false);
   useEffect(() => {
+    onStatus("Loading Google Docs…");
     let disposed = false;
     let child: TauriWebview | undefined;
     let childCreated = false;
@@ -398,7 +410,7 @@ function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
         const documentUrl = normalizeGoogleDocsUrl(document.externalUrl) ?? document.externalUrl;
         const webview = new Webview(getCurrentWindow(), label, { url: googleSignInUrl(documentUrl), x: 0, y: 0, width: 100, height: 100, focus: false, acceptFirstMouse: true });
         child = webview;
-        await webview.once("tauri://created", async () => { if (!disposed) { childCreated = true; setFrameError(""); setFrameState("loaded"); await layout(); } });
+        await webview.once("tauri://created", async () => { if (!disposed) { childCreated = true; setFrameError(""); setFrameState("loaded"); onStatus(""); await layout(); } });
         await webview.once("tauri://error", async (event) => { if (!disposed) { setNativeFrame(false); setFrameError(typeof event === "string" && event ? event : "The native webview could not load this URL."); setFrameState("error"); await webview.close().catch(() => undefined); } });
         resizeObserver = new ResizeObserver(() => void layout());
         resizeObserver.observe(shell);
@@ -407,14 +419,14 @@ function GoogleDocumentFrame({ document }: { document: DebateDocument }) {
       } catch (error) {
         console.error("Unable to create native Google Docs webview", error);
         if (child) await child.hide().catch(() => undefined);
-        if (!disposed) { setNativeFrame(false); setFrameError(error instanceof Error ? error.message : String(error)); setFrameState("error"); }
+        if (!disposed) { setNativeFrame(false); setFrameError(error instanceof Error ? error.message : String(error)); setFrameState("error"); onStatus("Google Docs could not load"); }
       }
     };
     void mount();
     return () => { disposed = true; resizeObserver?.disconnect(); if (onResize) window.removeEventListener("resize", onResize); if (child) void child.close(); };
-  }, [document.externalUrl, document.id, frameKey]);
-  const retry = () => { setFrameError(""); setFrameState("loading"); setNativeFrame(false); setFrameKey((key) => key + 1); };
-  return <div ref={hostRef} className={`google-frame-shell ${nativeFrame ? "native-google-frame" : ""}`}><div className="frame-toolbar"><span>{frameState === "loading" ? "Loading Google Docs…" : frameState === "error" ? "The embedded view could not load" : "Google Docs"}</span>{frameState === "error" && <Button kind="ghost" size="sm" onClick={retry}>Retry</Button>}</div>{frameState === "error" && <p className="frame-error-detail">{frameError || "The embedded view reported a load failure. Use Retry or Open in browser to continue."}</p>}{!nativeFrame && <iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => setFrameState("loaded")} onError={() => { setFrameError("The browser frame reported a load failure."); setFrameState("error"); }} />}</div>;
+  }, [document.externalUrl, document.id, frameKey, onStatus]);
+  const retry = () => { setFrameError(""); setFrameState("loading"); setNativeFrame(false); onStatus("Loading Google Docs…"); setFrameKey((key) => key + 1); };
+  return <div ref={hostRef} className={`google-frame-shell ${nativeFrame ? "native-google-frame" : ""}`}>{frameState === "error" && <div className="frame-toolbar"><span>The embedded view could not load</span><Button kind="ghost" size="sm" onClick={retry}>Retry</Button></div>}{frameState === "error" && <p className="frame-error-detail">{frameError || "The embedded view reported a load failure. Use Retry or Open in browser to continue."}</p>}{!nativeFrame && <iframe key={frameKey} className="google-doc-frame" title={`Google Docs: ${document.name}`} src={document.externalUrl} allow="clipboard-read; clipboard-write" onLoad={() => { setFrameState("loaded"); onStatus(""); }} onError={() => { setFrameError("The browser frame reported a load failure."); setFrameState("error"); onStatus("Google Docs could not load"); }} />}</div>;
 }
 
 function LinkDocumentModal({ open, document, onClose, bridge }: { open: boolean; document?: DebateDocument; onClose: () => void; bridge: EngineBridge }) {
