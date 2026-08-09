@@ -1,14 +1,8 @@
 import Cocoa
 import FlutterMacOS
-import UserNotifications
 
 @main
-class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
-  override func applicationDidFinishLaunching(_ notification: Notification) {
-    UNUserNotificationCenter.current().delegate = self
-    super.applicationDidFinishLaunching(notification)
-  }
-
+class AppDelegate: FlutterAppDelegate {
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
   }

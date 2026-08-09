@@ -56,12 +56,6 @@ post_install do |installer|
     end
   end
 
-  require File.expand_path(
-    'Flutter/ephemeral/.symlinks/plugins/webview_cef/macos/embed_cef_helpers.rb',
-    __dir__
-  )
-  WebviewCEF.install_helper_phase(installer)
-
   # webview_cef bundles a host-architecture-only CEF framework. This app is
   # built on Apple Silicon, so do not ask the Runner target to link an absent
   # x86_64 CEF slice.

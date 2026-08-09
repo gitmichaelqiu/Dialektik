@@ -43,6 +43,7 @@
 - Preserved card authorship in the preview engine so owners retain edit controls
 - Removed duplicate TURN configuration notices from round setup
 - Allowed Google authentication redirects inside the embedded editor and ignored benign WebKit redirect interruptions
+- Removed the macOS App Sandbox and notification delegate conflict that prevented Chromium from starting reliably; Google sign-in now renders inside the in-app editor with keyboard focus
 - Replaced the unreliable macOS WKWebView/platform-view path with a Chromium Embedded Framework texture view, avoiding WebKit’s embedded Google Sign-In restriction and restoring reliable editor input
 
 ## v0.1.0
