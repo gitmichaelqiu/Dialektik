@@ -398,7 +398,7 @@ class _InRoundScreenState extends State<InRoundScreen>
         );
       }
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1120),

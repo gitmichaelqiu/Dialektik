@@ -464,7 +464,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
     if (widget.evidenceOnly) {
       return Scaffold(
-        body: SafeArea(child: evidencePane),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: evidencePane,
+          ),
+        ),
       );
     }
 

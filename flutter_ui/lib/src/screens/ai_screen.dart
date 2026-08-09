@@ -37,7 +37,7 @@ class _AiScreenState extends State<AiScreen> {
         settings.aiModel.trim().isNotEmpty;
     if (!hasAi) {
       return Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
