@@ -1,178 +1,125 @@
-<h1 align="center">
-  <img src="./DialektikIcon.png" width="25%" alt=""/>  
-  <p></p>
-  <p align="center">Dialektik</p>
-</h1>
+# Dialektik
 
-A local-first, serverless portal for National Speech and Debate Association (NSDA) clubs. Manages debate rounds with P2P WebRTC connections, collaborative Yjs/CRDT document editing, AI coaching, evidence cards, and round history. All data is stored locally in IndexedDB (via Dexie.js) — no backend server required.
+Dialektik is a local-first debate workspace for NSDA clubs. It combines live P2P rounds, collaborative documents, evidence cards, AI coaching, timers, and round history. The TypeScript engine keeps persistence, WebRTC, Yjs, and AI calls on-device; the v1.0.0 frontend migration uses Tauri, React, and Carbon Design System.
 
-Licensed under [MIT License](LICENSE).
+The `v1.0.0` branch is the next-major migration line. The Flutter application remains in the repository as the stable v0.3.0 release line while the Tauri frontend is completed.
 
-## Installation
+Licensed under the [MIT License](LICENSE).
 
-Download the latest release for your platform:
-
-| Platform | File |
-|---|---|
-| **macOS** | `Dialektik_macOS_v0.3.0.dmg` — open and drag to Applications |
-| **iOS & iPadOS** | `Dialektik_iOS_iPadOS_v0.3.0.ipa` — install via TestFlight or sideload |
-| **Web** | `Dialektik_web_v0.3.0.zip` — extract and serve the `Dialektik/` folder |
-
-> [!NOTE]
-> Because I do **NOT** have an Apple developer account for the app releases, you may receive alerts such as "Developer is not verified" on macOS.
->
-> To resolve this, go to System Settings → the bottom of Privacy & Security → Open Dialektik.
-
-### Web quick start
-
-```bash
-unzip Dialektik_web_v0.3.0.zip
-cd Dialektik && python3 -m http.server 8080
-# Open http://localhost:8080
-```
-
-Flutter web requires a local server — opening `index.html` directly will show a blank page. For production, deploy the `Dialektik/` folder to any static host (Cloudflare Pages, Vercel, etc.).
-
-> **Note:** P2P WebRTC on web may be limited compared to native builds. For full functionality, use the macOS or iOS app.
-
-> [!NOTE]
-> You don't need to read the sections below if you are not a developer ☺️.
-
----
-
-## Building from Source
+## Development setup
 
 ### Prerequisites
 
-- **Node.js** (v18 or higher)
-- **Flutter SDK** (>=3.4.0, with Dart)
-- **Xcode** (macOS/iOS builds)
-- **CocoaPods** (iOS builds)
+- Node.js 18 or newer
+- Rust and Cargo
+- The platform toolchain required by Tauri: Xcode on macOS/iOS, Android Studio for Android, or Visual Studio Build Tools on Windows
 
-### Quick Start (Development)
+### Run the React frontend
 
 ```bash
-# 1. Install JS dependencies
-npm install
-
-# 2. Build the JS engine bundle (required before running the app)
+npm ci
 npm run engine:build
-
-# Build with a deployed WebSocket relay for cross-network fallback
-DIALEKTIK_RELAY_URL=wss://relay.example.com npm run engine:build
-
-# 3. Run in development mode
 npm run dev
 ```
 
-The `engine:build` step compiles the TypeScript engine into `flutter_ui/assets/engine.js` and must be run before any `flutter run` invocation.
+The development server runs at `http://localhost:1420`. The engine build creates the IIFE bundle used by the frontend at `frontend/public/engine.js`; that generated copy is ignored and is recreated by every engine build.
 
-### Common Commands
+### Run the Tauri shell
 
-| Command | Description |
+```bash
+npm run tauri:dev
+```
+
+Tauri runs `npm run engine:build` before starting the frontend. For a deployed relay, set the relay URL while building the engine:
+
+```bash
+DIALEKTIK_RELAY_URL=wss://relay.example.com npm run engine:build
+```
+
+### Common commands
+
+| Command | Purpose |
 |---|---|
-| `npm run engine:build` | Build JS engine bundle (TypeScript → IIFE) |
-| `npm run dev` | Run Flutter app (auto-detects macOS/Windows/Linux) |
-| `npm run flutter:web` | Run in Chrome |
-| `npm run flutter:ios` | Run on the first detected iOS device or simulator |
-| `npm run flutter:analyze` | Dart static analysis |
-| `npm run build` | Production build (auto-detects platform) |
-| `npm run flutter:build:web` | Build Flutter web |
-| `npm run flutter:build:ios` | Build iOS app |
-| `cd flutter_ui && flutter test` | Run unit tests |
+| `npm run engine:build` | Compile the shared TypeScript engine and sync its frontend asset |
+| `npm run dev` | Start the React/Vite development server |
+| `npm run frontend:build` | Type-check and build the web frontend into `dist/` |
+| `npm run frontend:preview` | Preview the production web build locally |
+| `npm run tauri:dev` | Run the desktop/mobile Tauri shell in development |
+| `npm run tauri:build` | Build signed or unsigned Tauri bundles for the current platform |
+| `npm run relay:start` | Run the local in-memory WebSocket relay |
+| `npm run flutter:analyze` | Analyze the v0.3 Flutter compatibility line |
+| `cd flutter_ui && flutter test` | Run the v0.3 Flutter compatibility tests |
 
-**Common inner loop:**
+## Release builds
+
+Run the following from the repository root:
+
 ```bash
-npm run engine:build && npm run flutter:web
+npm ci
+npm run tauri:build
 ```
 
-For local relay development, run `npm run relay:start`. The relay is
-in-memory and must be deployed at a public `wss://` URL for users on different
-networks. Set `DIALEKTIK_RELAY_URL` before building the engine bundle.
+Tauri writes platform bundles under `src-tauri/target/release/bundle/`. Typical outputs include:
 
-### Production Builds
+- macOS: `.app`, `.dmg`, and `.tar.gz`
+- Windows: `.msi` and `.exe`
+- Linux: `.AppImage`, `.deb`, and related packages
+- iOS and Android: platform-specific packages after the mobile target has been initialized
 
-All builds require `npm run engine:build` first.
+For mobile targets, initialize the platform once and then build with Tauri:
 
-#### macOS
 ```bash
-flutter build macos --release
-npx create-dmg build/macos/Build/Products/Release/Dialektik.app Dialektik_macOS_v0.3.0.dmg
+npx tauri ios init
+npx tauri ios build
+
+npx tauri android init
+npx tauri android build
 ```
 
-#### iOS & iPadOS
-```bash
-flutter build ios --release
-```
-Package as `.ipa` by copying the `.app` into a `Payload/` directory and zipping. Requires an Apple Developer account for device deployment.
+Before publishing a release:
 
-#### Web
-```bash
-cd flutter_ui && flutter build web --release
-```
-Output: `build/web/` — deploy the contents to any static web server.
+1. Update the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` together.
+2. Run `npm run engine:build`, `npm run frontend:build`, and `npm run tauri:build`.
+3. Run the frontend and Flutter compatibility tests.
+4. Verify desktop navigation, mobile drawer navigation, room hosting/joining, document actions, evidence cards, AI settings, and history actions.
+5. Generate the Sparkle delta from the previous macOS app and place it in `resources/sparkle/`.
+6. Update `appcast.xml` only after the final DMG and delta signatures and lengths have been verified.
 
-#### Windows (requires a Windows machine)
-```bash
-cd flutter_ui && flutter build windows --release
-```
-Prerequisites: Visual Studio 2022 with "Desktop development with C++" workload.
-
-#### Android (requires Android Studio)
-```bash
-cd flutter_ui && flutter build apk --release
-cd flutter_ui && flutter build appbundle --release  # Play Store
-```
+Do not commit `dist/`, `src-tauri/target/`, or generated `frontend/public/engine.js` files. The release source delta in `resources/sparkle/` is intentionally tracked.
 
 ## Architecture
 
-```
-Flutter UI ──EngineBridge──> Hidden WebView ──> engine.js (TypeScript/IIFE)
-  (dispatch JSON actions)       or                    |
-  (receive JSON snapshots)    JS interop (web)        ├─ DialektikDB (Dexie/IndexedDB)
-                                                      ├─ PeerMeshManager (WebRTC/PeerJS)
-                                                      ├─ PeerJSYjsProvider (CRDT sync)
-                                                      └─ AIService (OpenAI-compatible API)
-```
-
-### Key patterns
-
-- **Unidirectional data flow**: Flutter sends JSON `{type, payload}` actions via `EngineBridge.dispatch()`. The JS engine processes them, updates IndexedDB, and pushes a full `AppSnapshot` JSON blob back. Flutter rebuilds its widget tree from the snapshot stream.
-- **Platform-dependent bridge**: `EngineBridge` has two implementations — `JsEngineBridge` (native) uses a hidden `HeadlessInAppWebView` with the compiled `engine.js` bundle; `JsEngineBridge` (web) uses modern `dart:js_interop` to call `window.dialektikEngine` directly.
-- **Poll-based sync**: The bridge polls `getLatestSnapshot()` every 500ms (synchronous read of a cached `__latestSnapshot` string) to catch dropped messages.
-- **Snapshot model**: Immutable `AppSnapshot` Dart classes parsed from JSON with top-level fields `activePage`, `documents`, `cards`, `history`, `session`, `ai`, and `settings`.
-
-## Source Structure
-
-```
-├── src/                              # TypeScript engine (builds to engine.js)
-│   ├── engine-entry.ts               # DB init, action dispatch, snapshot push
-│   └── services/
-│       ├── webrtc.ts                 # PeerMeshManager — full-mesh P2P via PeerJS
-│       ├── yjs-provider.ts           # PeerJSYjsProvider — CRDT sync over data channels
-│       └── ai.ts                     # AIService — OpenAI-compatible API client
-├── flutter_ui/                       # Flutter application
-│   ├── lib/
-│   │   ├── main.dart                 # App entry + PreviewEngineBridge (dev)
-│   │   └── src/
-│   │       ├── app/dialektik_app.dart     # Root shell, snapshot subscription, routing
-│   │       ├── bridge/                   # EngineBridge abstract + implementations
-│   │       ├── models/app_snapshot.dart  # All snapshot model classes
-│   │       ├── screens/                  # In-round, documents, AI, history, settings
-│   │       └── widgets/adaptive_scaffold.dart  # ResponsivePane, EmptyState, etc.
-│   └── assets/
-│       ├── engine.html               # Host page for WebView bridge
-│       └── engine.js                 # Compiled IIFE bundle
-├── scripts/
-│   ├── flutter-dev.mjs               # Dev launcher (auto-detects platform)
-│   └── flutter-build.mjs             # Production build launcher
-└── vite.config.engine.ts             # Vite config for engine.js IIFE bundle
+```text
+Tauri window ── React + Carbon ── EngineBridge ──> engine.js
+                                                    ├─ Dexie / IndexedDB
+                                                    ├─ PeerMeshManager / WebRTC
+                                                    ├─ PeerJSYjsProvider / Yjs
+                                                    └─ AIService / OpenAI-compatible API
 ```
 
-## Local Multi-Peer Testing (Single Machine)
+The frontend follows the existing unidirectional contract:
 
-IndexedDB is per-origin, so two tabs in the same browser share the same database. To test host and client on one machine, isolate storage:
+- The engine publishes a complete JSON snapshot.
+- React renders from the latest snapshot and keeps only transient UI state locally.
+- User actions are sent as `{ type, payload }` JSON actions.
+- `EngineBridge` polls `getLatestSnapshot()` every 500ms to tolerate dropped WebView messages.
 
-- **Separate browser profiles** — Chrome + Firefox, or Chrome's profile switcher
-- **Normal + Incognito** — regular window and an incognito/private window
-- **Preview Engine** — in-memory Dart simulation for UI testing without the hidden WebView (includes cross-tab sync via SharedPreferences)
+The engine remains serverless and local-first. Network relay use is optional, and API keys are not included in workspace backups.
+
+## Source structure
+
+```text
+├── src/                         # Shared TypeScript engine and networking services
+├── frontend/                    # React + Carbon frontend and Vite configuration
+│   ├── src/App.tsx              # Responsive application shell and pages
+│   ├── src/engine.ts            # Snapshot/action bridge
+│   └── src/styles.scss          # Carbon tokens plus restrained product layout rules
+├── src-tauri/                   # Tauri desktop and mobile shell
+├── flutter_ui/                  # Stable v0.3.0 Flutter compatibility line
+├── resources/sparkle/           # Tracked Sparkle delta artifacts
+└── scripts/                     # Engine synchronization and legacy build helpers
+```
+
+## Local multi-peer testing
+
+IndexedDB is scoped to an origin. To test a host and client on one machine, use separate browser profiles, a normal window plus an incognito window, or the Tauri app plus a browser tab. Each isolated profile receives a separate local workspace while WebRTC connects the peers.

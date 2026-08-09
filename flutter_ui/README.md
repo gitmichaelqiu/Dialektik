@@ -1,6 +1,6 @@
-# Dialektik Flutter UI
+# Dialektik Flutter compatibility UI
 
-This package contains a Flutter widget layer that is intentionally separate from the existing JavaScript/Tauri implementation.
+This package contains the stable v0.3.0 Flutter widget layer. The next-major `v1.0.0` branch uses the React + Carbon frontend in `frontend/` inside a Tauri shell. Keep this package working until the mobile migration is complete.
 
 The JavaScript engine remains responsible for network state, WebRTC, persistence, Yjs, timers, and AI calls. Flutter consumes immutable JSON snapshots through a `Stream<AppSnapshot>` or `ValueListenable<AppSnapshot>` and sends JSON actions back through `EngineBridge.dispatch`.
 
