@@ -73,8 +73,7 @@ button, input, textarea, select { font: inherit; }
 .pagebar-meta { display: flex; min-width: 0; align-items: center; gap: .75rem; }
 .pagebar-status { color: #6f6f6f; font-size: .875rem; }
 .page-content { width: 100%; max-width: none; min-height: 0; flex: 1; margin: 0; overflow: auto; overscroll-behavior: contain; padding: .75rem 1.25rem 1rem; }
-.document-page-content { display: flex; flex-direction: column; overflow: hidden; }
-.document-page-content { padding: 0; }
+.document-page-content { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
 .page-header { display: flex; min-height: 3rem; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .page-header { min-height: 0; margin-bottom: 0; }
 .page-header:has(.page-actions) { min-height: 3rem; margin-bottom: 1rem; }
@@ -251,7 +250,7 @@ button, input, textarea, select { font: inherit; }
 .chat-composer .cds--text-area,
 .chat-composer .cds--text-area__field { background: #f4f4f4 !important; border: 0; }
 .chat-composer-actions { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; }
-.chat-composer-actions .cds--menu-button__trigger { background: #f4f4f4 !important; color: #161616 !important; }
+.chat-composer-actions .cite-menu-trigger { background: #f4f4f4 !important; color: #161616 !important; }
 .history-list { display: grid; gap: .75rem; }
 .history-row { min-height: 5rem; }
 .history-row h3, .history-row p { margin: 0; }

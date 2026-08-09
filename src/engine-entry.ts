@@ -535,6 +535,7 @@ function startTimerLoop() {
 // ─────────────────────────────────────────────
 async function loadConfig() {
   const settings = await db.settings.toArray();
+  let storedActiveAiChatId = "";
   for (const s of settings) {
     if (s.key === "user_id") userId = s.value;
     if (s.key === "user_name") userName = s.value;
@@ -546,6 +547,7 @@ async function loadConfig() {
     if (s.key === "turn_credential") turnCredential = s.value;
     if (s.key === "manual_document_sync") manualDocumentSync = s.value === "true";
     if (s.key === "join_request_notifications") joinRequestNotifications = s.value === "true";
+    if (s.key === "ai_active_chat_id") storedActiveAiChatId = s.value;
   }
   if (!userId) {
     userId = crypto.randomUUID();
@@ -566,7 +568,7 @@ async function loadConfig() {
     aiChats = [initChat];
     activeAiChatId = initChat.id;
   } else {
-    activeAiChatId = aiChats[0].id;
+    activeAiChatId = aiChats.some((chat) => chat.id === storedActiveAiChatId) ? storedActiveAiChatId : aiChats[0].id;
   }
 }
 
@@ -1891,12 +1893,14 @@ async function dispatch(actionJson: string) {
     await db.aiChats.put(chat);
     aiChats = [...aiChats, chat];
     activeAiChatId = chat.id;
+    await db.settings.put({ key: "ai_active_chat_id", value: chat.id });
     await emitSnapshot();
     return;
   }
 
   if (type === "ai.selectChat") {
     activeAiChatId = payload.id;
+    await db.settings.put({ key: "ai_active_chat_id", value: payload.id });
     await emitSnapshot();
     return;
   }
@@ -1914,6 +1918,7 @@ async function dispatch(actionJson: string) {
     await db.aiChats.delete(payload.id);
     aiChats = aiChats.filter(c => c.id !== payload.id);
     activeAiChatId = aiChats.length > 0 ? aiChats[0].id : null;
+    await db.settings.put({ key: "ai_active_chat_id", value: activeAiChatId ?? "" });
     await emitSnapshot();
     return;
   }
