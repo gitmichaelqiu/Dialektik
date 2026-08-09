@@ -6,6 +6,7 @@ import WebKit
 @main
 class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   private var embeddedEditorChannel: FlutterMethodChannel?
+  private var embeddedEditorPanel: NSPanel?
   private var embeddedEditorWebView: WKWebView?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
@@ -65,21 +66,27 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     guard let arguments,
           let urlString = arguments["url"] as? String,
           let url = URL(string: urlString),
-          let frame = contentFrame(from: arguments),
-          let contentView = NSApp.mainWindow?.contentView else {
+          let window = NSApp.mainWindow,
+          let frame = contentFrame(from: arguments, in: window) else {
       return false
     }
 
     let webView = embeddedEditorWebView ?? makeEmbeddedEditor()
     embeddedEditorWebView = webView
-    if webView.superview !== contentView {
+    let panel = embeddedEditorPanel ?? makeEmbeddedEditorPanel(for: window)
+    embeddedEditorPanel = panel
+    if webView.superview !== panel.contentView {
       webView.removeFromSuperview()
-      contentView.addSubview(webView, positioned: .above, relativeTo: nil)
+      panel.contentView?.addSubview(webView)
     }
-    webView.frame = frame
+    // `frame` is measured in the Flutter content view's coordinate space.
+    // Convert through the content view before converting to screen space;
+    // passing it directly to NSWindow would omit the title-bar/content offset.
+    let windowFrame = window.contentView?.convert(frame, to: nil) ?? frame
+    panel.setFrame(window.convertToScreen(windowFrame), display: true)
+    webView.frame = panel.contentView?.bounds ?? .zero
     webView.isHidden = false
-    webView.alphaValue = 1
-    webView.layer?.zPosition = 1000
+    panel.orderFrontRegardless()
     if webView.url?.absoluteString != url.absoluteString {
       webView.load(URLRequest(url: url))
     }
@@ -87,7 +94,25 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
   }
 
   private func hideEmbeddedEditor() {
-    embeddedEditorWebView?.isHidden = true
+    embeddedEditorPanel?.orderOut(nil)
+  }
+
+  private func makeEmbeddedEditorPanel(for window: NSWindow) -> NSPanel {
+    let panel = NSPanel(
+      contentRect: .zero,
+      styleMask: [.borderless],
+      backing: .buffered,
+      defer: false
+    )
+    panel.isOpaque = true
+    panel.backgroundColor = NSColor.controlBackgroundColor
+    panel.hasShadow = false
+    panel.hidesOnDeactivate = false
+    panel.ignoresMouseEvents = false
+    panel.level = .normal
+    panel.collectionBehavior = [.fullScreenAuxiliary]
+    window.addChildWindow(panel, ordered: .above)
+    return panel
   }
 
   private func makeEmbeddedEditor() -> WKWebView {
@@ -95,6 +120,7 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     configuration.websiteDataStore = .default()
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
     let webView = WKWebView(frame: .zero, configuration: configuration)
+    webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
     webView.navigationDelegate = self
     webView.autoresizingMask = []
     webView.wantsLayer = true
@@ -110,21 +136,23 @@ class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     return true
   }
 
-  private func contentFrame(from arguments: [String: Any]) -> NSRect? {
+  private func contentFrame(from arguments: [String: Any], in window: NSWindow?) -> NSRect? {
     guard let x = number(arguments["x"]),
           let y = number(arguments["y"]),
           let width = number(arguments["width"]),
           let height = number(arguments["height"]),
           width > 0, height > 0,
-          let contentView = NSApp.mainWindow?.contentView else {
+          let contentView = window?.contentView else {
       return nil
     }
-    return NSRect(
+    let frame = NSRect(
       x: x,
       y: contentView.bounds.height - y - height,
       width: width,
       height: height
     )
+    NSLog("Dialektik embedded editor: frame=%@ content=%@", NSStringFromRect(frame), NSStringFromRect(contentView.bounds))
+    return frame
   }
 
   private func number(_ value: Any?) -> CGFloat? {

@@ -46,7 +46,7 @@
 - Restored pointer input for the macOS embedded WebView and added persistent in-app Google sign-in
 - Kept the embedded editor responsive after focus moves to another desktop control
 - Restored first-responder status to the native macOS WebView before each document click
-- Replaced the unreliable macOS Flutter platform-view path with a directly managed native WKWebView embedded above Flutter, preserving in-app editing and sign-in after focus changes
+- Replaced the unreliable macOS Flutter platform-view path with a borderless child-panel WKWebView, using correct window coordinate conversion and a desktop Safari user agent for reliable in-app Google Docs rendering and focus
 
 ## v0.1.0
 
