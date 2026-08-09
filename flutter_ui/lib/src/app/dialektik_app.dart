@@ -439,7 +439,10 @@ class _AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 720;
-    final body = _PageBody(bridge: bridge, snapshot: snapshot);
+    final body = FocusTraversalGroup(
+      policy: WidgetOrderTraversalPolicy(),
+      child: _PageBody(bridge: bridge, snapshot: snapshot),
+    );
 
     if (compact) {
       return Scaffold(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dialektik_flutter_ui/dialektik_flutter_ui.dart';
@@ -77,6 +78,16 @@ void main() {
     await tester.tap(find.text('Evidence'));
     await tester.pumpAndSettle();
     expect(find.text('Cards available for citation'), findsOneWidget);
+
+    await tester.tap(find.byType(TextField).first);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    expect(find.text('Evidence Library'), findsOneWidget);
+    final evidenceFields = find.byType(EditableText);
+    expect(
+      tester.widget<EditableText>(evidenceFields.at(1)).focusNode.hasFocus,
+      isTrue,
+    );
 
     await tester.tap(find.text('Round'));
     await tester.pumpAndSettle();
