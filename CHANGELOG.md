@@ -44,6 +44,7 @@
 - Removed duplicate TURN configuration notices from round setup
 - Allowed Google authentication redirects inside the embedded editor and ignored benign WebKit redirect interruptions
 - Removed the macOS App Sandbox and notification delegate conflict that prevented Chromium from starting reliably; Google sign-in now renders inside the in-app editor with keyboard focus
+- Routed private macOS document loads through embedded Google ServiceLogin and added a one-time connection-error retry so Chromium does not strand users on its raw `ERR_CONNECTION_CLOSED` page
 - Replaced the unreliable macOS WKWebView/platform-view path with a Chromium Embedded Framework texture view, avoiding WebKit’s embedded Google Sign-In restriction and restoring reliable editor input
 
 ## v0.1.0

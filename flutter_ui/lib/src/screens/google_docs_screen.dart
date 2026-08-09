@@ -11,6 +11,14 @@ import '../services/google_doc_link.dart';
 import '../widgets/adaptive_scaffold.dart';
 import 'documents_screen.dart';
 
+Uri _googleSignInUri(Uri? continueUri) {
+  return Uri.https('accounts.google.com', '/ServiceLogin', {
+    'service': 'wise',
+    'continue':
+        (continueUri ?? Uri.parse('https://docs.google.com/')).toString(),
+  });
+}
+
 class GoogleDocsScreen extends StatefulWidget {
   const GoogleDocsScreen({
     super.key,
@@ -671,11 +679,7 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   }
 
   Future<void> _signInToGoogle(Uri? documentUri) async {
-    final continueUri = documentUri?.toString() ?? 'https://docs.google.com/';
-    final signInUri = Uri.https('accounts.google.com', '/ServiceLogin', {
-      'service': 'wise',
-      'continue': continueUri,
-    });
+    final signInUri = _googleSignInUri(documentUri);
     if (_usesNativeMacEditor) {
       await _cefController?.loadUrl(signInUri.toString());
       return;
@@ -703,6 +707,7 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
   static Future<void>? _managerInitialization;
   late final cef.WebViewController _controller;
   String? _error;
+  bool _retriedConnectionError = false;
 
   @override
   void initState() {
@@ -717,7 +722,7 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
           if (mounted) setState(() => _error = null);
         },
         onLoadEnd: (_, __) {
-          if (mounted) setState(() => _error = null);
+          _inspectLoadedPage();
         },
       ),
     );
@@ -729,7 +734,8 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
   void didUpdateWidget(covariant _CefGoogleDocsView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uri != widget.uri) {
-      _controller.loadUrl(widget.uri.toString());
+      _retriedConnectionError = false;
+      _controller.loadUrl(_googleSignInUri(widget.uri).toString());
     }
   }
 
@@ -741,16 +747,56 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
 
   Future<void> _initialize() async {
     try {
+      _retriedConnectionError = false;
       _managerInitialization ??= cef.WebviewManager().initialize(
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 '
             'Safari/537.36 Dialektik/1.0.0',
       );
       await _managerInitialization;
-      await _controller.initialize(widget.uri.toString());
+      // Start through Google's first-party sign-in route. A private document
+      // can otherwise return a Chromium network error before the embedded
+      // session has a chance to authenticate; Google redirects back to the
+      // document automatically when the session is already signed in.
+      await _controller.initialize(_googleSignInUri(widget.uri).toString());
       if (mounted) setState(() => _error = null);
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _inspectLoadedPage() async {
+    try {
+      await _controller.ready;
+      final body = await _controller.evaluateJavascript(
+        'document.body ? document.body.innerText : ""',
+      );
+      final text = body?.toString() ?? '';
+      final isConnectionError = text.contains('ERR_CONNECTION_CLOSED') ||
+          text.contains('Failed to load URL');
+      if (!isConnectionError) {
+        if (mounted) setState(() => _error = null);
+        return;
+      }
+
+      if (!_retriedConnectionError) {
+        _retriedConnectionError = true;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        if (!_controller.value || !mounted) return;
+        await _controller.loadUrl(_googleSignInUri(widget.uri).toString());
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _error =
+              'Google could not connect inside the embedded editor. '
+              'Try again or open the document in your browser.';
+        });
+      }
+    } catch (_) {
+      // A page can finish while the CEF texture is being disposed. The
+      // listener is best-effort and must not take down the Flutter app.
     }
   }
 
