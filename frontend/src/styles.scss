@@ -193,6 +193,8 @@ button, input, textarea, select { font: inherit; }
 .cds--overflow-menu-options__option:focus,
 .cds--overflow-menu-options__option:hover { outline: none !important; box-shadow: none !important; background: #e8f5e9 !important; }
 .cds--modal-container { max-width: 42rem; }
+.cds--modal-content > .cds--form-item { margin-bottom: 1.25rem; }
+.cds--modal-content > .cds--form-item:last-child { margin-bottom: 0; }
 .cds--modal-footer .cds--btn { min-width: 0; padding-inline: 1rem; }
 .chat-row.is-selected { background: #e8f5e9; box-shadow: none; }
 .chat-row.is-selected .chat-item { background: transparent; }
