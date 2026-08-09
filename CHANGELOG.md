@@ -12,7 +12,7 @@
 - Compact live-round HUD with persistent room status, 48sp timer, and speech strip
 - Cross-platform full-workspace backup and restore with conflict handling and integrity warnings
 - Dynamic build version display in Settings
-- First-class native Google Docs WebView with shared cookies, progress, reload, and recoverable error states
+- Chromium-backed in-app Google Docs editor on macOS with persistent cookies, keyboard/mouse input, popup navigation, reload, and visible initialization errors
 - Task-focused initial pane proportions with persistent resizing and collapsible utility panels
 - Desktop pane-proportion regression coverage
 - Navigable Markdown heading outline for long offline case files
@@ -43,10 +43,7 @@
 - Preserved card authorship in the preview engine so owners retain edit controls
 - Removed duplicate TURN configuration notices from round setup
 - Allowed Google authentication redirects inside the embedded editor and ignored benign WebKit redirect interruptions
-- Restored pointer input for the macOS embedded WebView and added persistent in-app Google sign-in
-- Kept the embedded editor responsive after focus moves to another desktop control
-- Restored first-responder status to the native macOS WebView before each document click
-- Replaced the unreliable macOS Flutter platform-view path with a borderless child-panel WKWebView, using correct window coordinate conversion and a desktop Safari user agent for reliable in-app Google Docs rendering and focus
+- Replaced the unreliable macOS WKWebView/platform-view path with a Chromium Embedded Framework texture view, avoiding WebKit’s embedded Google Sign-In restriction and restoring reliable editor input
 
 ## v0.1.0
 

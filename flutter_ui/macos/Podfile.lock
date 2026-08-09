@@ -8,11 +8,14 @@ PODS:
   - FlutterMacOS (1.0.0)
   - OrderedSet (6.0.3)
   - Sparkle (2.9.4)
+  - webview_cef (0.2.3):
+    - FlutterMacOS
 
 DEPENDENCIES:
   - auto_updater_macos (from `Flutter/ephemeral/.symlinks/plugins/auto_updater_macos/macos`)
   - flutter_inappwebview_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - webview_cef (from `Flutter/ephemeral/.symlinks/plugins/webview_cef/macos`)
 
 SPEC REPOS:
   trunk:
@@ -26,6 +29,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_inappwebview_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  webview_cef:
+    :path: Flutter/ephemeral/.symlinks/plugins/webview_cef/macos
 
 SPEC CHECKSUMS:
   auto_updater_macos: 3a42f1a06be6981f1a18be37e6e7bf86aa732118
@@ -33,7 +38,8 @@ SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
   Sparkle: 855a03e2323e88e399729d9f8fc80b080a4946b3
+  webview_cef: a3f47fb9520448a337d35a6391d05667cf052c2f
 
-PODFILE CHECKSUM: 13edfb9e70ac3646927b8e6c9a212ad1d0fa29b2
+PODFILE CHECKSUM: 6bb723a2b9d0b61af0adb8ebc7a8f71452093616
 
 COCOAPODS: 1.16.2

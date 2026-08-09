@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_cef/webview_cef.dart' as cef;
 
 import '../bridge/engine_bridge.dart';
 import '../models/app_snapshot.dart';
@@ -399,6 +399,7 @@ class _DocumentWorkspace extends StatefulWidget {
 class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   late final TextEditingController _contextController;
   InAppWebViewController? _webViewController;
+  cef.WebViewController? _cefController;
   bool _showContext = false;
   double _loadProgress = 0;
   String? _loadError;
@@ -479,7 +480,7 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
                   IconButton(
                     tooltip: 'Reload embedded editor',
                     onPressed: _usesNativeMacEditor
-                        ? _MacNativeEditor.reload
+                        ? () => _cefController?.reload()
                         : _webViewController == null
                             ? null
                             : () => _webViewController!.reload(),
@@ -527,7 +528,12 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
           else
             Expanded(
               child: _usesNativeMacEditor && uri != null
-                  ? _MacNativeDocumentView(uri: uri)
+                  ? _CefGoogleDocsView(
+                      uri: uri,
+                      onController: (controller) {
+                        _cefController = controller;
+                      },
+                    )
                   : _supportsEmbed && uri != null
                       ? Stack(
                           children: [
@@ -671,7 +677,7 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
       'continue': continueUri,
     });
     if (_usesNativeMacEditor) {
-      await _MacNativeEditor.load(signInUri);
+      await _cefController?.loadUrl(signInUri.toString());
       return;
     }
     final controller = _webViewController;
@@ -683,70 +689,88 @@ class _DocumentWorkspaceState extends State<_DocumentWorkspace> {
   }
 }
 
-class _MacNativeEditor {
-  static const _channel = MethodChannel('dialektik/embedded_google_docs');
-
-  static Future<void> show(Uri uri, Rect bounds) => _channel.invokeMethod<void>(
-        'show',
-        {
-          'url': uri.toString(),
-          'x': bounds.left,
-          'y': bounds.top,
-          'width': bounds.width,
-          'height': bounds.height,
-        },
-      );
-
-  static Future<void> hide() => _channel.invokeMethod<void>('hide');
-
-  static Future<void> reload() => _channel.invokeMethod<void>('reload');
-
-  static Future<void> load(Uri uri) =>
-      _channel.invokeMethod<void>('load', {'url': uri.toString()});
-}
-
-class _MacNativeDocumentView extends StatefulWidget {
-  const _MacNativeDocumentView({required this.uri});
+class _CefGoogleDocsView extends StatefulWidget {
+  const _CefGoogleDocsView({required this.uri, required this.onController});
 
   final Uri uri;
+  final ValueChanged<cef.WebViewController> onController;
 
   @override
-  State<_MacNativeDocumentView> createState() => _MacNativeDocumentViewState();
+  State<_CefGoogleDocsView> createState() => _CefGoogleDocsViewState();
 }
 
-class _MacNativeDocumentViewState extends State<_MacNativeDocumentView> {
+class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
+  static Future<void>? _managerInitialization;
+  late final cef.WebViewController _controller;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    _scheduleLayout();
+    _controller = cef.WebviewManager().createWebView(
+      loading: const Center(child: CircularProgressIndicator()),
+    );
+    _controller.setWebviewListener(
+      cef.WebviewEventsListener(
+        onLoadStart: (_, __) {
+          if (mounted) setState(() => _error = null);
+        },
+        onLoadEnd: (_, __) {
+          if (mounted) setState(() => _error = null);
+        },
+      ),
+    );
+    widget.onController(_controller);
+    _initialize();
   }
 
   @override
-  void didUpdateWidget(covariant _MacNativeDocumentView oldWidget) {
+  void didUpdateWidget(covariant _CefGoogleDocsView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _scheduleLayout();
+    if (oldWidget.uri != widget.uri) {
+      _controller.loadUrl(widget.uri.toString());
+    }
   }
 
   @override
   void dispose() {
-    _MacNativeEditor.hide();
+    _controller.dispose();
     super.dispose();
   }
 
-  void _scheduleLayout() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final box = context.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize || box.size.isEmpty) return;
-      final origin = box.localToGlobal(Offset.zero);
-      _MacNativeEditor.show(widget.uri, origin & box.size);
-    });
+  Future<void> _initialize() async {
+    try {
+      _managerInitialization ??= cef.WebviewManager().initialize(
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 '
+            'Safari/537.36 Dialektik/1.0.0',
+      );
+      await _managerInitialization;
+      await _controller.initialize(widget.uri.toString());
+      if (mounted) setState(() => _error = null);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    _scheduleLayout();
-    return ColoredBox(color: Theme.of(context).colorScheme.surface);
+    return ValueListenableBuilder<bool>(
+      valueListenable: _controller,
+      builder: (context, ready, _) {
+        if (_error != null) {
+          return _EmbeddedEditorError(
+            message: _error!,
+            onRetry: _initialize,
+            onOpenExternal: () => launchUrl(
+              widget.uri,
+              mode: LaunchMode.externalApplication,
+            ),
+          );
+        }
+        return ready ? _controller.webviewWidget : _controller.loadingWidget;
+      },
+    );
   }
 }
 
