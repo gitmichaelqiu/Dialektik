@@ -39,7 +39,7 @@ button, input, textarea, select { font: inherit; }
 .app-nav .cds--side-nav__link { min-height: 3rem; }
 .app-nav .cds--side-nav__link[aria-current="page"] { color: #0e6027; background: #e8f5e9; border-left: 3px solid #198038; }
 .app-nav .cds--side-nav__link[aria-current="page"] svg { fill: #0e6027; }
-.app-content { display: flex; height: 100%; margin-left: 16rem; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; transition: margin-left 120ms ease; }
+.app-content { display: flex; height: 100%; margin-block-start: 0; margin-left: 16rem; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; transition: margin-left 120ms ease; }
 .nav-collapsed .app-content { margin-left: 3rem; }
 .app-pagebar { position: relative; z-index: 2; display: flex; min-height: 3rem; align-items: center; justify-content: space-between; gap: .75rem; padding: 0 1.25rem; border-bottom: 1px solid #e0e0e0; background: #ffffff; }
 .app-pagebar h1 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; font-weight: 600; }
@@ -195,8 +195,9 @@ button, input, textarea, select { font: inherit; }
 
 @media (min-width: 769px) {
   .app-titlebar { display: none; }
-  .cds--side-nav.app-nav { top: 0; }
+  .cds--side-nav.app-nav { top: 0; bottom: auto; height: 100vh; block-size: 100vh; }
   .app-content { min-height: 100vh; padding-top: 0; }
+  .app-nav .cds--side-nav__items { padding-top: 0; }
   .sidebar-toggle-rail { display: grid; }
 }
 
