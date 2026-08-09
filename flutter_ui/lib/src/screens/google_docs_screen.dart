@@ -709,6 +709,7 @@ class _CefGoogleDocsViewState extends State<_CefGoogleDocsView> {
     super.initState();
     _controller = cef.WebviewManager().createWebView(
       loading: const Center(child: CircularProgressIndicator()),
+      injectUserScripts: cef.InjectUserScripts(),
     );
     _controller.setWebviewListener(
       cef.WebviewEventsListener(
