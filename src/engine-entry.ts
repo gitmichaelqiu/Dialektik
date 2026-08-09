@@ -1190,7 +1190,7 @@ async function dispatch(actionJson: string) {
     const name = (payload.name || "Untitled").trim();
     const finalName = await uniqueDocName(name);
     const doc: DebateDocument = {
-      id: `doc-${Date.now()}`, name: finalName, type: "case", content: "",
+      id: typeof payload.id === "string" && payload.id ? payload.id : `doc-${Date.now()}`, name: finalName, type: "case", content: "",
       lastModified: Date.now(),
       partnerAccess: payload.folder || "private",
       encryptedHash: payload.mode || "write",
