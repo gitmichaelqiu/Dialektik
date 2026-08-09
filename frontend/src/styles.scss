@@ -69,6 +69,25 @@ button, input, textarea, select { font: inherit; }
 .cds--tile { border: 1px solid #e0e0e0; background: #f4f4f4 !important; }
 .cds--tile h2, .cds--tile h3 { margin: .5rem 0 1rem; font-weight: 400; }
 .cds--tile p { color: #525252; line-height: 1.5; }
+
+// Keep unavailable actions neutral instead of implying that they can be used.
+.app-shell .cds--btn:disabled,
+.app-shell .cds--btn.cds--btn--disabled,
+.app-shell .cds--btn:disabled:hover,
+.app-shell .cds--btn:disabled:focus,
+.app-shell .cds--menu-button button:disabled,
+.app-shell .chat-composer:has(#ai-message:placeholder-shown) .chat-composer-actions > .cds--btn {
+  background: #c6c6c6 !important;
+  border-color: #c6c6c6 !important;
+  color: #6f6f6f !important;
+  cursor: not-allowed;
+}
+
+.app-shell .cds--btn:disabled svg,
+.app-shell .cds--btn.cds--btn--disabled svg,
+.app-shell .cds--menu-button button:disabled svg {
+  fill: #6f6f6f !important;
+}
 .round-start-grid, .section-grid, .lobby-grid, .round-grid { display: grid; gap: 1rem; }
 .round-start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 1rem; }
