@@ -136,6 +136,7 @@ let citedDocIds: string[] = [];
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let lastTick = Date.now();
 let systemBrightness: "light" | "dark" = "light";
+let sessionPersistenceTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Detect and watch system dark mode via prefers-color-scheme media query.
 try {
@@ -342,6 +343,7 @@ function applyHandoutSplice(field: string, edit: TextSplice) {
 }
 
 async function emitSnapshot() {
+  scheduleSessionPersistence();
   snapshotRequested = true;
   const nextSnapshot = snapshotQueue.then(async () => {
     if (!snapshotRequested) return;
@@ -355,6 +357,25 @@ async function emitSnapshot() {
   });
   snapshotQueue = nextSnapshot.catch(() => undefined);
   await nextSnapshot;
+}
+
+function scheduleSessionPersistence() {
+  if (sessionPersistenceTimer) clearTimeout(sessionPersistenceTimer);
+  const checkpoint = session ? JSON.parse(JSON.stringify(session)) : null;
+  sessionPersistenceTimer = setTimeout(() => {
+    sessionPersistenceTimer = null;
+    void (checkpoint
+      ? db.settings.put({ key: "active_session", value: { session: checkpoint, savedAt: Date.now() } })
+      : db.settings.delete("active_session"));
+  }, 200);
+}
+
+async function clearSessionPersistence() {
+  if (sessionPersistenceTimer) {
+    clearTimeout(sessionPersistenceTimer);
+    sessionPersistenceTimer = null;
+  }
+  await db.settings.delete("active_session");
 }
 
 // ─────────────────────────────────────────────
@@ -569,6 +590,46 @@ async function loadConfig() {
     activeAiChatId = initChat.id;
   } else {
     activeAiChatId = aiChats.some((chat) => chat.id === storedActiveAiChatId) ? storedActiveAiChatId : aiChats[0].id;
+  }
+}
+
+async function restorePersistedSession() {
+  const setting = await db.settings.get("active_session");
+  if (!setting?.value) return;
+
+  const checkpoint = typeof setting.value === "string"
+    ? (() => { try { return JSON.parse(setting.value); } catch (_) { return null; } })()
+    : setting.value;
+  const restored = checkpoint?.session ?? checkpoint;
+  if (!restored || typeof restored.roomCode !== "string" || !restored.roomCode ||
+      typeof restored.isHost !== "boolean" || !Array.isArray(restored.speechOrder)) {
+    await clearSessionPersistence();
+    return;
+  }
+
+  session = restored as SessionState;
+  lastRoomCode = session.roomCode;
+  lastRoomIsHost = session.isHost;
+  startTimerLoop();
+
+  try {
+    if (session.isHost) {
+      await mesh.createRoom(session.roomCode);
+      await relay.connect(session.roomCode, userId, userName, mesh.peerId, true);
+    } else {
+      mesh.connectMeta = { userId, userName };
+      await mesh.joinRoom(session.roomCode);
+      await relay.connect(session.roomCode, userId, userName, mesh.peerId, false);
+      relay.send({
+        type: "join-request",
+        senderId: mesh.peerId,
+        payload: { id: userId, name: userName },
+      });
+    }
+  } catch (error) {
+    // Keep the local room visible even if signaling is temporarily offline.
+    // The next explicit join/host action can replace this checkpoint.
+    console.error("[engine] session restore connection failed:", error);
   }
 }
 
@@ -952,6 +1013,7 @@ async function handlePeerMessage(msg: PeerMessage) {
       // The host (or peer) closed the session.
       if (session) {
         session = null;
+        await clearSessionPersistence();
         documentEditors.clear();
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         await emitSnapshot();
@@ -1563,6 +1625,7 @@ async function dispatch(actionJson: string) {
     mesh.terminateSession();
     relay.disconnect();
     session = null;
+    await clearSessionPersistence();
     documentEditors.clear();
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     yjsProviders.forEach(p => p.destroy());
@@ -1773,6 +1836,7 @@ async function dispatch(actionJson: string) {
     mesh.terminateSession();
     relay.disconnect();
     session = null;
+    await clearSessionPersistence();
     documentEditors.clear();
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
     await emitSnapshot();
@@ -2147,6 +2211,7 @@ async function dispatch(actionJson: string) {
   if (type === "workspace.reset") {
     const preserveSettings = payload.preserveSettings === true;
     session = null;
+    await clearSessionPersistence();
     mesh.terminateSession();
     relay.disconnect();
     documentEditors.clear();
@@ -2235,6 +2300,7 @@ function normalizeGoogleDocUrl(value: unknown): string | null {
 async function bootstrap() {
   await loadConfig();
   setupMeshHandlers();
+  await restorePersistedSession();
   startTimerLoop();
   await emitSnapshot();
 
