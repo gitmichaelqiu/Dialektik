@@ -10,16 +10,10 @@
     "frontend:preview": "vite preview --config frontend/vite.config.ts",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "flutter:dev": "node scripts/flutter-dev.mjs",
-    "flutter:web": "cd flutter_ui && flutter run -d chrome",
-    "flutter:ios": "node scripts/flutter-dev.mjs -d ios",
-    "flutter:analyze": "cd flutter_ui && flutter analyze",
-    "build": "node scripts/flutter-build.mjs",
-    "flutter:build:web": "cd flutter_ui && flutter build web",
-    "flutter:build:ios": "cd flutter_ui && flutter build ios",
+    "build": "npm run tauri:build",
     "relay:start": "node server/relay-server.mjs",
-    "preview": "cd flutter_ui && flutter run -d chrome",
-    "engine:build": "vite build --config vite.config.engine.ts && node scripts/sync-engine-asset.mjs"
+    "preview": "npm run frontend:preview",
+    "engine:build": "vite build --config vite.config.engine.ts"
   },
   "dependencies": {
     "@carbon/icons-react": "^11.80.0",

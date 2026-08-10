@@ -1,12 +1,9 @@
 /**
  * engine-entry.ts
  *
- * Headless engine bundle for the Flutter WebView bridge.
- * Runs inside a hidden WebView (no DOM needed) and exposes:
+ * Shared engine bundle for the React frontend.
+ * Runs inside a browser or Tauri webview and exposes:
  *   window.dialektikEngine.dispatch(actionJson: string) → void
- *
- * State changes are pushed to Flutter via:
- *   window.FlutterChannel.postMessage(snapshotJson: string)
  *
  * The engine re-uses the exact same services as the Tauri backend:
  *   - PeerMeshManager  (webrtc.ts)   – real WebRTC P2P via PeerJS
@@ -153,20 +150,14 @@ try {
 // ─────────────────────────────────────────────
 // Snapshot emission
 // ─────────────────────────────────────────────
-// Reliable snapshot delivery: write to a global variable that Flutter's
-// polling reads via evaluateJavascript. The FlutterChannel.postMessage
-// push path (callHandler) is unreliable for event-driven state changes.
+// Cache the latest snapshot for the frontend's polling bridge. This remains
+// reliable while a browser or webview is initializing or resuming.
 let __latestSnapshot: string | null = null;
 let snapshotQueue = Promise.resolve();
 let snapshotRequested = false;
 
 function setSnapshot(json: string) {
   __latestSnapshot = json;
-  try {
-    (window as any).FlutterChannel?.postMessage(json);
-  } catch (_) {
-    // Polling via getLatestSnapshot remains the reliable fallback.
-  }
 }
 
 function postSnapshot() {
@@ -534,8 +525,8 @@ function startTimerLoop() {
     });
 
     // Emit on timer changes, and also emit a heartbeat every ~1 s to flush
-    // any pending state (e.g. pendingRequests) to Flutter even when the
-    // first emitSnapshot from an event handler was missed by the stream.
+    // any pending state (e.g. pendingRequests) when the first event snapshot
+    // was missed while the frontend was resuming.
     heartbeatTick += elapsed;
     if (changed || heartbeatTick >= 1000) {
       heartbeatTick = 0;
@@ -729,8 +720,8 @@ async function handlePeerMessage(msg: PeerMessage) {
 
     case "join-rejected": {
       if (!mesh.isHost && session) {
-        // Keep an explicit rejected state long enough for Flutter to show an
-        // in-app notification, even when the user is on another tab.
+        // Keep an explicit rejected state long enough for the frontend to show
+        // an in-app notification, even when the user is on another tab.
         mesh.terminateSession();
         relay.disconnect();
         session.status = "rejected";

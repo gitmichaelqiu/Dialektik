@@ -4,14 +4,14 @@ import { resolve } from "path";
 const relayUrl = process.env.DIALEKTIK_RELAY_URL || "ws://localhost:8787";
 
 /**
- * Vite build config for the headless JS engine bundle.
- * Output: flutter_ui/assets/engine.js (loaded by the WebView bridge).
+ * Vite build config for the shared JS engine bundle.
+ * Output: frontend/public/engine.js (loaded by the React frontend).
  *
  * Run: npm run engine:build
  */
 export default defineConfig({
   build: {
-    outDir: resolve(__dirname, "flutter_ui/assets"),
+    outDir: resolve(__dirname, "frontend/public"),
     emptyOutDir: false,
     lib: {
       entry: resolve(__dirname, "src/engine-entry.ts"),

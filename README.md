@@ -31,7 +31,7 @@ cd Dialektik && python3 -m http.server 8080
 # Open http://localhost:8080
 ```
 
-Flutter web requires a local server — opening `index.html` directly will show a blank page. For production, deploy the `Dialektik/` folder to any static host.
+The web frontend requires a local server — opening `index.html` directly will not load the engine bundle. For production, deploy the Vite `dist/` output to any static host.
 
 > **Note:** P2P WebRTC on web may be limited compared to native builds. For full functionality, use the macOS or iOS app.
 
@@ -72,15 +72,14 @@ DIALEKTIK_RELAY_URL=wss://relay.example.com npm run engine:build
 
 | Command | Purpose |
 |---|---|
-| `npm run engine:build` | Compile the shared TypeScript engine and sync its frontend asset |
+| `npm run engine:build` | Compile the shared TypeScript engine into the frontend asset directory |
 | `npm run dev` | Start the React/Vite development server |
 | `npm run frontend:build` | Type-check and build the web frontend into `dist/` |
 | `npm run frontend:preview` | Preview the production web build locally |
 | `npm run tauri:dev` | Run the desktop/mobile Tauri shell in development |
 | `npm run tauri:build` | Build signed or unsigned Tauri bundles for the current platform |
 | `npm run relay:start` | Run the local in-memory WebSocket relay |
-| `npm run flutter:analyze` | Analyze the v0.3 Flutter compatibility line |
-| `cd flutter_ui && flutter test` | Run the v0.3 Flutter compatibility tests |
+| `npm run build` | Build the Tauri application |
 
 ## Release builds
 
@@ -112,10 +111,9 @@ Before publishing a release:
 
 1. Update the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` together.
 2. Run `npm run engine:build`, `npm run frontend:build`, and `npm run tauri:build`.
-3. Run the frontend and Flutter compatibility tests.
-4. Verify desktop navigation, mobile drawer navigation, room hosting/joining, document actions, evidence cards, AI settings, and history actions.
-5. Generate the Sparkle delta from the previous macOS app and place it in `resources/sparkle/`.
-6. Update `appcast.xml` only after the final DMG and delta signatures and lengths have been verified.
+3. Verify desktop navigation, mobile drawer navigation, room hosting/joining, document actions, evidence cards, AI settings, and history actions.
+4. Generate the Sparkle delta from the previous macOS app and place it in `resources/sparkle/`.
+5. Update `appcast.xml` only after the final DMG and delta signatures and lengths have been verified.
 
 Do not commit `dist/`, `src-tauri/target/`, or generated `frontend/public/engine.js` files. The release source delta in `resources/sparkle/` is intentionally tracked.
 
@@ -151,9 +149,8 @@ The engine remains serverless and local-first. Network relay use is optional, an
 │   ├── src/engine.ts            # Snapshot/action bridge
 │   └── src/styles.scss          # Carbon tokens plus restrained product layout rules
 ├── src-tauri/                   # Tauri desktop and mobile shell
-├── flutter_ui/                  # Stable v0.3.0 Flutter compatibility line
 ├── resources/sparkle/           # Tracked Sparkle delta artifacts
-└── scripts/                     # Engine synchronization and legacy build helpers
+└── server/                      # Optional local WebSocket relay
 ```
 
 ## Local multi-peer testing
