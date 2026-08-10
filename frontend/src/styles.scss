@@ -117,19 +117,26 @@ button, input, textarea, select { font: inherit; }
 .helper-text, .muted-copy { color: #6f6f6f; font-size: .875rem; }
 .join-form { display: flex; align-items: flex-end; gap: .75rem; width: 100%; }
 .join-form .cds--text-input-wrapper { flex: 1; }
-.round-grid { grid-template-columns: minmax(0, 1fr) minmax(18rem, 20rem); align-items: start; }
+.round-grid { grid-template-columns: minmax(0, 1fr) minmax(22rem, 26rem); align-items: start; }
 .round-main, .round-aside { display: grid; gap: .75rem; min-width: 0; }
 .round-main { grid-template-columns: minmax(0, 1.25fr) minmax(17rem, .75fr); align-items: stretch; }
 .round-main > .cds--tile { min-width: 0; }
 .round-main > .timer-tile { grid-column: 1 / -1; }
 .round-main > .handout-tile { grid-column: 1; }
 .round-main > .speech-order-tile { grid-column: 2; grid-row: 2; }
+.round-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.round-aside > .round-members-tile,
+.round-aside > .speaker-notes-tile { grid-column: 1 / -1; }
+.round-aside > .cds--tile { min-width: 0; }
 .timer-tile { background: #161616; color: #f4f4f4; }
 .round-timer-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1.5rem; padding-block: .875rem; }
 .timer-tile p, .timer-tile .tile-kicker { color: #c6c6c6; }
 .timer-meta, .member-row, .speech-row, .tile-footer, .detail-header, .list-heading, .history-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .timer-value { margin: 0; font-size: clamp(3rem, 5vw, 4.5rem); line-height: .95; font-weight: 300; letter-spacing: -.08em; }
 .timer-controls { display: flex; gap: .75rem; }
+.timer-icon-button { display: grid; width: 3rem; height: 3rem; place-items: center; border: 0; background: #42be65; color: #161616; cursor: pointer; }
+.timer-icon-button:hover { background: #6fdc8c; }
+.timer-icon-button svg { fill: currentColor; }
 .timer-tile .cds--btn--primary { background: #42be65; color: #161616; }
 .small-timer { margin: .5rem 0 1rem; font-size: 2.5rem; font-weight: 300; }
 .speech-list { border-top: 1px solid #c6c6c6; }
