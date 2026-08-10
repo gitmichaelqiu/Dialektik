@@ -122,16 +122,22 @@ button, input, textarea, select { font: inherit; }
 .round-main { grid-template-columns: minmax(0, 1.25fr) minmax(16rem, .75fr); align-items: stretch; }
 .round-main > .cds--tile { min-width: 0; }
 .round-main > .timer-tile { grid-column: 1 / -1; }
-.round-main > .handout-tile { grid-column: 1; min-height: 31rem; }
-.round-main > .speech-order-tile { grid-column: 2; grid-row: 2; min-height: 31rem; max-height: none; }
+.round-main > .handout-tile { grid-column: 1; min-height: 13rem; }
+.round-main > .speech-order-tile { grid-column: 2; grid-row: 2; min-height: 13rem; max-height: 24rem; }
 .round-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .round-aside { position: sticky; top: .75rem; max-height: calc(100vh - 5.25rem); overflow-y: auto; align-content: start; padding-right: .25rem; overscroll-behavior: contain; }
 .round-aside > .round-members-tile,
 .round-aside > .speaker-notes-tile { grid-column: 1 / -1; }
 .round-aside > .cds--tile { min-width: 0; }
-.speech-order-tile { max-height: 31rem; overflow: auto; }
+.speech-order-tile { max-height: 24rem; overflow: auto; }
 .handout-tile { display: flex; flex-direction: column; }
-.handout-tile .muted-copy:last-child { margin-top: auto; }
+.handout-tile h2 { font-size: clamp(2rem, 3vw, 3rem); }
+.round-collapsible-tile { border: 1px solid #e0e0e0; background: #f4f4f4; padding: 1rem; }
+.round-collapsible-tile > summary { cursor: pointer; list-style: none; font-size: 1.25rem; font-weight: 400; }
+.round-collapsible-tile > summary::-webkit-details-marker { display: none; }
+.round-collapsible-tile > summary::after { content: "＋"; float: right; color: #198038; }
+.round-collapsible-tile[open] > summary::after { content: "−"; }
+.round-collapsible-content { margin-top: 1rem; }
 .timer-tile { background: #161616; color: #f4f4f4; }
 .round-timer-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 1.5rem; padding-block: .875rem; }
 .timer-tile p, .timer-tile .tile-kicker { color: #c6c6c6; }
@@ -305,7 +311,8 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .app-nav,
 .theme-dark .chat-list,
 .theme-dark .document-list,
-.theme-dark .cds--tile { background: #262626 !important; }
+.theme-dark .cds--tile,
+.theme-dark .round-collapsible-tile { background: #262626 !important; }
 .theme-dark .app-nav,
 .theme-dark .sidebar-brand,
 .theme-dark .app-pagebar,
