@@ -328,6 +328,8 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .chat-row.is-selected { background: #1f3b28; }
 .theme-dark .document-row.is-selected:hover { background: #244a30; }
 .theme-dark .app-nav .cds--side-nav__link[aria-current="page"] { background: #393939; color: #42be65; }
+.theme-dark .sidebar-settings.is-active { background: #393939; color: #42be65; }
+.theme-dark .sidebar-settings.is-active svg { fill: #42be65; }
 .theme-dark .sidebar-brand span,
 .theme-dark .app-pagebar h1,
 .theme-dark .document-item strong,
