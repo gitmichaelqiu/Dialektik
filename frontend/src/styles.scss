@@ -72,6 +72,11 @@ button, input, textarea, select { font: inherit; }
 .app-pagebar h1 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; font-weight: 600; }
 .pagebar-meta { display: flex; min-width: 0; align-items: center; gap: .75rem; }
 .pagebar-status { color: #6f6f6f; font-size: .875rem; }
+.pagebar-timers { display: flex; align-items: center; gap: .75rem; }
+.pagebar-timer { display: inline-flex; align-items: baseline; gap: .5rem; color: #161616; white-space: nowrap; }
+.pagebar-timer small { color: #6f6f6f; font-size: .75rem; }
+.pagebar-timer strong { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pagebar-timer-secondary { padding-left: .75rem; border-left: 1px solid #c6c6c6; }
 .page-content { width: 100%; max-width: none; min-height: 0; flex: 1; margin: 0; overflow: auto; overscroll-behavior: contain; padding: .75rem 1.25rem 1rem; }
 .document-page-content { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
 .page-header { display: flex; min-height: 3rem; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
@@ -208,7 +213,7 @@ button, input, textarea, select { font: inherit; }
 .google-frame-shell { position: relative; min-height: 0; height: auto; flex: 1 1 0; border: 1px solid #e0e0e0; background: #f4f4f4; }
 .frame-toolbar { display: flex; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .75rem; border-bottom: 1px solid #e0e0e0; color: #525252; font-size: .75rem; }
 .frame-error-detail { margin: 1rem; padding: .75rem; border-left: 3px solid #da1e28; background: #fff1f1; color: #525252; font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-.google-doc-frame { display: block; width: 100%; height: calc(100% - 2.5rem); border: 0; background: #ffffff; }
+.google-doc-frame { display: block; width: 100%; height: 100%; border: 0; background: #ffffff; }
 .document-detail-standalone > .offline-editor { flex: 1 1 auto; }
 .offline-editor .cds--text-area__wrapper { display: flex; min-height: 0; flex: 1 1 auto; }
 .offline-editor .cds--text-area { min-height: 0; flex: 1 1 auto; resize: none; }
@@ -452,6 +457,9 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .cds--modal-close:hover { background: #393939; }
 .theme-dark .cds--tag--gray { background: #525252; color: #f4f4f4; }
 .theme-dark .cds--inline-notification { background: #262626; color: #f4f4f4; }
+.theme-dark .pagebar-timer { color: #f4f4f4; }
+.theme-dark .pagebar-timer small { color: #c6c6c6; }
+.theme-dark .pagebar-timer-secondary { border-color: #525252; }
 
 @media (max-width: 480px) {
   .round-aside { grid-template-columns: 1fr; }
