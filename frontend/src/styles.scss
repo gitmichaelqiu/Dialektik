@@ -132,6 +132,7 @@ button, input, textarea, select { font: inherit; }
 .speech-order-tile { max-height: 24rem; overflow: auto; }
 .handout-tile { display: flex; flex-direction: column; }
 .handout-tile h2 { font-size: clamp(2rem, 3vw, 3rem); }
+.round-resolution { margin: 1rem 0 0; font-size: 1.25rem; line-height: 1.4; }
 .round-collapsible-tile { border: 1px solid #e0e0e0; background: #f4f4f4; padding: 1rem; }
 .round-collapsible-tile > summary { cursor: pointer; list-style: none; font-size: 1.25rem; font-weight: 400; }
 .round-collapsible-tile > summary::-webkit-details-marker { display: none; }
