@@ -461,6 +461,103 @@ button, input, textarea, select { font: inherit; }
 .theme-dark .pagebar-timer small { color: #c6c6c6; }
 .theme-dark .pagebar-timer-secondary { border-color: #525252; }
 
+// Keep Carbon's semantic tokens aligned with the application surfaces. The
+// explicit values are necessary because several controls are intentionally
+// styled locally rather than inheriting the g100 theme layer.
+.theme-dark {
+  --cds-background: #161616;
+  --cds-layer: #262626;
+  --cds-layer-01: #262626;
+  --cds-layer-02: #393939;
+  --cds-layer-03: #525252;
+  --cds-layer-hover: #393939;
+  --cds-layer-active: #525252;
+  --cds-layer-selected: #1f3b28;
+  --cds-layer-selected-hover: #244a30;
+  --cds-field: #262626;
+  --cds-field-01: #262626;
+  --cds-field-02: #393939;
+  --cds-field-hover: #393939;
+  --cds-text-primary: #f4f4f4;
+  --cds-text-secondary: #c6c6c6;
+  --cds-text-placeholder: #8d8d8d;
+  --cds-text-disabled: #8d8d8d;
+  --cds-icon-primary: #f4f4f4;
+  --cds-icon-secondary: #c6c6c6;
+  --cds-icon-disabled: #8d8d8d;
+  --cds-border-subtle: #525252;
+  --cds-border-strong: #8d8d8d;
+  --cds-border-disabled: #525252;
+  --cds-button-primary: #42be65;
+  --cds-button-primary-hover: #6fdc8c;
+  --cds-button-primary-active: #198038;
+  --cds-button-secondary: #525252;
+  --cds-button-secondary-hover: #6f6f6f;
+  --cds-button-tertiary: #42be65;
+  --cds-button-tertiary-hover: #6fdc8c;
+  --cds-button-disabled: #393939;
+}
+
+.theme-dark .cds--tile h2,
+.theme-dark .cds--tile h3,
+.theme-dark .cds--tile p,
+.theme-dark .empty-state,
+.theme-dark .empty-state h2,
+.theme-dark .empty-state p,
+.theme-dark .lobby-grid h2,
+.theme-dark .chat-section-title { color: #f4f4f4; }
+.theme-dark .cds--tile p,
+.theme-dark .empty-state p,
+.theme-dark .helper-text,
+.theme-dark .muted-copy { color: #c6c6c6; }
+.theme-dark .eyebrow,
+.theme-dark .tile-kicker,
+.theme-dark .message-role,
+.theme-dark .speech-row.is-current { color: #6fdc8c; }
+.theme-dark .timer-tile { background: #161616 !important; color: #f4f4f4; }
+.theme-dark .timer-tile p,
+.theme-dark .timer-tile .tile-kicker { color: #c6c6c6; }
+
+.theme-dark .cds--label,
+.theme-dark .cds--form__helper-text,
+.theme-dark .cds--toggle__label,
+.theme-dark .cds--toggle__text,
+.theme-dark .cds--checkbox-label-text,
+.theme-dark .cds--radio-button__label,
+.theme-dark .cds--modal-header__heading,
+.theme-dark .cds--modal-content,
+.theme-dark .cds--notification__title,
+.theme-dark .cds--notification__subtitle { color: #c6c6c6; }
+.theme-dark .cds--text-input,
+.theme-dark .cds--text-area__field,
+.theme-dark .cds--select-input { color: #f4f4f4 !important; caret-color: #6fdc8c; }
+.theme-dark .cds--text-input::placeholder,
+.theme-dark .cds--text-area__field::placeholder { color: #8d8d8d !important; opacity: 1; }
+.theme-dark .cds--label--disabled,
+.theme-dark .cds--form__helper-text--disabled,
+.theme-dark .cds--toggle__label.cds--toggle__label--disabled { color: #8d8d8d !important; }
+
+.theme-dark .cds--btn--primary { background: #42be65; color: #161616; }
+.theme-dark .cds--btn--primary:hover { background: #6fdc8c; color: #161616; }
+.theme-dark .cds--btn--primary svg,
+.theme-dark .cds--btn--secondary svg,
+.theme-dark .cds--btn--tertiary svg,
+.theme-dark .cds--btn--ghost svg { fill: currentColor; }
+.theme-dark .cds--btn--danger--tertiary,
+.theme-dark .cds--btn--danger--ghost { color: #ff8389; }
+.theme-dark .cds--btn:disabled,
+.theme-dark .cds--btn.cds--btn--disabled { background: #393939 !important; color: #8d8d8d !important; }
+
+.theme-dark .cds--modal-close,
+.theme-dark .cds--notification-close-button { color: #f4f4f4; }
+.theme-dark .cds--modal-close svg,
+.theme-dark .cds--notification-close-button svg { fill: currentColor; }
+.theme-dark .cds--inline-notification__text-wrapper,
+.theme-dark .cds--inline-notification__title,
+.theme-dark .cds--inline-notification__subtitle { color: #f4f4f4; }
+.theme-dark .cds--tag--green { background: #198038; color: #ffffff; }
+.theme-dark .cds--tag--gray { background: #525252; color: #f4f4f4; }
+
 @media (max-width: 480px) {
   .round-aside { grid-template-columns: 1fr; }
   .join-form { align-items: stretch; flex-direction: column; }
